@@ -6,6 +6,7 @@ signal race_started
 signal race_info_changed(lap: int, total_laps: int, position: int, total_racers: int, time: float)
 signal racer_finished(racer: Node, position: int, time: float)
 signal player_finished(position: int, time: float)
+signal shortcut_accepted(kart: Node)
 
 enum RaceState {
 	PRE_RACE,
@@ -82,6 +83,25 @@ func get_completed_checkpoint_count(kart: Node) -> int:
 	var next_index := int(data.get("next_checkpoint", 1))
 	var completed_in_lap := (next_index - 1 + route_points.size()) % route_points.size()
 	return int(data.get("lap", 0)) * route_points.size() + completed_in_lap
+
+
+func complete_shortcut(kart: Node, entry_index: int, exit_index: int) -> bool:
+	if not _race_data.has(kart.get_instance_id()):
+		return false
+	if entry_index < 0 or exit_index >= route_points.size() or entry_index >= exit_index:
+		return false
+	var data: Dictionary = _race_data[kart.get_instance_id()]
+	if data.finished:
+		return false
+	var next_index: int = data.next_checkpoint
+	var first_valid_index := maxi(entry_index - 2, 0)
+	if next_index < first_valid_index or next_index > exit_index:
+		return false
+	data.next_checkpoint = (exit_index + 1) % route_points.size()
+	_race_data[kart.get_instance_id()] = data
+	kart.set_respawn_transform(_create_respawn_transform(kart, exit_index))
+	shortcut_accepted.emit(kart)
+	return true
 
 
 func get_race_position(kart: Node) -> int:

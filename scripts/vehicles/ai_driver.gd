@@ -84,7 +84,7 @@ func _update_progress_recovery(
 	_checkpoint_stall_time += delta
 	if _checkpoint_stall_time < 5.0:
 		return false
-	kart.reset_to_last_checkpoint()
+	kart.reset_to_last_checkpoint("navigation")
 	_best_checkpoint_distance = INF
 	_checkpoint_stall_time = 0.0
 	return true
