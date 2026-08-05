@@ -48,6 +48,15 @@ func get_spawn_transform(slot: int) -> Transform3D:
 	return transform.looking_at(spawn_position + forward, Vector3.UP)
 
 
+func get_route_length() -> float:
+	var total_length := 0.0
+	for route_index in route_points.size():
+		total_length += route_points[route_index].distance_to(
+			route_points[(route_index + 1) % route_points.size()]
+		)
+	return total_length
+
+
 func _prepare_materials() -> void:
 	_road_material = _material(Color("#33474a"), 0.9)
 	_edge_material = _material(Color("#f6d66f"), 0.72)
@@ -474,6 +483,7 @@ func _create_shortcut_gate(
 	is_entry: bool
 ) -> void:
 	var gate := Area3D.new()
+	gate.name = "Shortcut%d%sGate" % [shortcut_id, "Entry" if is_entry else "Exit"]
 	gate.collision_layer = 0
 	gate.collision_mask = 2
 	gate.monitoring = true
