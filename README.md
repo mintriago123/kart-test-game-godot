@@ -25,6 +25,12 @@ pista costera low-poly, tres rivales, derrape con miniturbo y dos objetos.
    godot --headless --path . --script tests/headless_smoke.gd
    ```
 
+La prueba prolongada de estabilidad de pista e IA se ejecuta con:
+
+```sh
+godot --headless --path . --script tests/race_stability.gd
+```
+
 Para abrir directamente la carrera durante una captura o perfilado:
 
 ```sh
