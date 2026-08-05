@@ -1,0 +1,39 @@
+# Godot generated data
+.godot/
+.import/
+
+# Android generated project and export artifacts
+/android/
+/build/
+*.apk
+*.aab
+*.idsig
+.gradle/
+
+# Signing credentials and local configuration
+*.jks
+*.keystore
+export_credentials.cfg
+.env
+.env.*
+!.env.example
+
+# Editor and agent workspace state
+.idea/
+.vscode/
+.agents/
+.codex/
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs and crash reports
+*.log
+crash_handler_*.log
+core
+core.*
