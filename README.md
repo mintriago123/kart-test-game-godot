@@ -1,7 +1,8 @@
 # Coastal Karts
 
 Prototipo original de carreras arcade para Android creado con Godot 4.7. Incluye una
-pista costera low-poly, tres rivales, derrape con miniturbo y dos objetos.
+pista costera low-poly de más de 400 metros, dos atajos, barreras continuas,
+tres rivales, derrape con miniturbo y dos objetos.
 
 ## Controles
 
