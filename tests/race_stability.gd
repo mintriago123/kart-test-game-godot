@@ -24,11 +24,23 @@ func _run() -> void:
 	main.start_game()
 	await process_frame
 	var manager: RaceManager = main.race_world.race_manager
+	for racer_index in range(1, manager.racers.size()):
+		var observed_racer: Kart = manager.racers[racer_index]
+		observed_racer.recovered.connect(_log_recovery.bind(observed_racer, manager))
 	await create_timer(SIMULATION_SECONDS).timeout
 
 	for racer_index in range(1, manager.racers.size()):
 		var racer: Kart = manager.racers[racer_index]
 		var completed_checkpoints := manager.get_completed_checkpoint_count(racer)
+		print(
+			"INFO: %s progress=%d/%d recoveries=%d speed=%.1f" % [
+				racer.racer_name,
+				completed_checkpoints,
+				manager.route_points.size(),
+				racer.recovery_count,
+				Vector2(racer.velocity.x, racer.velocity.z).length(),
+			]
+		)
 		_check(
 			completed_checkpoints >= manager.route_points.size(),
 			"%s completes at least one lap without getting stuck." % racer.racer_name
@@ -54,6 +66,17 @@ func _check(condition: bool, message: String) -> void:
 	else:
 		_has_failed = true
 		push_error("FAIL: " + message)
+
+
+func _log_recovery(racer: Kart, manager: RaceManager) -> void:
+	print(
+		"RECOVERY: %s checkpoint=%d from=%s reason=%s" % [
+			racer.racer_name,
+			manager.get_next_checkpoint_index(racer),
+			racer.last_recovery_position,
+			racer.last_recovery_reason,
+		]
+	)
 
 
 func _finish(exit_code: int) -> void:
