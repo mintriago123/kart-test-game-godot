@@ -14,7 +14,9 @@ enum RaceState {
 	FINISHED,
 }
 
-const CHECKPOINT_RADIUS := 7.0
+const CHECKPOINT_RADIUS := 9.0
+const CHECKPOINT_CORRIDOR_WIDTH := 12.0
+const MAX_CHECKPOINTS_PER_FRAME := 5
 
 @export var total_laps := 3
 
@@ -73,6 +75,15 @@ func get_next_checkpoint_index(kart: Node) -> int:
 	return int(data.get("next_checkpoint", 0))
 
 
+func get_completed_checkpoint_count(kart: Node) -> int:
+	var data: Dictionary = _race_data.get(kart.get_instance_id(), {})
+	if data.is_empty():
+		return 0
+	var next_index := int(data.get("next_checkpoint", 1))
+	var completed_in_lap := (next_index - 1 + route_points.size()) % route_points.size()
+	return int(data.get("lap", 0)) * route_points.size() + completed_in_lap
+
+
 func get_race_position(kart: Node) -> int:
 	var ordered := racers.duplicate()
 	ordered.sort_custom(_is_racer_ahead)
@@ -106,19 +117,21 @@ func _update_racers() -> void:
 		var data: Dictionary = _race_data[kart.get_instance_id()]
 		if data.finished:
 			continue
-		var next_index: int = data.next_checkpoint
-		var checkpoint := route_points[next_index]
-		if kart.global_position.distance_to(checkpoint) > CHECKPOINT_RADIUS:
-			continue
-		kart.mark_checkpoint_transform()
-		next_index = (next_index + 1) % route_points.size()
-		if next_index == 1:
-			data.lap += 1
-			if data.lap >= total_laps:
-				_finish_racer(kart, data)
-				continue
-		data.next_checkpoint = next_index
-		_race_data[kart.get_instance_id()] = data
+		var checkpoints_advanced := 0
+		while checkpoints_advanced < MAX_CHECKPOINTS_PER_FRAME:
+			var next_index: int = data.next_checkpoint
+			if not _has_reached_checkpoint(kart.global_position, next_index):
+				break
+			kart.set_respawn_transform(_create_respawn_transform(kart, next_index))
+			next_index = (next_index + 1) % route_points.size()
+			if next_index == 1:
+				data.lap += 1
+				if data.lap >= total_laps:
+					_finish_racer(kart, data)
+					break
+			data.next_checkpoint = next_index
+			_race_data[kart.get_instance_id()] = data
+			checkpoints_advanced += 1
 
 
 func _finish_racer(kart: Node, data: Dictionary) -> void:
@@ -154,6 +167,40 @@ func _emit_countdown(text: String) -> void:
 		return
 	_last_countdown_text = text
 	countdown_changed.emit(text)
+
+
+func _has_reached_checkpoint(kart_position: Vector3, checkpoint_index: int) -> bool:
+	var checkpoint := route_points[checkpoint_index]
+	if kart_position.distance_to(checkpoint) <= CHECKPOINT_RADIUS:
+		return true
+	var previous_index := (checkpoint_index - 1 + route_points.size()) % route_points.size()
+	var segment := checkpoint - route_points[previous_index]
+	var segment_length := segment.length()
+	if segment_length <= 0.01:
+		return true
+	var direction := segment / segment_length
+	var distance_along := (kart_position - route_points[previous_index]).dot(direction)
+	if distance_along < segment_length:
+		return false
+	var closest_point := route_points[previous_index] + direction * distance_along
+	return kart_position.distance_to(closest_point) <= CHECKPOINT_CORRIDOR_WIDTH
+
+
+func _create_respawn_transform(kart: Node, checkpoint_index: int) -> Transform3D:
+	var next_index := (checkpoint_index + 1) % route_points.size()
+	var forward := (route_points[next_index] - route_points[checkpoint_index]).normalized()
+	var right := Vector3.UP.cross(forward).normalized()
+	var racer_index := racers.find(kart)
+	var lane_offset := (float(racer_index) - (racers.size() - 1) * 0.5) * 1.1
+	var respawn_position := (
+		route_points[checkpoint_index]
+		+ right * lane_offset
+		+ Vector3.UP * 0.85
+	)
+	return Transform3D(Basis.IDENTITY, respawn_position).looking_at(
+		respawn_position + forward,
+		Vector3.UP
+	)
 
 
 func _is_racer_ahead(a: Node, b: Node) -> bool:

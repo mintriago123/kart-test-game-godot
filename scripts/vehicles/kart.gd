@@ -4,9 +4,9 @@ extends CharacterBody3D
 signal item_changed(display_name: String)
 signal boost_changed(charge_ratio: float)
 signal hit_received
+signal recovered
 
 const GRAVITY := 28.0
-const BOOST_DURATION := 1.25
 const DRIFT_LEVEL_TIMES := [0.65, 1.25, 1.9]
 
 @export var racer_name := "Piloto"
@@ -17,6 +17,7 @@ var stats := KartStats.new()
 var is_control_enabled := false
 var held_item: ItemDefinition
 var race_manager: RaceManager
+var recovery_count := 0
 
 var _throttle_input := 0.0
 var _brake_input := 0.0
@@ -29,15 +30,19 @@ var _stun_remaining := 0.0
 var _invulnerable_remaining := 0.0
 var _last_valid_transform := Transform3D.IDENTITY
 var _stuck_time := 0.0
+var _movement_sample_time := 0.0
+var _movement_sample_distance := 0.0
+var _last_motion_position := Vector3.ZERO
 var _visual_root: Node3D
 
 
 func _ready() -> void:
 	collision_layer = 2
-	collision_mask = 1 | 2
-	floor_snap_length = 0.9
+	collision_mask = 1
+	floor_snap_length = 1.1
 	floor_max_angle = deg_to_rad(52.0)
 	_last_valid_transform = global_transform
+	_last_motion_position = global_position
 	_build_collision()
 	_build_visual()
 
@@ -145,19 +150,19 @@ func receive_hit(duration: float) -> void:
 	hit_received.emit()
 
 
-func mark_checkpoint_transform() -> void:
-	if is_on_floor() and global_position.y > -1.0:
-		_last_valid_transform = global_transform
-
-
 func set_respawn_transform(respawn_transform: Transform3D) -> void:
 	_last_valid_transform = respawn_transform
 
 
 func reset_to_last_checkpoint() -> void:
-	global_transform = _last_valid_transform.translated_local(Vector3.UP * 0.7)
+	global_transform = _last_valid_transform
 	velocity = Vector3.ZERO
 	_stuck_time = 0.0
+	_movement_sample_time = 0.0
+	_movement_sample_distance = 0.0
+	_last_motion_position = global_position
+	recovery_count += 1
+	recovered.emit()
 
 
 func get_speed_kph() -> int:
@@ -211,16 +216,31 @@ func _update_timers(delta: float) -> void:
 
 
 func _check_recovery(delta: float) -> void:
-	if global_position.y < -5.0:
+	if global_position.y < -2.5:
 		reset_to_last_checkpoint()
 		return
-	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
-	if is_control_enabled and _throttle_input > 0.5 and horizontal_speed < 0.75:
-		_stuck_time += delta
-		if _stuck_time > 4.0:
-			reset_to_last_checkpoint()
-	else:
+	var horizontal_motion := Vector2(
+		global_position.x - _last_motion_position.x,
+		global_position.z - _last_motion_position.z
+	).length()
+	_last_motion_position = global_position
+	if not is_control_enabled or _throttle_input <= 0.5:
 		_stuck_time = 0.0
+		_movement_sample_time = 0.0
+		_movement_sample_distance = 0.0
+		return
+	_movement_sample_time += delta
+	_movement_sample_distance += horizontal_motion
+	if _movement_sample_time < 1.25:
+		return
+	if _movement_sample_distance < 1.2:
+		_stuck_time += _movement_sample_time
+	else:
+		_stuck_time = maxf(_stuck_time - _movement_sample_time * 1.5, 0.0)
+	_movement_sample_time = 0.0
+	_movement_sample_distance = 0.0
+	if _stuck_time >= 3.0:
+		reset_to_last_checkpoint()
 
 
 func _animate_visual(delta: float, steer: float, drifting: bool) -> void:

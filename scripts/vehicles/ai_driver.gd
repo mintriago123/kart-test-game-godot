@@ -7,6 +7,9 @@ extends Node
 var kart: Kart
 var race_manager: RaceManager
 var _item_cooldown := 2.0
+var _last_checkpoint_index := -1
+var _best_checkpoint_distance := INF
+var _checkpoint_stall_time := 0.0
 
 
 func setup(controlled_kart: Kart, manager: RaceManager, offset: float) -> void:
@@ -20,13 +23,18 @@ func _physics_process(delta: float) -> void:
 		return
 	_item_cooldown = maxf(_item_cooldown - delta, 0.0)
 	var next_index := race_manager.get_next_checkpoint_index(kart)
-	var lookahead_index := (next_index + 2) % race_manager.route_points.size()
+	var next_checkpoint := race_manager.route_points[next_index]
+	var checkpoint_distance := kart.global_position.distance_to(next_checkpoint)
+	if _update_progress_recovery(delta, next_index, checkpoint_distance):
+		return
+	var lookahead_steps := 1 if checkpoint_distance > 11.0 else 3
+	var lookahead_index := (next_index + lookahead_steps) % race_manager.route_points.size()
 	var target := race_manager.route_points[lookahead_index]
 	var segment_direction := (
 		race_manager.route_points[(lookahead_index + 1) % race_manager.route_points.size()]
 		- race_manager.route_points[lookahead_index]
 	).normalized()
-	var right := segment_direction.cross(Vector3.UP).normalized()
+	var right := Vector3.UP.cross(segment_direction).normalized()
 	target += right * lane_offset
 
 	var forward := -kart.global_transform.basis.z.normalized()
@@ -36,14 +44,50 @@ func _physics_process(delta: float) -> void:
 	var speed := Vector2(kart.velocity.x, kart.velocity.z).length()
 	var brake := 0.0
 	var throttle := 1.0
-	if alignment < 0.55 and speed > 16.0 + caution * 4.0:
+	if alignment < -0.1:
+		throttle = 0.0
+		brake = 1.0 if speed > 2.0 else 0.7
+		if speed <= 2.0:
+			steer = -steer
+	elif alignment < 0.65 and speed > 15.0 + caution * 4.0:
 		brake = 0.55
 		throttle = 0.25
-	var should_drift := absf(steer) > 0.48 and speed > 10.0
+	elif alignment < 0.82:
+		throttle = 0.72
+	var should_drift := (
+		absf(steer) > 0.48
+		and speed > 10.0
+		and checkpoint_distance < 20.0
+	)
 	var should_use_item := _should_use_item(forward)
 	if should_use_item:
 		_item_cooldown = randf_range(2.5, 4.5)
 	kart.set_drive_input(throttle, brake, steer, should_drift, should_use_item)
+
+
+func _update_progress_recovery(
+	delta: float,
+	checkpoint_index: int,
+	checkpoint_distance: float
+) -> bool:
+	if checkpoint_index != _last_checkpoint_index:
+		_last_checkpoint_index = checkpoint_index
+		_best_checkpoint_distance = checkpoint_distance
+		_checkpoint_stall_time = 0.0
+		return false
+	if checkpoint_distance < _best_checkpoint_distance - 0.75:
+		_best_checkpoint_distance = checkpoint_distance
+		_checkpoint_stall_time = 0.0
+		return false
+	if not kart.is_control_enabled:
+		return false
+	_checkpoint_stall_time += delta
+	if _checkpoint_stall_time < 5.0:
+		return false
+	kart.reset_to_last_checkpoint()
+	_best_checkpoint_distance = INF
+	_checkpoint_stall_time = 0.0
+	return true
 
 
 func _should_use_item(forward: Vector3) -> bool:

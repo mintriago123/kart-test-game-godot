@@ -1,8 +1,9 @@
 class_name CoastalTrack
 extends Node3D
 
-const ROAD_WIDTH := 13.5
-const SUBDIVISIONS := 4
+const ROAD_WIDTH := 16.0
+const ROUTE_SUBDIVISIONS := 8
+const CURB_WIDTH := 0.7
 
 var route_points: Array[Vector3] = []
 var item_spawn_points: Array[Vector3] = []
@@ -54,10 +55,15 @@ func _build_route() -> void:
 		Vector3(-24.0, 0.25, 31.0),
 	]
 	for index in controls.size():
-		var start := controls[index]
-		var end := controls[(index + 1) % controls.size()]
-		for step in SUBDIVISIONS:
-			route_points.append(start.lerp(end, float(step) / SUBDIVISIONS))
+		var previous := controls[(index - 1 + controls.size()) % controls.size()]
+		var current := controls[index]
+		var next := controls[(index + 1) % controls.size()]
+		var following := controls[(index + 2) % controls.size()]
+		for step in ROUTE_SUBDIVISIONS:
+			var weight := float(step) / ROUTE_SUBDIVISIONS
+			var route_point := _catmull_rom(previous, current, next, following, weight)
+			route_point.y = maxf(route_point.y, 0.25)
+			route_points.append(route_point)
 
 
 func _build_environment() -> void:
@@ -75,62 +81,127 @@ func _build_environment() -> void:
 		[Vector3(0.0, -0.45, 0.0), Vector3(110.0, 0.5, 92.0)],
 		[Vector3(-44.0, 0.0, -8.0), Vector3(23.0, 1.5, 33.0)],
 	]:
-		var island := MeshInstance3D.new()
-		var island_mesh := BoxMesh.new()
-		island_mesh.size = island_data[1]
-		island.mesh = island_mesh
-		island.position = island_data[0]
-		island.material_override = _sand_material
-		add_child(island)
+		_create_island(island_data[0], island_data[1])
 
 
 func _build_road() -> void:
-	for index in route_points.size():
-		var start := route_points[index]
-		var end := route_points[(index + 1) % route_points.size()]
-		_create_road_segment(start, end, index % 2 == 0)
-
-
-func _create_road_segment(start: Vector3, end: Vector3, add_marker: bool) -> void:
-	var length := start.distance_to(end) + 1.3
-	var midpoint := start.lerp(end, 0.5)
-	var segment := StaticBody3D.new()
-	segment.collision_layer = 1
-	segment.collision_mask = 2
-	add_child(segment)
-	segment.position = midpoint
-	segment.look_at(end, Vector3.UP)
-
+	var road_mesh := _create_ribbon_mesh(-ROAD_WIDTH * 0.5, ROAD_WIDTH * 0.5, 0.0)
 	var road := MeshInstance3D.new()
-	var road_mesh := BoxMesh.new()
-	road_mesh.size = Vector3(ROAD_WIDTH, 0.42, length)
+	road.name = "ContinuousRoad"
 	road.mesh = road_mesh
 	road.material_override = _road_material
-	segment.add_child(road)
+	add_child(road)
 
+	var road_body := StaticBody3D.new()
+	road_body.name = "RoadCollision"
+	road_body.collision_layer = 1
+	road_body.collision_mask = 2
+	add_child(road_body)
+	var road_collision := CollisionShape3D.new()
+	var road_shape := road_mesh.create_trimesh_shape()
+	if road_shape is ConcavePolygonShape3D:
+		(road_shape as ConcavePolygonShape3D).backface_collision = true
+	road_collision.shape = road_shape
+	road_body.add_child(road_collision)
+
+	_create_curb(-ROAD_WIDTH * 0.5, -ROAD_WIDTH * 0.5 + CURB_WIDTH)
+	_create_curb(ROAD_WIDTH * 0.5 - CURB_WIDTH, ROAD_WIDTH * 0.5)
+	for route_index in range(0, route_points.size(), 6):
+		_create_road_marker(route_index)
+
+
+func _create_ribbon_mesh(offset_a: float, offset_b: float, height_offset: float) -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var cumulative_distance := 0.0
+	for route_index in route_points.size():
+		var next_index := (route_index + 1) % route_points.size()
+		var current_left := _offset_route_point(route_index, offset_a, height_offset)
+		var current_right := _offset_route_point(route_index, offset_b, height_offset)
+		var next_left := _offset_route_point(next_index, offset_a, height_offset)
+		var next_right := _offset_route_point(next_index, offset_b, height_offset)
+		var next_distance := cumulative_distance + route_points[route_index].distance_to(route_points[next_index])
+		_add_surface_vertex(surface, current_left, Vector2(0.0, cumulative_distance * 0.08))
+		_add_surface_vertex(surface, next_right, Vector2(1.0, next_distance * 0.08))
+		_add_surface_vertex(surface, current_right, Vector2(1.0, cumulative_distance * 0.08))
+		_add_surface_vertex(surface, current_left, Vector2(0.0, cumulative_distance * 0.08))
+		_add_surface_vertex(surface, next_left, Vector2(0.0, next_distance * 0.08))
+		_add_surface_vertex(surface, next_right, Vector2(1.0, next_distance * 0.08))
+		cumulative_distance = next_distance
+	surface.generate_normals()
+	return surface.commit()
+
+
+func _offset_route_point(route_index: int, lateral_offset: float, height_offset: float) -> Vector3:
+	var previous := route_points[(route_index - 1 + route_points.size()) % route_points.size()]
+	var next := route_points[(route_index + 1) % route_points.size()]
+	var tangent := next - previous
+	tangent.y = 0.0
+	tangent = tangent.normalized()
+	var right := Vector3.UP.cross(tangent).normalized()
+	return route_points[route_index] + right * lateral_offset + Vector3.UP * height_offset
+
+
+func _add_surface_vertex(surface: SurfaceTool, vertex: Vector3, uv: Vector2) -> void:
+	surface.set_uv(uv)
+	surface.add_vertex(vertex)
+
+
+func _create_curb(inner_offset: float, outer_offset: float) -> void:
+	var curb := MeshInstance3D.new()
+	curb.mesh = _create_ribbon_mesh(inner_offset, outer_offset, 0.055)
+	curb.material_override = _edge_material
+	add_child(curb)
+
+
+func _create_road_marker(route_index: int) -> void:
+	var next_index := (route_index + 1) % route_points.size()
+	var start := route_points[route_index]
+	var end := route_points[next_index]
+	var marker := MeshInstance3D.new()
+	var marker_mesh := BoxMesh.new()
+	marker_mesh.size = Vector3(0.22, 0.045, minf(start.distance_to(end) * 0.72, 2.2))
+	marker.mesh = marker_mesh
+	marker.material_override = _material(Color("#f7f2d0"), 0.9)
+	add_child(marker)
+	marker.position = start.lerp(end, 0.5) + Vector3.UP * 0.055
+	marker.look_at(end, Vector3.UP)
+
+
+func _create_island(island_position: Vector3, island_size: Vector3) -> void:
+	var island_body := StaticBody3D.new()
+	island_body.collision_layer = 1
+	island_body.collision_mask = 2
+	island_body.position = island_position
+	add_child(island_body)
+	var island := MeshInstance3D.new()
+	var island_mesh := BoxMesh.new()
+	island_mesh.size = island_size
+	island.mesh = island_mesh
+	island.material_override = _sand_material
+	island_body.add_child(island)
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = road_mesh.size
+	shape.size = island_size
 	collision.shape = shape
-	segment.add_child(collision)
+	island_body.add_child(collision)
 
-	for side in [-1.0, 1.0]:
-		var edge := MeshInstance3D.new()
-		var edge_mesh := BoxMesh.new()
-		edge_mesh.size = Vector3(0.55, 0.18, length)
-		edge.mesh = edge_mesh
-		edge.position = Vector3(side * (ROAD_WIDTH * 0.5 - 0.3), 0.28, 0.0)
-		edge.material_override = _edge_material
-		segment.add_child(edge)
 
-	if add_marker:
-		var marker := MeshInstance3D.new()
-		var marker_mesh := BoxMesh.new()
-		marker_mesh.size = Vector3(0.22, 0.06, minf(length * 0.42, 2.1))
-		marker.mesh = marker_mesh
-		marker.position.y = 0.24
-		marker.material_override = _material(Color("#f7f2d0"), 0.9)
-		segment.add_child(marker)
+func _catmull_rom(
+	previous: Vector3,
+	current: Vector3,
+	next: Vector3,
+	following: Vector3,
+	weight: float
+) -> Vector3:
+	var squared_weight := weight * weight
+	var cubed_weight := squared_weight * weight
+	return 0.5 * (
+		2.0 * current
+		+ (-previous + next) * weight
+		+ (2.0 * previous - 5.0 * current + 4.0 * next - following) * squared_weight
+		+ (-previous + 3.0 * current - 3.0 * next + following) * cubed_weight
+	)
 
 
 func _build_start_arch() -> void:
@@ -217,7 +288,7 @@ func _create_palm(palm_position: Vector3) -> void:
 
 
 func _define_item_spawns() -> void:
-	for route_index in [8, 18, 29, 39]:
+	for route_index in [16, 36, 58, 78]:
 		item_spawn_points.append(route_points[route_index] + Vector3.UP * 1.2)
 
 
@@ -225,4 +296,5 @@ func _material(color: Color, roughness: float) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
