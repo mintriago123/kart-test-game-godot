@@ -18,6 +18,8 @@ var is_control_enabled := false
 var held_item: ItemDefinition
 var race_manager: RaceManager
 var recovery_count := 0
+var last_recovery_position := Vector3.ZERO
+var last_recovery_reason := ""
 
 var _throttle_input := 0.0
 var _brake_input := 0.0
@@ -38,7 +40,7 @@ var _visual_root: Node3D
 
 func _ready() -> void:
 	collision_layer = 2
-	collision_mask = 1
+	collision_mask = 1 | 8 if is_player else 1
 	floor_snap_length = 1.1
 	floor_max_angle = deg_to_rad(52.0)
 	_last_valid_transform = global_transform
@@ -154,7 +156,9 @@ func set_respawn_transform(respawn_transform: Transform3D) -> void:
 	_last_valid_transform = respawn_transform
 
 
-func reset_to_last_checkpoint() -> void:
+func reset_to_last_checkpoint(reason: String = "manual") -> void:
+	last_recovery_position = global_position
+	last_recovery_reason = reason
 	global_transform = _last_valid_transform
 	velocity = Vector3.ZERO
 	_stuck_time = 0.0
@@ -217,7 +221,7 @@ func _update_timers(delta: float) -> void:
 
 func _check_recovery(delta: float) -> void:
 	if global_position.y < -2.5:
-		reset_to_last_checkpoint()
+		reset_to_last_checkpoint("fell")
 		return
 	var horizontal_motion := Vector2(
 		global_position.x - _last_motion_position.x,
@@ -240,7 +244,7 @@ func _check_recovery(delta: float) -> void:
 	_movement_sample_time = 0.0
 	_movement_sample_distance = 0.0
 	if _stuck_time >= 3.0:
-		reset_to_last_checkpoint()
+		reset_to_last_checkpoint("stalled")
 
 
 func _animate_visual(delta: float, steer: float, drifting: bool) -> void:
