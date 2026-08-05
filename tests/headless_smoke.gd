@@ -50,6 +50,46 @@ func _run() -> void:
 		_check(moving_ai >= 2, "AI racers accelerate and follow the route.")
 
 		var player: Kart = main.race_world.player_kart
+		var track: CoastalTrack = main.race_world._track
+		var manager: RaceManager = main.race_world.race_manager
+		_check(track.get_route_length() >= 400.0, "Expanded track is at least 400 meters long.")
+		_check(track.shortcut_definitions.size() == 2, "Two physical shortcuts are available.")
+		_check(
+			track.get_node_or_null("MainBarrierLeftCollision") != null
+			and track.get_node_or_null("MainBarrierRightCollision") != null,
+			"Continuous barriers protect both sides of the main route."
+		)
+		_check((player.collision_mask & 8) != 0, "Player collides with shortcut surfaces.")
+		for racer_index in range(1, 4):
+			var ai_kart: Kart = manager.racers[racer_index]
+			_check(
+				(ai_kart.collision_mask & 8) == 0,
+				"%s stays on the main-route physics layer." % ai_kart.racer_name
+			)
+
+		var player_id := player.get_instance_id()
+		var saved_race_data: Dictionary = manager._race_data[player_id].duplicate(true)
+		var saved_transform := player.global_transform
+		var shortcut: Dictionary = track.shortcut_definitions[0]
+		var shortcut_test_data: Dictionary = saved_race_data.duplicate(true)
+		shortcut_test_data.next_checkpoint = int(shortcut.entry_index)
+		manager._race_data[player_id] = shortcut_test_data
+		var shortcut_points: Array[Vector3] = shortcut.points
+		for shortcut_point in shortcut_points:
+			player.global_position = shortcut_point + Vector3.UP * 0.7
+			player.velocity = Vector3.ZERO
+			await physics_frame
+		await physics_frame
+		await process_frame
+		var shortcut_result: Dictionary = manager._race_data[player_id]
+		_check(
+			int(shortcut_result.next_checkpoint) == int(shortcut.exit_index) + 1,
+			"Shortcut gate advances only to its declared exit checkpoint."
+		)
+		manager._race_data[player_id] = saved_race_data
+		player.global_transform = saved_transform
+		player.velocity = Vector3.ZERO
+
 		player.held_item = ItemDefinition.boost()
 		player.use_item()
 		_check(player.held_item == null, "Boost item is consumed.")
@@ -57,7 +97,6 @@ func _run() -> void:
 		player.use_item()
 		_check(player.held_item == null, "Projectile item is consumed.")
 
-		var manager: RaceManager = main.race_world.race_manager
 		for lap in manager.total_laps:
 			for route_index in range(1, manager.route_points.size()):
 				player.global_position = manager.route_points[route_index]
