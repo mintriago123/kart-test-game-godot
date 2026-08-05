@@ -56,6 +56,8 @@ func _build_race() -> void:
 	race_manager = RaceManager.new()
 	add_child(race_manager)
 	race_manager.configure(_track.route_points)
+	_track.shortcut_completed.connect(race_manager.complete_shortcut)
+	race_manager.shortcut_accepted.connect(_handle_shortcut_accepted)
 
 	var colors := [
 		Color("#ef684e"),
@@ -128,6 +130,14 @@ func _handle_player_hit() -> void:
 	_sound.play_hit()
 	if vibration_enabled:
 		Input.vibrate_handheld(120, 0.55)
+
+
+func _handle_shortcut_accepted(kart: Node) -> void:
+	if kart != player_kart:
+		return
+	_sound.play_pickup()
+	if vibration_enabled:
+		Input.vibrate_handheld(70, 0.42)
 
 
 func _handle_player_finished(_position: int, time: float) -> void:
