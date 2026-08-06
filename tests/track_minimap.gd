@@ -50,6 +50,31 @@ func _test_official_minimaps() -> void:
 			"%s stores a point range for every shortcut."
 			% definition.display_name
 		)
+		var track := definition.scene.instantiate() as TrackLevel
+		var generated_map := TrackMinimapBuilder.build(track)
+		_check(
+			generated_map != null
+			and _points_are_equal(
+				preview_map.shortcut_points,
+				generated_map.shortcut_points
+			)
+			and preview_map.shortcut_ranges == generated_map.shortcut_ranges,
+			"%s stored minimap matches its current shortcut geometry."
+			% definition.display_name
+		)
+		track.free()
+
+
+func _points_are_equal(
+	first: PackedVector2Array,
+	second: PackedVector2Array
+) -> bool:
+	if first.size() != second.size():
+		return false
+	for point_index in first.size():
+		if first[point_index].distance_to(second[point_index]) > 0.001:
+			return false
+	return true
 
 
 func _test_legacy_fallback_and_placeholder() -> void:

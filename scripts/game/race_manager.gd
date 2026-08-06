@@ -53,6 +53,8 @@ func register_kart(kart: Node, is_player: bool = false) -> void:
 
 
 func begin() -> void:
+	if state != RaceState.PRE_RACE:
+		return
 	if route_points.size() < 3 or racers.is_empty():
 		push_error("RaceManager requires a route and at least one racer.")
 		return

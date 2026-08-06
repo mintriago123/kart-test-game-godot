@@ -89,7 +89,7 @@ func _build_interface() -> void:
 	content.add_child(eyebrow)
 
 	var title := Label.new()
-	title.text = "COASTAL\nKARTS"
+	title.text = "MICHIKART\nXD"
 	title.add_theme_font_size_override("font_size", 72)
 	title.add_theme_color_override("font_color", Color("#fff0b1"))
 	title.add_theme_color_override("font_shadow_color", Color("#ef7151"))

@@ -1,4 +1,4 @@
-# Coastal Karts
+# MichiKart xd
 
 Prototipo original de carreras arcade para Android creado con Godot 4.7. Incluye
 dos pistas seleccionables, tres atajos físicos, barreras continuas, assets
@@ -15,9 +15,11 @@ escenas, seleccionar nodos ni usar el Inspector:
 4. Dibujar desde el mapa aéreo y usar **Vista 3D** para comprobar el resultado.
 5. Guardar el borrador, probarlo con el kart y publicarlo en el menú.
 
-La carretera, las barreras y sus colisiones se regeneran automáticamente. El
-editor permite deshacer cambios de ruta y conserva una recuperación temporal
-de los borradores sin guardar.
+La carretera, las barreras y sus colisiones se regeneran automáticamente. Los
+atajos, cajas y props creados desde el editor siguen la ruta mediante anclas
+normalizadas; deshacer y rehacer restaura la carretera y sus dependencias como
+una operación. Las escenas antiguas se reparan al abrirlas sin sobrescribirse
+hasta pulsar **Guardar**.
 
 ## Selector de pistas
 
@@ -61,7 +63,9 @@ Las pruebas específicas del sistema de pistas se ejecutan con:
 ```sh
 godot --headless --path . --script tests/track_authoring.gd
 godot --headless --path . --script tests/track_editor.gd
+godot --headless --path . --script tests/track_barriers.gd
 godot --headless --path . --script tests/track_minimap.gd
+godot --headless --path . --script tests/race_intro.gd
 godot --headless --path . --script tests/shortcut_drive.gd
 godot --headless --path . --script tests/race_stability.gd
 ```
@@ -75,7 +79,7 @@ godot --path . -- --auto-race
 ## Exportar a Android
 
 El preset `Android` genera un APK ARM64 de desarrollo en
-`build/coastal-karts-debug.apk`. Antes de exportar, configura el SDK de Android y
+`build/michikart-xd-debug.apk`. Antes de exportar, configura el SDK de Android y
 las plantillas de exportación **4.7.1** en el editor. También se requiere un JDK
 completo compatible (configurado en este proyecto con JDK 21) en
 `Editor Settings > Export > Android`.
@@ -84,7 +88,7 @@ El proyecto está diseñado para orientación horizontal y Android 9 o superior.
 La exportación por terminal se ejecuta con:
 
 ```sh
-godot --headless --path . --export-debug Android build/coastal-karts-debug.apk
+godot --headless --path . --export-debug Android build/michikart-xd-debug.apk
 ```
 
 ## Rendimiento

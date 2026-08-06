@@ -85,7 +85,7 @@ func _run() -> void:
 	await process_frame
 	_check(main.main_menu._settings_panel.visible, "Settings panel opens.")
 	main.main_menu._toggle_settings()
-	main.start_game(&"coastal")
+	main.start_game(&"coastal", false)
 	await process_frame
 	await process_frame
 	_check(main.race_world != null, "Race world is created.")
@@ -300,7 +300,7 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	garden_main.settings.is_persistence_enabled = false
-	garden_main.start_game(&"garden")
+	garden_main.start_game(&"garden", false)
 	await process_frame
 	await process_frame
 	var garden_world: RaceWorld = garden_main.race_world

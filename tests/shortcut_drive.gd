@@ -33,7 +33,7 @@ func _test_track_shortcuts(
 	root.add_child(main)
 	await process_frame
 	main.settings.is_persistence_enabled = false
-	main.start_game(track_definition.id)
+	main.start_game(track_definition.id, false)
 	await process_frame
 	await physics_frame
 	var world: RaceWorld = main.race_world

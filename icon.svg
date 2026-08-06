@@ -1,1 +1,86 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="124" height="124" x="2" y="2" fill="#363d52" stroke="#212532" stroke-width="4" rx="14"/><g fill="#fff" transform="translate(12.322 12.322)scale(.101)"><path d="M105 673v33q407 354 814 0v-33z"/><path fill="#478cbf" d="m105 673 152 14q12 1 15 14l4 67 132 10 8-61q2-11 15-15h162q13 4 15 15l8 61 132-10 4-67q3-13 15-14l152-14V427q30-39 56-81-35-59-83-108-43 20-82 47-40-37-88-64 7-51 8-102-59-28-123-42-26 43-46 89-49-7-98 0-20-46-46-89-64 14-123 42 1 51 8 102-48 27-88 64-39-27-82-47-48 49-83 108 26 42 56 81zm0 33v39c0 276 813 276 814 0v-39l-134 12-5 69q-2 10-14 13l-162 11q-12 0-16-11l-10-65H446l-10 65q-4 11-16 11l-162-11q-12-3-14-13l-5-69z"/><path d="M483 600c0 34 58 34 58 0v-86c0-34-58-34-58 0z"/><circle cx="725" cy="526" r="90"/><circle cx="299" cy="526" r="90"/></g><g fill="#414042" transform="translate(12.322 12.322)scale(.101)"><circle cx="307" cy="532" r="60"/><circle cx="717" cy="532" r="60"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="50%" stop-color="#312e81"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </linearGradient>
+
+    <!-- Helmet Metallic Gradient -->
+    <linearGradient id="helmetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff5e62"/>
+      <stop offset="100%" stop-color="#ff9966"/>
+    </linearGradient>
+
+    <!-- Visor Gradient -->
+    <linearGradient id="visorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe"/>
+      <stop offset="100%" stop-color="#4facfe"/>
+    </linearGradient>
+
+    <!-- Gold Accent Gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f6d365"/>
+      <stop offset="100%" stop-color="#fda085"/>
+    </linearGradient>
+
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Base Icon Canvas -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)"/>
+
+  <!-- Speed Lines Background -->
+  <path d="M-20 120 L180 -20" stroke="#ffffff" stroke-opacity="0.08" stroke-width="24" stroke-linecap="round"/>
+  <path d="M-20 260 L380 -20" stroke="#ffffff" stroke-opacity="0.05" stroke-width="36" stroke-linecap="round"/>
+  <path d="M120 532 L532 120" stroke="#ffffff" stroke-opacity="0.08" stroke-width="28" stroke-linecap="round"/>
+
+  <!-- Race Checkered Flag Detail (Bottom Left & Right) -->
+  <g opacity="0.15" fill="#ffffff">
+    <rect x="40" y="380" width="30" height="30"/>
+    <rect x="70" y="410" width="30" height="30"/>
+    <rect x="100" y="380" width="30" height="30"/>
+    <rect x="40" y="440" width="30" height="30"/>
+    <rect x="440" y="100" width="30" height="30"/>
+    <rect x="410" y="130" width="30" height="30"/>
+    <rect x="380" y="100" width="30" height="30"/>
+  </g>
+
+  <!-- Main Michi Group -->
+  <g filter="url(#shadow)">
+    <!-- Cat Ears (Outer Helmet Mold) -->
+    <path d="M145 190 L110 85 L210 135 Z" fill="url(#helmetGrad)"/>
+    <path d="M367 190 L402 85 L302 135 Z" fill="url(#helmetGrad)"/>
+
+    <!-- Inner Ear Details -->
+    <path d="M142 170 L125 105 L185 142 Z" fill="#2d0654"/>
+    <path d="M370 170 L387 105 L327 142 Z" fill="#2d0654"/>
+
+    <!-- Helmet Main Dome -->
+    <circle cx="256" cy="270" r="145" fill="url(#helmetGrad)"/>
+
+    <!-- Racing Stripe Center -->
+    <path d="M236 126 C 246 125, 266 125, 276 126 L 276 415 C 266 416, 246 416, 236 415 Z" fill="url(#goldGrad)"/>
+
+    <!-- Visor Frame Cutout -->
+    <path d="M150 220 Q256 190 362 220 Q380 300 362 315 Q256 345 150 315 Q132 300 150 220 Z" fill="#1e1b4b"/>
+
+    <!-- Visor Glass -->
+    <path d="M158 228 Q256 200 354 228 Q370 292 354 305 Q256 333 158 305 Q142 292 158 228 Z" fill="url(#visorGrad)"/>
+
+    <!-- Visor Reflection Flare -->
+    <path d="M175 240 Q240 218 310 235 Q280 250 185 260 Z" fill="#ffffff" opacity="0.55"/>
+
+    <!-- Michi Paw on Helmet / Steering Wheel Hint -->
+    <circle cx="256" cy="380" r="28" fill="#ffffff"/>
+    <ellipse cx="240" cy="365" rx="7" ry="9" fill="#ffffff"/>
+    <ellipse cx="256" cy="360" rx="7" ry="9" fill="#ffffff"/>
+    <ellipse cx="272" cy="365" rx="7" ry="9" fill="#ffffff"/>
+    
+    <!-- Paw Pad Print -->
+    <path d="M248 382 C248 375 264 375 264 382 C264 390 248 390 248 382 Z" fill="#ff5e62"/>
+  </g>
+</svg>

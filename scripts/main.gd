@@ -17,10 +17,13 @@ func _ready() -> void:
 	_apply_master_volume(settings.master_volume)
 	_show_main_menu()
 	if "--auto-race" in OS.get_cmdline_user_args():
-		start_game.call_deferred()
+		start_game.call_deferred(settings.selected_track_id, false)
 
 
-func start_game(track_id: StringName = settings.selected_track_id) -> void:
+func start_game(
+	track_id: StringName = settings.selected_track_id,
+	should_play_intro: bool = true
+) -> void:
 	var track_definition := TRACK_CATALOG.get_valid_track(track_id)
 	if track_definition == null:
 		push_error("No valid track is available.")
@@ -37,6 +40,7 @@ func start_game(track_id: StringName = settings.selected_track_id) -> void:
 	race_world = RaceWorld.new()
 	race_world.graphics_profile = settings.graphics_profile
 	race_world.vibration_enabled = settings.vibration_enabled
+	race_world.play_intro = should_play_intro
 	race_world.track_definition = track_definition
 	race_world.retry_requested.connect(_restart_game)
 	race_world.menu_requested.connect(_return_to_menu)
@@ -65,7 +69,7 @@ func _show_main_menu() -> void:
 
 
 func _restart_game() -> void:
-	start_game()
+	start_game(settings.selected_track_id, false)
 
 
 func _return_to_menu() -> void:

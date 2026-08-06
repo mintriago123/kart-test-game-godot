@@ -8,7 +8,7 @@ const DEFAULT_SHORTCUT_SUBDIVISIONS := 12
 
 @export var track_id: StringName = &"track"
 @export var display_name := "Nueva pista"
-@export var start_banner_text := "COASTAL KARTS"
+@export var start_banner_text := "MICHIKART XD"
 @export var track_theme: TrackTheme
 @export_range(4, 16, 1) var route_subdivisions := DEFAULT_ROUTE_SUBDIVISIONS
 @export_range(6, 18, 1) var shortcut_subdivisions := DEFAULT_SHORTCUT_SUBDIVISIONS
@@ -227,7 +227,9 @@ func inspect_track() -> Array[TrackValidationIssue]:
 					item_path
 				)
 				continue
-			var marker_position := to_local((child as Marker3D).global_position)
+			var marker_position := _get_transform_relative_to_track(
+				child as Node3D
+			).origin
 			if (
 				_distance_to_route_points_2d(marker_position, validation_route)
 				> ROAD_WIDTH * 0.5
@@ -467,7 +469,10 @@ func _define_item_spawns() -> void:
 	if item_spawns_root != null:
 		for child in item_spawns_root.get_children():
 			if child is Marker3D:
-				item_spawn_points.append(to_local(child.global_position) + Vector3.UP * 1.2)
+				item_spawn_points.append(
+					_get_transform_relative_to_track(child as Node3D).origin
+					+ Vector3.UP * 1.2
+				)
 	if item_spawn_points.is_empty():
 		for fraction in [0.12, 0.38, 0.64, 0.88]:
 			var route_index := int(route_points.size() * fraction) % route_points.size()
@@ -499,15 +504,25 @@ func _sample_path(path: Path3D, is_closed: bool) -> Array[Vector3]:
 		path.curve.point_count if is_closed else path.curve.point_count - 1
 	)
 	var subdivisions := route_subdivisions if is_closed else shortcut_subdivisions
+	var path_to_track := _get_transform_relative_to_track(path)
 	for curve_segment in curve_segment_count:
 		for subdivision in subdivisions:
 			var progress := float(subdivision) / subdivisions
 			var local_point := path.curve.sample(curve_segment, progress)
-			points.append(to_local(path.to_global(local_point)))
+			points.append(path_to_track * local_point)
 	if not is_closed:
 		var final_point := path.curve.sample(curve_segment_count - 1, 1.0)
-		points.append(to_local(path.to_global(final_point)))
+		points.append(path_to_track * final_point)
 	return points
+
+
+func _get_transform_relative_to_track(node: Node3D) -> Transform3D:
+	var relative_transform := Transform3D.IDENTITY
+	var current_node := node
+	while current_node != null and current_node != self:
+		relative_transform = current_node.transform * relative_transform
+		current_node = current_node.get_parent() as Node3D
+	return relative_transform
 
 
 func _apply_start_offset(points: Array[Vector3]) -> Array[Vector3]:

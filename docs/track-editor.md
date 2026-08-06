@@ -34,10 +34,13 @@ pistas nuevas se guardan en `levels/tracks/<identificador>.tscn`.
 - El control **Altura** crea pendientes sencillas.
 - **Marcar como salida** mueve la parrilla, la meta y el inicio lógico.
 - Las flechas amarillas indican el sentido de carrera.
-- `Ctrl+Z`/los botones de flecha permiten deshacer y rehacer la ruta.
+- `Ctrl+Z`/los botones de flecha permiten deshacer y rehacer la ruta junto con
+  todos sus elementos dependientes.
 
 El mapa se actualiza durante el movimiento y la carretera 3D se reconstruye al
-terminar, evitando que el editor se bloquee.
+terminar, evitando que el editor se bloquee. Los atajos, cajas y la decoración
+colocada desde este editor conservan un progreso normalizado sobre la carretera:
+siguen conectados aunque se muevan, inserten o eliminen puntos.
 
 ## Atajos
 
@@ -59,7 +62,22 @@ Las cajas se ajustan a un punto de la carretera. Para decorar:
 4. Pulsa **Colocar decoración** y revisa el resultado en **Vista 3D**.
 
 La decoración no genera colisiones. Las barreras continuas siguen controlando
-la física del kart.
+la física del kart. Los props creados desde el editor conservan lado, distancia,
+altura y rotación al cambiar la ruta; los props oficiales o colocados manualmente
+sin ancla permanecen en sus coordenadas originales.
+
+## Abrir pistas antiguas
+
+Al abrir una escena creada antes del sistema de anclas, el editor proyecta los
+extremos de atajos y las cajas sobre el punto más cercano de `MainRoute`. La
+barra inferior muestra un resumen, por ejemplo, “2 atajos y 4 cajas reparados”.
+
+La reparación:
+
+- solo existe en memoria hasta pulsar **Guardar**;
+- aparece como un cambio sin guardar;
+- se puede deshacer y rehacer como una sola operación;
+- no modifica automáticamente el archivo de origen.
 
 ## Guardar, probar y publicar
 
@@ -78,12 +96,19 @@ del repositorio ni del APK.
 
 Antes de publicar se comprueban la ruta cerrada, longitud, salida, cajas,
 dirección de atajos y recursos obligatorios. Cada problema permite regresar al
-paso correspondiente.
+paso correspondiente. Una pista inválida conserva en Vista 3D toda carretera,
+bordillo y barrera que todavía pueda generarse; solo se omiten sus componentes
+inválidos.
+
+Las barreras cerradas usan un anillo indexado con uniones miter limitadas y
+bevel en ángulos agudos. Los únicos huecos corresponden a portales de atajos
+válidos, calculados sobre el lado real y cerrados con tapas.
 
 Las pruebas automatizadas son:
 
 ```sh
 godot --headless --path . --script tests/track_editor.gd
+godot --headless --path . --script tests/track_barriers.gd
 godot --headless --path . --script tests/track_minimap.gd
 godot --headless --path . --script tests/track_authoring.gd
 godot --headless --path . --script tests/shortcut_drive.gd

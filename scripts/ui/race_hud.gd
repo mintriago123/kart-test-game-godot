@@ -3,6 +3,7 @@ extends CanvasLayer
 
 signal retry_requested
 signal menu_requested
+signal intro_skip_requested
 
 var _lap_label: Label
 var _position_label: Label
@@ -18,6 +19,13 @@ var _pause_overlay: Control
 var _player_kart: Kart
 var _touch_controls: Control
 var _steering_pad: CoastalJoystick
+var _race_elements: Array[CanvasItem] = []
+var _intro_overlay: Control
+var _intro_content: Control
+var _intro_title: Label
+var _intro_laps: Label
+var _intro_skip_button: Button
+var _is_intro_visible := false
 var _is_auto_accelerating := false
 
 var mobile_controls_enabled := (
@@ -48,7 +56,48 @@ func update_race_info(lap: int, total_laps: int, position: int, racers: int, rac
 
 func show_countdown(text: String) -> void:
 	_countdown_label.text = text
-	_countdown_label.visible = not text.is_empty()
+	_countdown_label.visible = (
+		not _is_intro_visible and not text.is_empty()
+	)
+
+
+func show_intro(track_name: String, total_laps: int) -> void:
+	_is_intro_visible = true
+	_intro_title.text = track_name.to_upper()
+	_intro_laps.text = "%d VUELTAS" % total_laps
+	_intro_content.modulate.a = 0.0
+	_intro_overlay.visible = true
+	set_intro_skip_enabled(false)
+	_set_race_elements_visible(false)
+	_set_touch_controls_visible(false)
+	_release_auto_acceleration()
+
+
+func update_intro_progress(elapsed: float) -> void:
+	if not _is_intro_visible:
+		return
+	var fade_in := smoothstep(0.0, 0.75, elapsed)
+	var fade_out := 1.0 - smoothstep(4.8, 6.0, elapsed)
+	_intro_content.modulate.a = minf(fade_in, fade_out)
+
+
+func set_intro_skip_enabled(enabled: bool) -> void:
+	if _intro_skip_button == null:
+		return
+	_intro_skip_button.visible = enabled
+	_intro_skip_button.disabled = not enabled
+	if enabled:
+		_intro_skip_button.grab_focus.call_deferred()
+
+
+func hide_intro() -> void:
+	if not _is_intro_visible:
+		return
+	_is_intro_visible = false
+	_intro_overlay.visible = false
+	set_intro_skip_enabled(false)
+	_set_race_elements_visible(true)
+	_countdown_label.visible = not _countdown_label.text.is_empty()
 
 
 func show_results(position: int, race_time: float) -> void:
@@ -68,7 +117,11 @@ func _process(_delta: float) -> void:
 	if _pause_overlay != null:
 		_pause_overlay.visible = get_tree().paused and not _results_panel.visible
 	if _touch_controls != null and not _results_panel.visible:
-		_set_touch_controls_visible(mobile_controls_enabled and not get_tree().paused)
+		_set_touch_controls_visible(
+			mobile_controls_enabled
+			and not get_tree().paused
+			and not _is_intro_visible
+		)
 	_update_auto_acceleration()
 
 
@@ -79,7 +132,12 @@ func _exit_tree() -> void:
 func set_mobile_controls_enabled(enabled: bool) -> void:
 	mobile_controls_enabled = enabled
 	if _touch_controls != null:
-		_set_touch_controls_visible(enabled and not get_tree().paused and not _results_panel.visible)
+		_set_touch_controls_visible(
+			enabled
+			and not get_tree().paused
+			and not _results_panel.visible
+			and not _is_intro_visible
+		)
 		_update_auto_acceleration()
 	if not enabled:
 		_release_auto_acceleration()
@@ -91,6 +149,7 @@ func _build_interface() -> void:
 	add_child(root)
 
 	var top_bar := HBoxContainer.new()
+	top_bar.name = "RaceInfo"
 	top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	top_bar.offset_left = 24.0
 	top_bar.offset_top = 18.0
@@ -98,6 +157,7 @@ func _build_interface() -> void:
 	top_bar.offset_bottom = 92.0
 	top_bar.add_theme_constant_override("separation", 12)
 	root.add_child(top_bar)
+	_race_elements.append(top_bar)
 
 	_position_label = _create_chip("1º / 4", 28)
 	top_bar.add_child(_position_label)
@@ -117,6 +177,7 @@ func _build_interface() -> void:
 	_item_label.position = Vector2(-95.0, 102.0)
 	_item_label.size = Vector2(190.0, 54.0)
 	root.add_child(_item_label)
+	_race_elements.append(_item_label)
 
 	_drift_bar = ProgressBar.new()
 	_drift_bar.min_value = 0.0
@@ -129,6 +190,7 @@ func _build_interface() -> void:
 	_drift_bar.add_theme_stylebox_override("background", _style(Color(0.02, 0.08, 0.1, 0.76), 8))
 	_drift_bar.add_theme_stylebox_override("fill", _style(Color("#f5d66f"), 8))
 	root.add_child(_drift_bar)
+	_race_elements.append(_drift_bar)
 
 	_countdown_label = Label.new()
 	_countdown_label.text = "3"
@@ -141,11 +203,14 @@ func _build_interface() -> void:
 	_countdown_label.set_anchors_preset(Control.PRESET_CENTER)
 	_countdown_label.position = Vector2(-180.0, -100.0)
 	_countdown_label.size = Vector2(360.0, 200.0)
+	_countdown_label.visible = false
 	root.add_child(_countdown_label)
+	_race_elements.append(_countdown_label)
 
 	_build_touch_controls(root)
 
 	var pause_button := Button.new()
+	pause_button.name = "PauseButton"
 	pause_button.text = "Ⅱ"
 	pause_button.tooltip_text = "Pausa"
 	pause_button.custom_minimum_size = Vector2(64.0, 64.0)
@@ -156,6 +221,8 @@ func _build_interface() -> void:
 	_apply_button_style(pause_button, Color("#f5d66f"))
 	root.add_child(pause_button)
 
+	_intro_overlay = _build_intro_overlay()
+	root.add_child(_intro_overlay)
 	_pause_overlay = _build_pause_overlay()
 	root.add_child(_pause_overlay)
 	_results_panel = _build_results_panel()
@@ -217,6 +284,54 @@ func _build_touch_controls(root: Control) -> void:
 	auto_label.position = Vector2(-286.0, -184.0)
 	auto_label.size = Vector2(122.0, 34.0)
 	_touch_controls.add_child(auto_label)
+
+
+func _build_intro_overlay() -> Control:
+	var overlay := Control.new()
+	overlay.name = "RaceIntro"
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.visible = false
+
+	_intro_content = VBoxContainer.new()
+	_intro_content.name = "Presentation"
+	_intro_content.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_intro_content.position = Vector2(-360.0, 66.0)
+	_intro_content.size = Vector2(720.0, 180.0)
+	_intro_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_intro_content.add_theme_constant_override("separation", 6)
+	overlay.add_child(_intro_content)
+
+	_intro_title = Label.new()
+	_intro_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_intro_title.add_theme_font_size_override("font_size", 48)
+	_intro_title.add_theme_color_override("font_color", Color("#fff4c7"))
+	_intro_title.add_theme_color_override("font_outline_color", Color("#13373d"))
+	_intro_title.add_theme_constant_override("outline_size", 12)
+	_intro_content.add_child(_intro_title)
+
+	_intro_laps = Label.new()
+	_intro_laps.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_intro_laps.add_theme_font_size_override("font_size", 23)
+	_intro_laps.add_theme_color_override("font_color", Color("#d8f4e8"))
+	_intro_laps.add_theme_color_override("font_outline_color", Color("#13373d"))
+	_intro_laps.add_theme_constant_override("outline_size", 7)
+	_intro_content.add_child(_intro_laps)
+
+	_intro_skip_button = Button.new()
+	_intro_skip_button.name = "SkipIntro"
+	_intro_skip_button.text = "OMITIR"
+	_intro_skip_button.tooltip_text = "Omitir introducción (Enter o Espacio)"
+	_intro_skip_button.custom_minimum_size = Vector2(180.0, 64.0)
+	_intro_skip_button.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_intro_skip_button.position = Vector2(-90.0, -102.0)
+	_intro_skip_button.size = Vector2(180.0, 64.0)
+	_intro_skip_button.visible = false
+	_intro_skip_button.disabled = true
+	_intro_skip_button.pressed.connect(_request_intro_skip)
+	_apply_button_style(_intro_skip_button, Color("#f5d66f"))
+	overlay.add_child(_intro_skip_button)
+	return overlay
 
 
 func _build_pause_overlay() -> Control:
@@ -359,12 +474,53 @@ func _toggle_pause() -> void:
 	get_tree().paused = not get_tree().paused
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if (
+		not _is_intro_visible
+		or _intro_skip_button == null
+		or not _intro_skip_button.visible
+		or _intro_skip_button.disabled
+	):
+		return
+	if event.is_action_pressed(&"ui_accept"):
+		_request_intro_skip()
+		get_viewport().set_input_as_handled()
+		return
+	if not event is InputEventKey:
+		return
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return
+	if (
+		key_event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]
+		or key_event.physical_keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]
+	):
+		_request_intro_skip()
+		get_viewport().set_input_as_handled()
+
+
+func _request_intro_skip() -> void:
+	if (
+		not _is_intro_visible
+		or _intro_skip_button == null
+		or not _intro_skip_button.visible
+		or _intro_skip_button.disabled
+	):
+		return
+	intro_skip_requested.emit()
+
+
 func _set_touch_controls_visible(is_visible: bool) -> void:
 	if _touch_controls.visible == is_visible:
 		return
 	_touch_controls.visible = is_visible
 	if not is_visible:
 		_release_auto_acceleration()
+
+
+func _set_race_elements_visible(is_visible: bool) -> void:
+	for element in _race_elements:
+		element.visible = is_visible
 
 
 func _update_auto_acceleration() -> void:

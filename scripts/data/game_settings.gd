@@ -51,7 +51,7 @@ func save_to_disk() -> void:
 	config.set_value("progress", "best_times", best_times)
 	var error := config.save(SETTINGS_PATH)
 	if error != OK:
-		push_warning("Could not save Coastal Karts settings: %s" % error_string(error))
+		push_warning("Could not save MichiKart xd settings: %s" % error_string(error))
 
 
 func select_track(track_id: StringName) -> void:

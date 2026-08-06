@@ -7,6 +7,7 @@ signal race_completed(time: float)
 
 var graphics_profile := "medium"
 var vibration_enabled := true
+var play_intro := true
 var track_definition: TrackDefinition
 var race_manager: RaceManager
 var player_kart: Kart
@@ -14,6 +15,11 @@ var player_kart: Kart
 var _track: CoastalTrack
 var _hud: RaceHud
 var _sound: SoundManager
+var _follow_camera: FollowCamera
+var _intro_camera: RaceIntroCamera
+var _item_boxes: Array[ItemBox] = []
+var _ai_drivers: Array[AiDriver] = []
+var _has_begun_race := false
 
 
 func _ready() -> void:
@@ -103,12 +109,16 @@ func _build_race() -> void:
 			kart.add_child(ai)
 			ai.setup(kart, race_manager, [-2.0, 0.0, 2.0][slot - 1])
 			ai.caution = float(slot - 1) * 0.2
+			ai.set_physics_process(false)
+			_ai_drivers.append(ai)
 
 	for item_position in _track.item_spawn_points:
 		var item_box := ItemBox.new()
 		item_box.position = item_position
 		item_box.collected.connect(_handle_item_collected)
 		add_child(item_box)
+		item_box.set_collection_enabled(false)
+		_item_boxes.append(item_box)
 
 	_hud = RaceHud.new()
 	_hud.vibration_enabled = vibration_enabled
@@ -123,12 +133,14 @@ func _build_race() -> void:
 	_hud.update_race_info(1, race_manager.total_laps, race_manager.get_race_position(player_kart), 4, 0.0)
 	_hud.retry_requested.connect(func() -> void: retry_requested.emit())
 	_hud.menu_requested.connect(func() -> void: menu_requested.emit())
+	_hud.intro_skip_requested.connect(_handle_intro_skip_requested)
 	race_manager.countdown_changed.connect(_hud.show_countdown)
 	race_manager.countdown_changed.connect(_sound.play_countdown)
 	race_manager.race_info_changed.connect(_hud.update_race_info)
 	race_manager.player_finished.connect(_hud.show_results)
 	race_manager.player_finished.connect(_handle_player_finished)
-	race_manager.begin.call_deferred()
+	race_manager.race_started.connect(_handle_race_started)
+	_start_pre_race.call_deferred()
 
 
 func _get_track_theme() -> TrackTheme:
@@ -138,10 +150,82 @@ func _get_track_theme() -> TrackTheme:
 
 
 func _add_camera(kart: Kart) -> void:
-	var camera_rig := FollowCamera.new()
-	camera_rig.name = "CameraRig"
-	add_child(camera_rig)
-	camera_rig.setup(kart)
+	_follow_camera = FollowCamera.new()
+	_follow_camera.name = "CameraRig"
+	add_child(_follow_camera)
+	_follow_camera.setup(kart)
+
+
+func _start_pre_race() -> void:
+	if not play_intro:
+		_begin_race()
+		return
+
+	_intro_camera = RaceIntroCamera.new()
+	_intro_camera.name = "RaceIntroCamera"
+	add_child(_intro_camera)
+	_intro_camera.progress_changed.connect(_hud.update_intro_progress)
+	_intro_camera.skip_available.connect(
+		func() -> void: _hud.set_intro_skip_enabled(true)
+	)
+	_intro_camera.skip_started.connect(_handle_intro_skip_started)
+	_intro_camera.finished.connect(_handle_intro_finished)
+	if not _intro_camera.start_intro(
+		race_manager.route_points,
+		_follow_camera
+	):
+		_cleanup_intro()
+		_begin_race()
+		return
+	var track_name := (
+		track_definition.display_name
+		if track_definition != null
+		else "Circuito"
+	)
+	_hud.show_intro(track_name, race_manager.total_laps)
+
+
+func _begin_race() -> void:
+	if _has_begun_race:
+		return
+	_has_begun_race = true
+	if _follow_camera != null:
+		_follow_camera.activate()
+	_hud.hide_intro()
+	race_manager.begin()
+
+
+func _handle_intro_skip_requested() -> void:
+	if _intro_camera == null or not is_instance_valid(_intro_camera):
+		return
+	_intro_camera.request_skip()
+
+
+func _handle_intro_skip_started() -> void:
+	_hud.set_intro_skip_enabled(false)
+	_hud.update_intro_progress(RaceIntroCamera.FLIGHT_DURATION)
+
+
+func _handle_intro_finished() -> void:
+	_cleanup_intro()
+	_begin_race()
+
+
+func _cleanup_intro() -> void:
+	if _intro_camera != null and is_instance_valid(_intro_camera):
+		_intro_camera.queue_free()
+	_intro_camera = null
+	if _hud != null:
+		_hud.hide_intro()
+	if _follow_camera != null:
+		_follow_camera.activate()
+
+
+func _handle_race_started() -> void:
+	for ai_driver in _ai_drivers:
+		ai_driver.set_physics_process(true)
+	for item_box in _item_boxes:
+		item_box.set_collection_enabled(true)
 
 
 func _handle_item_collected(kart: Node) -> void:

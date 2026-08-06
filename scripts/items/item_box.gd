@@ -8,16 +8,25 @@ const RESPAWN_TIME := 5.0
 var _base_height := 0.0
 var _elapsed := 0.0
 var _is_available := true
+var _is_collection_enabled := true
 var _visual: Node3D
 
 
 func _ready() -> void:
 	collision_layer = 4
 	collision_mask = 2
-	monitoring = true
+	monitoring = _is_collection_enabled
 	body_entered.connect(_handle_body_entered)
 	_base_height = position.y
 	_build_visual()
+	set_process(_is_collection_enabled)
+
+
+func set_collection_enabled(enabled: bool) -> void:
+	_is_collection_enabled = enabled
+	set_process(enabled)
+	if is_inside_tree():
+		set_deferred("monitoring", enabled and _is_available)
 
 
 func _process(delta: float) -> void:
@@ -60,7 +69,11 @@ func _build_visual() -> void:
 
 
 func _handle_body_entered(body: Node3D) -> void:
-	if not _is_available or not body.has_method("grant_random_item"):
+	if (
+		not _is_collection_enabled
+		or not _is_available
+		or not body.has_method("grant_random_item")
+	):
 		return
 	if not body.grant_random_item():
 		return
@@ -75,5 +88,5 @@ func _respawn() -> void:
 	if not is_inside_tree():
 		return
 	_is_available = true
-	set_deferred("monitoring", true)
+	set_deferred("monitoring", _is_collection_enabled)
 	_visual.visible = true

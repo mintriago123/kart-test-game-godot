@@ -545,7 +545,7 @@ func _intersect_lines_2d(
 	var denominator := first_direction.cross(second_direction)
 	if absf(denominator) <= 0.00001:
 		return {
-			"valid": true,
+			"valid": first_direction.dot(second_direction) > 0.0,
 			"point": first_point.lerp(second_point, 0.5),
 		}
 	var distance := (

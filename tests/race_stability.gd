@@ -33,7 +33,7 @@ func _test_track_stability(
 	root.add_child(main)
 	await process_frame
 	main.settings.is_persistence_enabled = false
-	main.start_game(track_definition.id)
+	main.start_game(track_definition.id, false)
 	await process_frame
 	var manager: RaceManager = main.race_world.race_manager
 	for racer_index in range(1, manager.racers.size()):
