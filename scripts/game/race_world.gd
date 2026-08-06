@@ -100,6 +100,13 @@ func _build_race() -> void:
 		add_child(item_box)
 
 	_hud = RaceHud.new()
+	_hud.vibration_enabled = vibration_enabled
+	_hud.mobile_controls_enabled = (
+		OS.has_feature("android")
+		or OS.has_feature("ios")
+		or DisplayServer.is_touchscreen_available()
+		or "--mobile-controls" in OS.get_cmdline_user_args()
+	)
 	add_child(_hud)
 	_hud.bind_player(player_kart)
 	_hud.update_race_info(1, race_manager.total_laps, race_manager.get_race_position(player_kart), 4, 0.0)
