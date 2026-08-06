@@ -1,0 +1,66 @@
+[gd_scene format=3 uid="uid://blvnxgi24qiyc"]
+
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_iel2b"]
+[ext_resource type="Resource" path="res://levels/themes/coastal_theme.tres" id="2_la8bw"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="3_5deqx"]
+
+[sub_resource type="Curve3D" id="Curve3D_bgu47"]
+closed = true
+_data = {
+"points": PackedVector3Array(-12.813333, 0, 0, 12.813333, 0, 0, 0, 0.25, 44.64, -10.333333, -0.041666668, 7.44, 10.333333, 0.041666668, -7.44, 38.44, 0.25, 34.1, -0.82666713, -0.083333336, 12.089999, 0.82666713, 0.083333336, -12.089999, 62, 0.5, 0, 10.333333, 0.041666668, 8.06, -10.333333, -0.041666668, -8.06, 43.4, 0.75, -38.44, 14.466667, 0.041666668, 0, -14.466667, -0.041666668, 0, 0, 0.25, -48.36, 10.333333, -0.083333336, -8.06, -10.333333, 0.083333336, 8.06, -43.4, 0.5, -38.44, -0.82666713, 0.041666668, -12.089999, 0.82666713, -0.041666668, 12.089999, -62, 0.75, 0, -10.333333, 0.083333336, -7.44, 10.333333, -0.083333336, 7.44, -38.44, 0.25, 34.1),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 8
+
+[sub_resource type="Curve3D" id="Curve3D_n0117"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 8.1153, 0.032722984, -5.8430157, 38.44, 0.25, 34.1, -0.70857185, -0.071428575, 10.362856, 0.70857185, 0.071428575, -10.362856, 52.892044, 0.5, -1.3513961, 7.8849835, 0.031794287, 6.1502867, 0, 0, 0, 43.4, 0.75, -38.44),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="Curve3D" id="Curve3D_e58hb"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, -7.884864, 0.06358761, 6.1501937, -43.4, 0.5, -38.44, -0.70857185, 0.035714287, -10.362856, 0.70857185, -0.035714287, 10.362856, -52.892044, 0.375, -1.3513999, -8.11517, 0.06544492, -5.8429217, 0, 0, 0, -38.44, 0.25, 34.1),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[node name="TrackLevel" type="Node3D" unique_id=103432199]
+script = ExtResource("1_iel2b")
+track_id = &"bahia_relampago"
+display_name = "Bahia Relampago"
+start_banner_text = "BAHIA RELAMPAGO"
+track_theme = ExtResource("2_la8bw")
+
+[node name="MainRoute" type="Path3D" parent="." unique_id=392783746]
+curve = SubResource("Curve3D_bgu47")
+
+[node name="Shortcuts" type="Node3D" parent="." unique_id=1860440694]
+
+[node name="Shortcut1" type="Path3D" parent="Shortcuts" unique_id=85495543]
+curve = SubResource("Curve3D_n0117")
+script = ExtResource("3_5deqx")
+display_name = "Atajo 1"
+
+[node name="Shortcut2" type="Path3D" parent="Shortcuts" unique_id=1905553289]
+curve = SubResource("Curve3D_e58hb")
+script = ExtResource("3_5deqx")
+shortcut_id = 1
+display_name = "Atajo 2"
+
+[node name="Props" type="Node3D" parent="." unique_id=1216362207]
+
+[node name="ItemSpawns" type="Node3D" parent="." unique_id=879035702]
+
+[node name="ItemSpawn1" type="Marker3D" parent="ItemSpawns" unique_id=1981658252]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53.661926, 0.35809594, 18.959784)
+
+[node name="ItemSpawn2" type="Marker3D" parent="ItemSpawns" unique_id=1370432849]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 59.058487, 0.42570004, 10.165573)
+
+[node name="ItemSpawn3" type="Marker3D" parent="ItemSpawns" unique_id=2023555957]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 61.97631, 0.49785733, 0.31008393)
+
+[node name="ItemSpawn4" type="Marker3D" parent="ItemSpawns" unique_id=1743288678]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60.90849, 0.57963866, -9.922424)
