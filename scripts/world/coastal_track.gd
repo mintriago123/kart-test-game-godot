@@ -18,6 +18,10 @@ const SHORTCUT_MIDPOINT_HANDLE_RATIO := 0.18
 const BARRIER_PATH_INSET := 0.12
 const BARRIER_SUBDIVISIONS := 5
 const SHORTCUT_PORTAL_SEGMENTS := 10
+const BARRIER_MITER_LIMIT := 2.0
+const BARRIER_THICKNESS := 0.24
+const PORTAL_MIN_WIDTH := 6.0
+const PORTAL_MAX_WIDTH := 14.0
 const SHORTCUT_HEIGHT_ALIGNMENT_BLEND_DISTANCE := 4.0
 const MAIN_COLLISION_LAYER := 1
 const SHORTCUT_COLLISION_LAYER := 8
@@ -427,33 +431,499 @@ func _create_main_barrier_side(
 	barrier_name: String,
 	collision_layer: int
 ) -> void:
-	var surface := SurfaceTool.new()
-	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var barrier_ring := _build_miter_barrier_ring(route_points, lateral_offset)
+	if barrier_ring.size() < 3:
+		return
+	var portal_intervals := _build_main_barrier_portals(lateral_offset)
+	var barrier_mesh: ArrayMesh
+	if portal_intervals.is_empty():
+		var closed_ring := PackedVector3Array()
+		for ring_point in barrier_ring:
+			closed_ring.append(ring_point.point)
+		barrier_mesh = _create_indexed_barrier_mesh([closed_ring], true)
+	else:
+		var open_chains := _split_barrier_ring(barrier_ring, portal_intervals)
+		barrier_mesh = _create_indexed_barrier_mesh(open_chains, false)
+	_commit_barrier_mesh(barrier_mesh, barrier_name, collision_layer)
+
+
+func _build_miter_barrier_ring(
+	path_points: Array[Vector3],
+	lateral_offset: float
+) -> Array[Dictionary]:
+	var ring: Array[Dictionary] = []
+	if path_points.size() < 3:
+		return ring
+	var cumulative_distances := PackedFloat32Array()
+	cumulative_distances.resize(path_points.size() + 1)
+	for point_index in path_points.size():
+		cumulative_distances[point_index + 1] = (
+			cumulative_distances[point_index]
+			+ path_points[point_index].distance_to(
+				path_points[(point_index + 1) % path_points.size()]
+			)
+		)
+	var route_length := cumulative_distances[-1]
+	if route_length <= 0.001:
+		return ring
+
+	for point_index in path_points.size():
+		var previous := path_points[
+			(point_index - 1 + path_points.size()) % path_points.size()
+		]
+		var current := path_points[point_index]
+		var next := path_points[(point_index + 1) % path_points.size()]
+		var previous_direction := Vector2(
+			current.x - previous.x,
+			current.z - previous.z
+		).normalized()
+		var next_direction := Vector2(
+			next.x - current.x,
+			next.z - current.z
+		).normalized()
+		if (
+			previous_direction.length_squared() <= 0.0001
+			or next_direction.length_squared() <= 0.0001
+		):
+			continue
+		var previous_normal := Vector2(
+			previous_direction.y,
+			-previous_direction.x
+		)
+		var next_normal := Vector2(next_direction.y, -next_direction.x)
+		var current_2d := Vector2(current.x, current.z)
+		var previous_offset_point := (
+			current_2d + previous_normal * lateral_offset
+		)
+		var next_offset_point := current_2d + next_normal * lateral_offset
+		var intersection := _intersect_lines_2d(
+			previous_offset_point,
+			previous_direction,
+			next_offset_point,
+			next_direction
+		)
+		var progress := cumulative_distances[point_index] / route_length
+		var uses_miter := bool(intersection.valid)
+		if uses_miter and absf(lateral_offset) > 0.001:
+			uses_miter = (
+				current_2d.distance_to(intersection.point)
+				<= absf(lateral_offset) * BARRIER_MITER_LIMIT
+			)
+		if uses_miter:
+			ring.append({
+				"point": Vector3(
+					intersection.point.x,
+					current.y + 0.08,
+					intersection.point.y
+				),
+				"progress": progress,
+			})
+		else:
+			ring.append({
+				"point": Vector3(
+					previous_offset_point.x,
+					current.y + 0.08,
+					previous_offset_point.y
+				),
+				"progress": progress,
+			})
+			ring.append({
+				"point": Vector3(
+					next_offset_point.x,
+					current.y + 0.08,
+					next_offset_point.y
+				),
+				"progress": progress,
+			})
+	return ring
+
+
+func _intersect_lines_2d(
+	first_point: Vector2,
+	first_direction: Vector2,
+	second_point: Vector2,
+	second_direction: Vector2
+) -> Dictionary:
+	var denominator := first_direction.cross(second_direction)
+	if absf(denominator) <= 0.00001:
+		return {
+			"valid": true,
+			"point": first_point.lerp(second_point, 0.5),
+		}
+	var distance := (
+		second_point - first_point
+	).cross(second_direction) / denominator
+	return {
+		"valid": true,
+		"point": first_point + first_direction * distance,
+	}
+
+
+func _build_main_barrier_portals(lateral_offset: float) -> Array[Vector2]:
+	var intervals: Array[Vector2] = []
+	var route_length := get_route_length()
+	if route_length <= 0.001:
+		return intervals
+	var requested_side := signf(lateral_offset)
+	for shortcut in shortcut_definitions:
+		var shortcut_points: Array[Vector3] = shortcut.points
+		if shortcut_points.size() < 3:
+			continue
+		var entry_sample_index := mini(
+			SHORTCUT_PORTAL_SEGMENTS,
+			shortcut_points.size() - 1
+		)
+		var exit_sample_index := maxi(
+			shortcut_points.size() - 1 - SHORTCUT_PORTAL_SEGMENTS,
+			0
+		)
+		_append_portal_interval(
+			intervals,
+			shortcut_points[0],
+			shortcut_points[entry_sample_index] - shortcut_points[0],
+			requested_side,
+			route_length
+		)
+		_append_portal_interval(
+			intervals,
+			shortcut_points[-1],
+			shortcut_points[exit_sample_index] - shortcut_points[-1],
+			requested_side,
+			route_length
+		)
+	intervals.sort_custom(
+		func(first: Vector2, second: Vector2) -> bool:
+			return first.x < second.x
+	)
+	var merged: Array[Vector2] = []
+	for interval in intervals:
+		if merged.is_empty() or interval.x > merged[-1].y + 0.00001:
+			merged.append(interval)
+		else:
+			var merged_interval := merged[-1]
+			merged_interval.y = maxf(merged_interval.y, interval.y)
+			merged[-1] = merged_interval
+	return merged
+
+
+func _append_portal_interval(
+	intervals: Array[Vector2],
+	route_point: Vector3,
+	corridor_direction: Vector3,
+	requested_side: float,
+	route_length: float
+) -> void:
+	var route_location := _get_closest_route_location(route_point)
+	var route_forward: Vector3 = route_location.forward
+	var route_right := Vector3.UP.cross(route_forward).normalized()
+	var flattened_corridor := Vector3(
+		corridor_direction.x,
+		0.0,
+		corridor_direction.z
+	)
+	if flattened_corridor.length_squared() <= 0.0001:
+		return
+	flattened_corridor = flattened_corridor.normalized()
+	var lateral_crossing := flattened_corridor.dot(route_right)
+	var actual_side := signf(lateral_crossing)
+	if actual_side == 0.0 or actual_side != requested_side:
+		return
+	var crossing_distance := (
+		absf(requested_side) * (ROAD_WIDTH * 0.5 - BARRIER_PATH_INSET)
+		/ maxf(absf(lateral_crossing), 0.15)
+	)
+	var barrier_crossing_point := (
+		route_point + flattened_corridor * crossing_distance
+	)
+	route_location = _get_closest_route_location(barrier_crossing_point)
+	route_forward = route_location.forward
+	var crossing_factor := absf(
+		Vector2(route_forward.x, route_forward.z).normalized().cross(
+			Vector2(flattened_corridor.x, flattened_corridor.z)
+		)
+	)
+	var portal_width := clampf(
+		SHORTCUT_WIDTH / maxf(crossing_factor, 0.15),
+		PORTAL_MIN_WIDTH,
+		PORTAL_MAX_WIDTH
+	)
+	var half_progress := portal_width * 0.5 / route_length
+	var center_progress := float(route_location.progress)
+	var interval_start := center_progress - half_progress
+	var interval_end := center_progress + half_progress
+	if interval_start < 0.0:
+		intervals.append(Vector2(0.0, interval_end))
+		intervals.append(Vector2(1.0 + interval_start, 1.0))
+	elif interval_end > 1.0:
+		intervals.append(Vector2(interval_start, 1.0))
+		intervals.append(Vector2(0.0, interval_end - 1.0))
+	else:
+		intervals.append(Vector2(interval_start, interval_end))
+
+
+func _get_closest_route_location(point: Vector3) -> Dictionary:
+	var flattened_point := Vector2(point.x, point.z)
+	var minimum_distance := INF
+	var cumulative_distance := 0.0
+	var best_distance := 0.0
+	var best_forward := Vector3.FORWARD
+	var route_length := get_route_length()
 	for route_index in route_points.size():
 		var next_index := (route_index + 1) % route_points.size()
-		var segment_start := _offset_path_point(
-			route_points,
-			route_index,
-			lateral_offset,
-			0.08,
-			true
+		var start := route_points[route_index]
+		var finish := route_points[next_index]
+		var segment_2d := Vector2(finish.x - start.x, finish.z - start.z)
+		var segment_length_squared := segment_2d.length_squared()
+		var weight := 0.0
+		if segment_length_squared > 0.0001:
+			weight = clampf(
+				(
+					flattened_point - Vector2(start.x, start.z)
+				).dot(segment_2d) / segment_length_squared,
+				0.0,
+				1.0
+			)
+		var closest_2d := Vector2(start.x, start.z) + segment_2d * weight
+		var distance := flattened_point.distance_squared_to(closest_2d)
+		var segment_length := start.distance_to(finish)
+		if distance < minimum_distance:
+			minimum_distance = distance
+			best_distance = cumulative_distance + segment_length * weight
+			best_forward = finish - start
+			best_forward.y = 0.0
+			best_forward = best_forward.normalized()
+		cumulative_distance += segment_length
+	return {
+		"progress": best_distance / route_length if route_length > 0.001 else 0.0,
+		"forward": best_forward,
+	}
+
+
+func _split_barrier_ring(
+	barrier_ring: Array[Dictionary],
+	portal_intervals: Array[Vector2]
+) -> Array:
+	var chains: Array = []
+	var current_chain := PackedVector3Array()
+	for point_index in barrier_ring.size():
+		var next_index := (point_index + 1) % barrier_ring.size()
+		var segment_start: Vector3 = barrier_ring[point_index].point
+		var segment_end: Vector3 = barrier_ring[next_index].point
+		var start_progress := float(barrier_ring[point_index].progress)
+		var end_progress := (
+			1.0
+			if next_index == 0
+			else float(barrier_ring[next_index].progress)
 		)
-		var segment_end := _offset_path_point(
-			route_points,
-			next_index,
-			lateral_offset,
-			0.08,
-			true
+		var allowed_ranges := _get_allowed_barrier_ranges(
+			start_progress,
+			end_progress,
+			portal_intervals
 		)
-		for subdivision in BARRIER_SUBDIVISIONS:
-			var start_weight := float(subdivision) / BARRIER_SUBDIVISIONS
-			var end_weight := float(subdivision + 1) / BARRIER_SUBDIVISIONS
-			var barrier_start := segment_start.lerp(segment_end, start_weight)
-			var barrier_end := segment_start.lerp(segment_end, end_weight)
-			if _is_inside_shortcut_portal(barrier_start.lerp(barrier_end, 0.5)):
-				continue
-			_add_barrier_segment(surface, barrier_start, barrier_end)
-	_commit_barrier_surface(surface, barrier_name, collision_layer)
+		for allowed_range in allowed_ranges:
+			var allowed_start := segment_start.lerp(segment_end, allowed_range.x)
+			var allowed_end := segment_start.lerp(segment_end, allowed_range.y)
+			if (
+				current_chain.is_empty()
+				or current_chain[-1].distance_to(allowed_start) > 0.001
+			):
+				if current_chain.size() >= 2:
+					chains.append(current_chain)
+				current_chain = PackedVector3Array([allowed_start])
+			elif current_chain[-1].distance_to(allowed_start) > 0.00001:
+				current_chain.append(allowed_start)
+			if current_chain[-1].distance_to(allowed_end) > 0.00001:
+				current_chain.append(allowed_end)
+	if current_chain.size() >= 2:
+		chains.append(current_chain)
+	if (
+		chains.size() >= 2
+		and (chains[-1] as PackedVector3Array)[-1].distance_to(
+			(chains[0] as PackedVector3Array)[0]
+		) <= 0.001
+	):
+		var joined := chains[-1] as PackedVector3Array
+		var first_chain := chains[0] as PackedVector3Array
+		for first_index in range(1, first_chain.size()):
+			joined.append(first_chain[first_index])
+		chains[0] = joined
+		chains.pop_back()
+	return chains
+
+
+func _get_allowed_barrier_ranges(
+	start_progress: float,
+	end_progress: float,
+	portal_intervals: Array[Vector2]
+) -> Array[Vector2]:
+	var ranges: Array[Vector2] = []
+	if end_progress - start_progress <= 0.000001:
+		if not _is_progress_inside_portal(start_progress, portal_intervals):
+			ranges.append(Vector2(0.0, 1.0))
+		return ranges
+	var cuts := PackedFloat32Array([start_progress, end_progress])
+	for interval in portal_intervals:
+		if interval.x > start_progress and interval.x < end_progress:
+			cuts.append(interval.x)
+		if interval.y > start_progress and interval.y < end_progress:
+			cuts.append(interval.y)
+	cuts.sort()
+	var progress_length := end_progress - start_progress
+	for cut_index in cuts.size() - 1:
+		var range_start := cuts[cut_index]
+		var range_end := cuts[cut_index + 1]
+		if _is_progress_inside_portal(
+			(range_start + range_end) * 0.5,
+			portal_intervals
+		):
+			continue
+		ranges.append(
+			Vector2(
+				(range_start - start_progress) / progress_length,
+				(range_end - start_progress) / progress_length
+			)
+		)
+	return ranges
+
+
+func _is_progress_inside_portal(
+	progress: float,
+	portal_intervals: Array[Vector2]
+) -> bool:
+	for interval in portal_intervals:
+		if progress >= interval.x and progress <= interval.y:
+			return true
+	return false
+
+
+func _create_indexed_barrier_mesh(chains: Array, is_closed: bool) -> ArrayMesh:
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var indices := PackedInt32Array()
+	for chain_value in chains:
+		var chain := chain_value as PackedVector3Array
+		if chain.size() < 2:
+			continue
+		var base_vertex := vertices.size()
+		for point_index in chain.size():
+			var previous_index := (
+				(point_index - 1 + chain.size()) % chain.size()
+				if is_closed
+				else maxi(point_index - 1, 0)
+			)
+			var next_index := (
+				(point_index + 1) % chain.size()
+				if is_closed
+				else mini(point_index + 1, chain.size() - 1)
+			)
+			var tangent := chain[next_index] - chain[previous_index]
+			tangent.y = 0.0
+			if tangent.length_squared() <= 0.0001:
+				tangent = Vector3.FORWARD
+			else:
+				tangent = tangent.normalized()
+			var side := Vector3.UP.cross(tangent).normalized()
+			var left_bottom := chain[point_index] + side * BARRIER_THICKNESS * 0.5
+			var right_bottom := chain[point_index] - side * BARRIER_THICKNESS * 0.5
+			vertices.append(left_bottom)
+			vertices.append(left_bottom + Vector3.UP * BARRIER_HEIGHT)
+			vertices.append(right_bottom)
+			vertices.append(right_bottom + Vector3.UP * BARRIER_HEIGHT)
+			normals.append(side)
+			normals.append((side + Vector3.UP * 0.2).normalized())
+			normals.append(-side)
+			normals.append((-side + Vector3.UP * 0.2).normalized())
+		var segment_count := chain.size() if is_closed else chain.size() - 1
+		for point_index in segment_count:
+			var next_index := (point_index + 1) % chain.size()
+			var current_base := base_vertex + point_index * 4
+			var next_base := base_vertex + next_index * 4
+			_append_quad_indices(
+				indices,
+				current_base,
+				current_base + 1,
+				next_base + 1,
+				next_base
+			)
+			_append_quad_indices(
+				indices,
+				current_base + 2,
+				next_base + 2,
+				next_base + 3,
+				current_base + 3
+			)
+			_append_quad_indices(
+				indices,
+				current_base + 1,
+				current_base + 3,
+				next_base + 3,
+				next_base + 1
+			)
+		if not is_closed:
+			var final_base := base_vertex + (chain.size() - 1) * 4
+			_append_quad_indices(
+				indices,
+				base_vertex,
+				base_vertex + 2,
+				base_vertex + 3,
+				base_vertex + 1
+			)
+			_append_quad_indices(
+				indices,
+				final_base,
+				final_base + 1,
+				final_base + 3,
+				final_base + 2
+			)
+	var mesh := ArrayMesh.new()
+	if vertices.is_empty() or indices.is_empty():
+		return mesh
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+func _append_quad_indices(
+	indices: PackedInt32Array,
+	first: int,
+	second: int,
+	third: int,
+	fourth: int
+) -> void:
+	indices.append_array(PackedInt32Array([
+		first, second, third,
+		first, third, fourth,
+	]))
+
+
+func _commit_barrier_mesh(
+	barrier_mesh: ArrayMesh,
+	barrier_name: String,
+	collision_layer: int
+) -> void:
+	if barrier_mesh == null or barrier_mesh.get_surface_count() == 0:
+		return
+	var barrier_visual := MeshInstance3D.new()
+	barrier_visual.name = barrier_name
+	barrier_visual.mesh = barrier_mesh
+	barrier_visual.material_override = _barrier_material
+	add_child(barrier_visual)
+
+	var barrier_body := StaticBody3D.new()
+	barrier_body.name = barrier_name + "Collision"
+	barrier_body.collision_layer = collision_layer
+	barrier_body.collision_mask = 2
+	add_child(barrier_body)
+	var collision := CollisionShape3D.new()
+	var shape := barrier_mesh.create_trimesh_shape()
+	if shape is ConcavePolygonShape3D:
+		(shape as ConcavePolygonShape3D).backface_collision = true
+	collision.shape = shape
+	barrier_body.add_child(collision)
 
 
 func _create_shortcut_barriers(
