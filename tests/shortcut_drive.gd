@@ -1,0 +1,153 @@
+extends SceneTree
+
+const MAX_PHYSICS_FRAMES_PER_SHORTCUT := 720
+const TARGET_DISTANCE := 5.0
+
+var _has_failed := false
+
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
+	Engine.time_scale = 3.0
+	var packed_scene := load("res://scenes/main.tscn") as PackedScene
+	_check(packed_scene != null, "Main scene loads for shortcut driving test.")
+	if packed_scene == null:
+		_finish(1)
+		return
+	var main := packed_scene.instantiate()
+	root.add_child(main)
+	await process_frame
+	main.settings.is_persistence_enabled = false
+	main.start_game()
+	await process_frame
+	var world: RaceWorld = main.race_world
+	var player: Kart = world.player_kart
+	var track: CoastalTrack = world._track
+	world.race_manager.set_process(false)
+	for racer in world.race_manager.racers:
+		racer.is_control_enabled = false
+		for child in racer.get_children():
+			if child is AiDriver:
+				child.set_physics_process(false)
+	player.is_player = false
+	player.is_control_enabled = true
+
+	for shortcut_definition in track.shortcut_definitions:
+		player.set_shortcut_surface_enabled(false)
+		var drive_points := _build_drive_points(track, shortcut_definition)
+		var first_forward := (drive_points[1] - drive_points[0]).normalized()
+		player.global_transform = Transform3D(
+			Basis.looking_at(first_forward, Vector3.UP),
+			drive_points[0] + Vector3.UP * 0.45
+		)
+		player.velocity = first_forward * 5.0
+		player.set_respawn_transform(player.global_transform)
+		var initial_recovery_count := player.recovery_count
+		var target_index := 1
+		var shortcut_surface_was_enabled := false
+		for physics_step in MAX_PHYSICS_FRAMES_PER_SHORTCUT:
+			player.is_control_enabled = true
+			while (
+				target_index < drive_points.size() - 1
+				and player.global_position.distance_to(drive_points[target_index])
+				< TARGET_DISTANCE
+			):
+				target_index += 1
+			var lookahead_index := mini(target_index + 2, drive_points.size() - 1)
+			var target_direction := (
+				drive_points[lookahead_index] - player.global_position
+			)
+			target_direction.y = 0.0
+			target_direction = target_direction.normalized()
+			var player_forward := -player.global_transform.basis.z.normalized()
+			var steer := clampf(
+				-player_forward.cross(target_direction).y * 2.4,
+				-1.0,
+				1.0
+			)
+			var alignment := player_forward.dot(target_direction)
+			player.set_drive_input(
+				0.65 if alignment < 0.7 else 1.0,
+				0.35 if alignment < 0.35 else 0.0,
+				steer,
+				false,
+				false
+			)
+			await physics_frame
+			shortcut_surface_was_enabled = (
+				shortcut_surface_was_enabled
+				or (player.collision_mask & Kart.SHORTCUT_SURFACE_LAYER) != 0
+			)
+			if (
+				target_index == drive_points.size() - 1
+				and player.global_position.distance_to(drive_points.back())
+				< TARGET_DISTANCE
+			):
+				break
+		print(
+			"INFO: %s target=%d/%d distance=%.2f speed=%.1f recoveries=%d"
+			% [
+				shortcut_definition.name,
+				target_index,
+				drive_points.size() - 1,
+				player.global_position.distance_to(drive_points.back()),
+				Vector2(player.velocity.x, player.velocity.z).length(),
+				player.recovery_count - initial_recovery_count,
+			]
+		)
+		_check(
+			target_index == drive_points.size() - 1
+			and player.global_position.distance_to(drive_points.back()) < TARGET_DISTANCE,
+			"%s is traversable by the real player kart." % shortcut_definition.name
+		)
+		_check(
+			player.recovery_count == initial_recovery_count,
+			"%s does not trigger player recovery." % shortcut_definition.name
+		)
+		_check(
+			shortcut_surface_was_enabled
+			and (player.collision_mask & Kart.SHORTCUT_SURFACE_LAYER) == 0,
+			"%s enables its floor only during traversal." % shortcut_definition.name
+		)
+		player.set_drive_input(0.0, 1.0, 0.0, false, false)
+
+	main.queue_free()
+	await process_frame
+	_finish(1 if _has_failed else 0)
+
+
+func _build_drive_points(
+	track: CoastalTrack,
+	shortcut_definition: Dictionary
+) -> Array[Vector3]:
+	var drive_points: Array[Vector3] = []
+	var route_size := track.route_points.size()
+	var entry_index: int = shortcut_definition.entry_index
+	var exit_index: int = shortcut_definition.exit_index
+	for route_offset in range(-3, 1):
+		drive_points.append(
+			track.route_points[(entry_index + route_offset + route_size) % route_size]
+		)
+	var shortcut_points: Array[Vector3] = shortcut_definition.points
+	for shortcut_point in shortcut_points:
+		if drive_points.back().distance_to(shortcut_point) > 0.01:
+			drive_points.append(shortcut_point)
+	for route_offset in range(1, 5):
+		drive_points.append(track.route_points[(exit_index + route_offset) % route_size])
+	return drive_points
+
+
+func _check(condition: bool, message: String) -> void:
+	if condition:
+		print("PASS: ", message)
+	else:
+		_has_failed = true
+		push_error("FAIL: " + message)
+
+
+func _finish(exit_code: int) -> void:
+	Engine.time_scale = 1.0
+	quit(exit_code)

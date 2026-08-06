@@ -6,11 +6,22 @@ signal shortcut_completed(kart: Node, entry_index: int, exit_index: int)
 const ROAD_WIDTH := 17.5
 const ROUTE_SUBDIVISIONS := 8
 const CURB_WIDTH := 0.7
-const SHORTCUT_WIDTH := 8.0
+const SHORTCUT_WIDTH := 10.0
 const BARRIER_HEIGHT := 1.0
 const SHORTCUT_PATH_SEGMENTS := 24
+const SHORTCUT_CURB_TRIM_SEGMENTS := 6
+const SHORTCUT_GATE_OFFSET_SEGMENTS := 3
+const SHORTCUT_ENDPOINT_HANDLE_RATIO := 0.32
+const SHORTCUT_ENDPOINT_HANDLE_MAX_LENGTH := 20.0
+const SHORTCUT_MIDPOINT_HANDLE_RATIO := 0.18
+const BARRIER_PATH_INSET := 0.12
+const BARRIER_SUBDIVISIONS := 5
+const SHORTCUT_PORTAL_SEGMENTS := 10
+const SHORTCUT_HEIGHT_ALIGNMENT_BLEND_DISTANCE := 4.0
 const MAIN_COLLISION_LAYER := 1
 const SHORTCUT_COLLISION_LAYER := 8
+const MAIN_BARRIER_COLLISION_LAYER := 16
+const SHORTCUT_BARRIER_COLLISION_LAYER := 32
 
 var route_points: Array[Vector3] = []
 var item_spawn_points: Array[Vector3] = []
@@ -98,11 +109,10 @@ func _build_route() -> void:
 func _define_shortcuts() -> void:
 	var lagoon_entry := 18
 	var lagoon_exit := 38
-	var lagoon_points := _create_bezier_path(
-		route_points[lagoon_entry],
-		Vector3(47.0, 0.42, 33.0),
-		Vector3(54.0, 0.42, 4.0),
-		route_points[lagoon_exit]
+	var lagoon_points := _create_waypoint_shortcut_path(
+		lagoon_entry,
+		lagoon_exit,
+		Vector3(55.0, 0.42, 16.0)
 	)
 	shortcut_definitions.append({
 		"id": 0,
@@ -114,11 +124,10 @@ func _define_shortcuts() -> void:
 
 	var canyon_entry := 66
 	var canyon_exit := 90
-	var canyon_points := _create_bezier_path(
-		route_points[canyon_entry],
-		Vector3(-38.0, 0.65, -48.0),
-		Vector3(-62.0, 1.9, -20.0),
-		route_points[canyon_exit]
+	var canyon_points := _create_waypoint_shortcut_path(
+		canyon_entry,
+		canyon_exit,
+		Vector3(-52.0, 1.3, -33.0)
 	)
 	shortcut_definitions.append({
 		"id": 1,
@@ -197,6 +206,80 @@ func _create_drivable_surface(
 	path_body.add_child(path_collision)
 
 
+func _create_shortcut_drivable_surface(
+	path_points: Array[Vector3],
+	node_name: String
+) -> void:
+	var visual_mesh := _create_ribbon_mesh(
+		path_points,
+		-SHORTCUT_WIDTH * 0.5,
+		SHORTCUT_WIDTH * 0.5,
+		0.0,
+		false
+	)
+	var path_visual := MeshInstance3D.new()
+	path_visual.name = node_name
+	path_visual.mesh = visual_mesh
+	path_visual.material_override = _shortcut_material
+	add_child(path_visual)
+
+	var collision_mesh := _create_shortcut_collision_mesh(path_points)
+	var path_body := StaticBody3D.new()
+	path_body.name = node_name + "Collision"
+	path_body.collision_layer = SHORTCUT_COLLISION_LAYER
+	path_body.collision_mask = 2
+	add_child(path_body)
+	var path_collision := CollisionShape3D.new()
+	var path_shape := collision_mesh.create_trimesh_shape()
+	if path_shape is ConcavePolygonShape3D:
+		(path_shape as ConcavePolygonShape3D).backface_collision = false
+	path_collision.shape = path_shape
+	path_body.add_child(path_collision)
+
+
+func _create_shortcut_collision_mesh(path_points: Array[Vector3]) -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for point_index in path_points.size() - 1:
+		var next_index := point_index + 1
+		var current_left := _offset_path_point(
+			path_points,
+			point_index,
+			-SHORTCUT_WIDTH * 0.5,
+			0.0,
+			false
+		)
+		var current_right := _offset_path_point(
+			path_points,
+			point_index,
+			SHORTCUT_WIDTH * 0.5,
+			0.0,
+			false
+		)
+		var next_left := _offset_path_point(
+			path_points,
+			next_index,
+			-SHORTCUT_WIDTH * 0.5,
+			0.0,
+			false
+		)
+		var next_right := _offset_path_point(
+			path_points,
+			next_index,
+			SHORTCUT_WIDTH * 0.5,
+			0.0,
+			false
+		)
+		_add_surface_vertex(surface, current_left, Vector2.ZERO)
+		_add_surface_vertex(surface, current_right, Vector2(1.0, 0.0))
+		_add_surface_vertex(surface, next_right, Vector2.ONE)
+		_add_surface_vertex(surface, current_left, Vector2.ZERO)
+		_add_surface_vertex(surface, next_right, Vector2.ONE)
+		_add_surface_vertex(surface, next_left, Vector2(0.0, 1.0))
+	surface.generate_normals()
+	return surface.commit()
+
+
 func _create_ribbon_mesh(
 	path_points: Array[Vector3],
 	offset_a: float,
@@ -272,16 +355,15 @@ func _build_shortcuts() -> void:
 		var shortcut_id: int = shortcut.id
 		var shortcut_name: String = shortcut.name
 		var shortcut_points: Array[Vector3] = shortcut.points
-		_create_drivable_surface(
+		_create_shortcut_drivable_surface(
 			shortcut_points,
-			SHORTCUT_WIDTH,
-			_shortcut_material,
-			"Shortcut%d" % shortcut_id,
-			false,
-			SHORTCUT_COLLISION_LAYER
+			"Shortcut%d" % shortcut_id
 		)
 		var trimmed_shortcut_points: Array[Vector3] = []
-		for point_index in range(4, shortcut_points.size() - 4):
+		for point_index in range(
+			SHORTCUT_CURB_TRIM_SEGMENTS,
+			shortcut_points.size() - SHORTCUT_CURB_TRIM_SEGMENTS
+		):
 			trimmed_shortcut_points.append(shortcut_points[point_index])
 		_create_curb(
 			trimmed_shortcut_points,
@@ -295,32 +377,26 @@ func _build_shortcuts() -> void:
 			SHORTCUT_WIDTH * 0.5,
 			false
 		)
-		var shortcut_openings: Dictionary = {}
-		for opening_index in range(0, 5):
-			shortcut_openings[opening_index] = true
-		for opening_index in range(shortcut_points.size() - 6, shortcut_points.size() - 1):
-			shortcut_openings[opening_index] = true
-		_create_barrier_path(
+		_create_shortcut_barriers(
 			shortcut_points,
-			SHORTCUT_WIDTH,
-			false,
-			shortcut_openings,
-			shortcut_openings,
 			"Shortcut%d" % shortcut_id,
-			SHORTCUT_COLLISION_LAYER
+			SHORTCUT_BARRIER_COLLISION_LAYER
 		)
 		_create_shortcut_gate(
-			shortcut_points[0],
-			shortcut_points[1],
+			shortcut_points[SHORTCUT_GATE_OFFSET_SEGMENTS],
+			shortcut_points[SHORTCUT_GATE_OFFSET_SEGMENTS + 1],
 			SHORTCUT_WIDTH,
 			shortcut_id,
 			int(shortcut.entry_index),
 			int(shortcut.exit_index),
 			true
 		)
+		var exit_gate_index := (
+			shortcut_points.size() - 1 - SHORTCUT_GATE_OFFSET_SEGMENTS
+		)
 		_create_shortcut_gate(
-			shortcut_points.back(),
-			shortcut_points[shortcut_points.size() - 2],
+			shortcut_points[exit_gate_index],
+			shortcut_points[exit_gate_index - 1],
 			SHORTCUT_WIDTH,
 			shortcut_id,
 			int(shortcut.entry_index),
@@ -331,126 +407,243 @@ func _build_shortcuts() -> void:
 
 
 func _build_main_barriers() -> void:
-	var left_openings: Dictionary = {}
-	var right_openings: Dictionary = {}
-	for shortcut in shortcut_definitions:
-		var shortcut_points: Array[Vector3] = shortcut.points
-		var gate_data := [
-			[int(shortcut.entry_index), true],
-			[int(shortcut.exit_index), false],
-		]
-		for gate in gate_data:
-			var gate_index: int = gate[0]
-			var is_entry: bool = gate[1]
-			var opens_right := _shortcut_opens_to_right(
-				shortcut_points,
-				gate_index,
-				is_entry
-			)
-			var target_openings := right_openings if opens_right else left_openings
-			for offset in range(-1, 2):
-				var segment_index: int = (
-					gate_index + offset + route_points.size()
-				) % route_points.size()
-				target_openings[segment_index] = true
-	_create_barrier_path(
-		route_points,
-		ROAD_WIDTH,
-		true,
-		left_openings,
-		right_openings,
-		"Main",
-		MAIN_COLLISION_LAYER
+	_create_main_barrier_side(
+		-ROAD_WIDTH * 0.5 + BARRIER_PATH_INSET,
+		"MainBarrierLeft",
+		MAIN_BARRIER_COLLISION_LAYER
+	)
+	_create_main_barrier_side(
+		ROAD_WIDTH * 0.5 - BARRIER_PATH_INSET,
+		"MainBarrierRight",
+		MAIN_BARRIER_COLLISION_LAYER
 	)
 
 
-func _create_barrier_path(
-	path_points: Array[Vector3],
-	path_width: float,
-	is_closed: bool,
-	left_skipped_segments: Dictionary,
-	right_skipped_segments: Dictionary,
-	name_prefix: String,
-	collision_layer: int
-) -> void:
-	_create_barrier_side(
-		path_points,
-		-path_width * 0.5 + 0.12,
-		is_closed,
-		left_skipped_segments,
-		name_prefix + "BarrierLeft",
-		collision_layer
-	)
-	_create_barrier_side(
-		path_points,
-		path_width * 0.5 - 0.12,
-		is_closed,
-		right_skipped_segments,
-		name_prefix + "BarrierRight",
-		collision_layer
-	)
-
-
-func _shortcut_opens_to_right(
-	shortcut_points: Array[Vector3],
-	route_index: int,
-	is_entry: bool
-) -> bool:
-	var previous := route_points[(route_index - 1 + route_points.size()) % route_points.size()]
-	var next := route_points[(route_index + 1) % route_points.size()]
-	var route_direction := next - previous
-	route_direction.y = 0.0
-	route_direction = route_direction.normalized()
-	var route_right := Vector3.UP.cross(route_direction).normalized()
-	var connection_direction: Vector3
-	if is_entry:
-		connection_direction = shortcut_points[3] - shortcut_points[0]
-	else:
-		connection_direction = (
-			shortcut_points[shortcut_points.size() - 4]
-			- shortcut_points.back()
-		)
-	connection_direction.y = 0.0
-	return connection_direction.normalized().dot(route_right) > 0.0
-
-
-func _create_barrier_side(
-	path_points: Array[Vector3],
+func _create_main_barrier_side(
 	lateral_offset: float,
-	is_closed: bool,
-	skipped_segments: Dictionary,
 	barrier_name: String,
 	collision_layer: int
 ) -> void:
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var segment_count := path_points.size() if is_closed else path_points.size() - 1
-	for point_index in segment_count:
-		if skipped_segments.has(point_index):
-			continue
-		var next_index := (point_index + 1) % path_points.size()
-		var current_bottom := _offset_path_point(
-			path_points,
-			point_index,
+	for route_index in route_points.size():
+		var next_index := (route_index + 1) % route_points.size()
+		var segment_start := _offset_path_point(
+			route_points,
+			route_index,
 			lateral_offset,
 			0.08,
-			is_closed
+			true
 		)
-		var next_bottom := _offset_path_point(
-			path_points,
+		var segment_end := _offset_path_point(
+			route_points,
 			next_index,
 			lateral_offset,
 			0.08,
-			is_closed
+			true
 		)
-		var current_top := current_bottom + Vector3.UP * BARRIER_HEIGHT
-		var next_top := next_bottom + Vector3.UP * BARRIER_HEIGHT
-		_add_surface_vertex(surface, current_bottom, Vector2.ZERO)
-		_add_surface_vertex(surface, next_top, Vector2.ONE)
-		_add_surface_vertex(surface, next_bottom, Vector2(1.0, 0.0))
-		_add_surface_vertex(surface, current_bottom, Vector2.ZERO)
-		_add_surface_vertex(surface, current_top, Vector2(0.0, 1.0))
-		_add_surface_vertex(surface, next_top, Vector2.ONE)
+		for subdivision in BARRIER_SUBDIVISIONS:
+			var start_weight := float(subdivision) / BARRIER_SUBDIVISIONS
+			var end_weight := float(subdivision + 1) / BARRIER_SUBDIVISIONS
+			var barrier_start := segment_start.lerp(segment_end, start_weight)
+			var barrier_end := segment_start.lerp(segment_end, end_weight)
+			if _is_inside_shortcut_portal(barrier_start.lerp(barrier_end, 0.5)):
+				continue
+			_add_barrier_segment(surface, barrier_start, barrier_end)
+	_commit_barrier_surface(surface, barrier_name, collision_layer)
+
+
+func _create_shortcut_barriers(
+	shortcut_points: Array[Vector3],
+	name_prefix: String,
+	collision_layer: int
+) -> void:
+	for side_data in [
+		[-SHORTCUT_WIDTH * 0.5 + BARRIER_PATH_INSET, name_prefix + "BarrierLeft"],
+		[SHORTCUT_WIDTH * 0.5 - BARRIER_PATH_INSET, name_prefix + "BarrierRight"],
+	]:
+		var lateral_offset: float = side_data[0]
+		var barrier_name: String = side_data[1]
+		var surface := SurfaceTool.new()
+		surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for point_index in shortcut_points.size() - 1:
+			var segment_start := _offset_path_point(
+				shortcut_points,
+				point_index,
+				lateral_offset,
+				0.08,
+				false
+			)
+			var segment_end := _offset_path_point(
+				shortcut_points,
+				point_index + 1,
+				lateral_offset,
+				0.08,
+				false
+			)
+			for subdivision in BARRIER_SUBDIVISIONS:
+				var start_weight := float(subdivision) / BARRIER_SUBDIVISIONS
+				var end_weight := float(subdivision + 1) / BARRIER_SUBDIVISIONS
+				var barrier_start := segment_start.lerp(segment_end, start_weight)
+				var barrier_end := segment_start.lerp(segment_end, end_weight)
+				if _distance_to_main_route_2d(
+					barrier_start.lerp(barrier_end, 0.5)
+				) <= ROAD_WIDTH * 0.5 - BARRIER_PATH_INSET:
+					continue
+				_add_barrier_segment(surface, barrier_start, barrier_end)
+		_commit_barrier_surface(surface, barrier_name, collision_layer)
+
+
+func _is_inside_shortcut_portal(point: Vector3) -> bool:
+	var portal_radius := SHORTCUT_WIDTH * 0.5 - BARRIER_PATH_INSET
+	for shortcut in shortcut_definitions:
+		var shortcut_points: Array[Vector3] = shortcut.points
+		if _distance_to_path_range_2d(
+			point,
+			shortcut_points,
+			0,
+			SHORTCUT_PORTAL_SEGMENTS
+		) <= portal_radius:
+			return true
+		var final_segment_index := shortcut_points.size() - 1
+		if _distance_to_path_range_2d(
+			point,
+			shortcut_points,
+			final_segment_index - SHORTCUT_PORTAL_SEGMENTS,
+			final_segment_index
+		) <= portal_radius:
+			return true
+	return false
+
+
+func _distance_to_path_range_2d(
+	point: Vector3,
+	path_points: Array[Vector3],
+	first_segment: int,
+	final_segment_exclusive: int
+) -> float:
+	var flattened_point := Vector2(point.x, point.z)
+	var minimum_distance := INF
+	for segment_index in range(first_segment, final_segment_exclusive):
+		var segment_start := Vector2(
+			path_points[segment_index].x,
+			path_points[segment_index].z
+		)
+		var segment_end := Vector2(
+			path_points[segment_index + 1].x,
+			path_points[segment_index + 1].z
+		)
+		minimum_distance = minf(
+			minimum_distance,
+			_point_to_segment_distance_2d(flattened_point, segment_start, segment_end)
+		)
+	return minimum_distance
+
+
+func _distance_to_main_route_2d(point: Vector3) -> float:
+	var closest_route_point := _get_closest_main_route_point(point)
+	return Vector2(point.x, point.z).distance_to(
+		Vector2(closest_route_point.x, closest_route_point.z)
+	)
+
+
+func _get_closest_main_route_point(point: Vector3) -> Vector3:
+	var flattened_point := Vector2(point.x, point.z)
+	var minimum_distance := INF
+	var closest_route_point := route_points[0]
+	for route_index in route_points.size():
+		var next_index := (route_index + 1) % route_points.size()
+		var segment_start := Vector2(route_points[route_index].x, route_points[route_index].z)
+		var segment_end := Vector2(route_points[next_index].x, route_points[next_index].z)
+		var segment := segment_end - segment_start
+		var segment_length_squared := segment.length_squared()
+		var weight := 0.0
+		if segment_length_squared > 0.0001:
+			weight = clampf(
+				(flattened_point - segment_start).dot(segment) / segment_length_squared,
+				0.0,
+				1.0
+			)
+		var closest_flattened_point := segment_start + segment * weight
+		var distance := flattened_point.distance_to(closest_flattened_point)
+		if distance < minimum_distance:
+			minimum_distance = distance
+			closest_route_point = route_points[route_index].lerp(
+				route_points[next_index],
+				weight
+			)
+	return closest_route_point
+
+
+func _align_shortcut_junction_heights(points: Array[Vector3]) -> void:
+	var full_alignment_clearance := ROAD_WIDTH * 0.5 + SHORTCUT_WIDTH * 0.5
+	for point_index in points.size():
+		var shortcut_point := points[point_index]
+		var closest_route_point := _get_closest_main_route_point(shortcut_point)
+		var clearance := Vector2(shortcut_point.x, shortcut_point.z).distance_to(
+			Vector2(closest_route_point.x, closest_route_point.z)
+		)
+		var alignment_weight := clampf(
+			(
+				full_alignment_clearance
+				+ SHORTCUT_HEIGHT_ALIGNMENT_BLEND_DISTANCE
+				- clearance
+			) / SHORTCUT_HEIGHT_ALIGNMENT_BLEND_DISTANCE,
+			0.0,
+			1.0
+		)
+		alignment_weight = smoothstep(0.0, 1.0, alignment_weight)
+		shortcut_point.y = lerpf(
+			shortcut_point.y,
+			closest_route_point.y + 0.018,
+			alignment_weight
+		)
+		points[point_index] = shortcut_point
+
+
+func _point_to_segment_distance_2d(
+	point: Vector2,
+	segment_start: Vector2,
+	segment_end: Vector2
+) -> float:
+	var segment := segment_end - segment_start
+	var segment_length_squared := segment.length_squared()
+	if segment_length_squared <= 0.0001:
+		return point.distance_to(segment_start)
+	var weight := clampf(
+		(point - segment_start).dot(segment) / segment_length_squared,
+		0.0,
+		1.0
+	)
+	return point.distance_to(segment_start + segment * weight)
+
+
+func _get_route_forward(route_index: int) -> Vector3:
+	var previous_index := (route_index - 1 + route_points.size()) % route_points.size()
+	var next_index := (route_index + 1) % route_points.size()
+	return (route_points[next_index] - route_points[previous_index]).normalized()
+
+
+func _add_barrier_segment(
+	surface: SurfaceTool,
+	current_bottom: Vector3,
+	next_bottom: Vector3
+) -> void:
+	var current_top := current_bottom + Vector3.UP * BARRIER_HEIGHT
+	var next_top := next_bottom + Vector3.UP * BARRIER_HEIGHT
+	_add_surface_vertex(surface, current_bottom, Vector2.ZERO)
+	_add_surface_vertex(surface, next_top, Vector2.ONE)
+	_add_surface_vertex(surface, next_bottom, Vector2(1.0, 0.0))
+	_add_surface_vertex(surface, current_bottom, Vector2.ZERO)
+	_add_surface_vertex(surface, current_top, Vector2(0.0, 1.0))
+	_add_surface_vertex(surface, next_top, Vector2.ONE)
+
+
+func _commit_barrier_surface(
+	surface: SurfaceTool,
+	barrier_name: String,
+	collision_layer: int
+) -> void:
 	surface.generate_normals()
 	var barrier_mesh := surface.commit()
 
@@ -509,6 +702,7 @@ func _create_shortcut_gate(
 func _handle_shortcut_entry(body: Node3D, shortcut_id: int) -> void:
 	if not body is Kart:
 		return
+	body.set_shortcut_surface_enabled(true)
 	_active_shortcuts[body.get_instance_id()] = shortcut_id
 
 
@@ -524,6 +718,7 @@ func _handle_shortcut_exit(
 	if int(_active_shortcuts.get(kart_id, -1)) != shortcut_id:
 		return
 	_active_shortcuts.erase(kart_id)
+	body.set_shortcut_surface_enabled(false)
 	shortcut_completed.emit(body, entry_index, exit_index)
 
 
@@ -538,15 +733,18 @@ func _create_shortcut_sign(label_text: String, sign_position: Vector3, look_posi
 	sign.look_at(look_position + Vector3.UP * 2.0, Vector3.UP)
 
 
-func _create_bezier_path(
+func _append_bezier_segment(
+	points: Array[Vector3],
 	start: Vector3,
 	control_a: Vector3,
 	control_b: Vector3,
-	end: Vector3
-) -> Array[Vector3]:
-	var points: Array[Vector3] = []
-	for step in range(SHORTCUT_PATH_SEGMENTS + 1):
-		var weight := float(step) / SHORTCUT_PATH_SEGMENTS
+	end: Vector3,
+	segment_count: int,
+	include_start: bool
+) -> void:
+	var first_step := 0 if include_start else 1
+	for step in range(first_step, segment_count + 1):
+		var weight := float(step) / segment_count
 		var inverse_weight := 1.0 - weight
 		var point := (
 			inverse_weight * inverse_weight * inverse_weight * start
@@ -556,6 +754,52 @@ func _create_bezier_path(
 		)
 		var center_lift := sin(PI * weight) * 0.035
 		points.append(point + Vector3.UP * center_lift)
+
+
+func _create_waypoint_shortcut_path(
+	entry_index: int,
+	exit_index: int,
+	waypoint: Vector3
+) -> Array[Vector3]:
+	var start := route_points[entry_index]
+	var end := route_points[exit_index]
+	var entry_to_waypoint := (waypoint - start).normalized()
+	var waypoint_to_exit := (end - waypoint).normalized()
+	var waypoint_forward := (entry_to_waypoint + waypoint_to_exit).normalized()
+	var entry_handle_length := minf(
+		start.distance_to(waypoint) * SHORTCUT_ENDPOINT_HANDLE_RATIO,
+		SHORTCUT_ENDPOINT_HANDLE_MAX_LENGTH
+	)
+	var exit_handle_length := minf(
+		waypoint.distance_to(end) * SHORTCUT_ENDPOINT_HANDLE_RATIO,
+		SHORTCUT_ENDPOINT_HANDLE_MAX_LENGTH
+	)
+	var midpoint_handle_length := minf(
+		minf(start.distance_to(waypoint), waypoint.distance_to(end))
+		* SHORTCUT_MIDPOINT_HANDLE_RATIO,
+		10.0
+	)
+	var half_segment_count := SHORTCUT_PATH_SEGMENTS / 2
+	var points: Array[Vector3] = []
+	_append_bezier_segment(
+		points,
+		start,
+		start + _get_route_forward(entry_index) * entry_handle_length,
+		waypoint - waypoint_forward * midpoint_handle_length,
+		waypoint,
+		half_segment_count,
+		true
+	)
+	_append_bezier_segment(
+		points,
+		waypoint,
+		waypoint + waypoint_forward * midpoint_handle_length,
+		end - _get_route_forward(exit_index) * exit_handle_length,
+		end,
+		half_segment_count,
+		false
+	)
+	_align_shortcut_junction_heights(points)
 	return points
 
 
