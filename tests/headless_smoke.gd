@@ -206,12 +206,15 @@ func _run() -> void:
 			"Continuous barriers protect both sides of the main route."
 		)
 		_check(
-			(player.collision_mask & 8) == 0,
+			(player.collision_mask & PhysicsLayers.SHORTCUTS) == 0,
 			"Player ignores shortcut seams while driving on the main route."
 		)
 		_check(
-			(player.collision_mask & 16) != 0
-			and (player.collision_mask & 32) != 0,
+			(player.collision_mask & PhysicsLayers.MAIN_BARRIERS) != 0
+			and (
+				player.collision_mask
+				& PhysicsLayers.SHORTCUT_BARRIERS
+			) != 0,
 			"Player collides with main and shortcut barriers."
 		)
 		for racer_index in range(1, 4):
@@ -245,7 +248,10 @@ func _run() -> void:
 			await process_frame
 			shortcut_surface_was_enabled = (
 				shortcut_surface_was_enabled
-				or (player.collision_mask & 8) != 0
+				or (
+					player.collision_mask
+					& PhysicsLayers.SHORTCUTS
+				) != 0
 			)
 		var shortcut_result: Dictionary = manager._race_data[player_id]
 		manager.set_process(true)
@@ -268,7 +274,11 @@ func _run() -> void:
 			"Shortcut gate advances through its declared exit checkpoint."
 		)
 		_check(
-			shortcut_surface_was_enabled and (player.collision_mask & 8) == 0,
+			shortcut_surface_was_enabled
+			and (
+				player.collision_mask
+				& PhysicsLayers.SHORTCUTS
+			) == 0,
 			"Shortcut floor activates only between its entry and exit gates."
 		)
 		manager._race_data[player_id] = saved_race_data
@@ -278,9 +288,33 @@ func _run() -> void:
 		player.held_item = ItemDefinition.boost()
 		player.use_item()
 		_check(player.held_item == null, "Boost item is consumed.")
+		var projectile_count_before: int = (
+			main.race_world._projectiles.get_child_count()
+		)
 		player.held_item = ItemDefinition.tropical_projectile()
 		player.use_item()
 		_check(player.held_item == null, "Projectile item is consumed.")
+		_check(
+			main.race_world._projectiles.get_child_count()
+			== projectile_count_before + 1
+			and main.race_world._projectiles.get_child(
+				projectile_count_before
+			) is KartProjectile,
+			"Player launches Coco turbo through the RaceWorld projectile container."
+		)
+		var bot: Kart = manager.racers[1]
+		bot.held_item = ItemDefinition.tropical_projectile()
+		bot.use_item()
+		_check(
+			main.race_world._projectiles.get_child_count()
+			== projectile_count_before + 2,
+			"Bots launch Coco turbo through the same RaceWorld flow."
+		)
+		main.race_world._clear_projectiles()
+		_check(
+			main.race_world._projectiles.get_child_count() == 0,
+			"RaceWorld clears every active projectile."
+		)
 
 		for lap in manager.total_laps:
 			for route_index in range(1, manager.route_points.size()):
@@ -293,6 +327,21 @@ func _run() -> void:
 			manager._update_racers()
 			await process_frame
 		_check(not player.is_control_enabled, "Three valid laps finish the player race.")
+		player.is_control_enabled = true
+		player.held_item = ItemDefinition.tropical_projectile()
+		player.use_item()
+		_check(
+			main.race_world._projectiles.get_child_count() == 1,
+			"A projectile can be active immediately before a race restart."
+		)
+		main._restart_game()
+		await process_frame
+		await process_frame
+		_check(
+			main.race_world != null
+			and main.race_world._projectiles.get_child_count() == 0,
+			"Restarting the race replaces the world without active projectiles."
+		)
 	main.queue_free()
 	await process_frame
 	var garden_main := packed_scene.instantiate()
@@ -400,7 +449,7 @@ func _is_shortcut_corridor_clear(
 			excluded_rids.append((racer_node as CollisionObject3D).get_rid())
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = probe_shape
-	query.collision_mask = 16 | 32
+	query.collision_mask = PhysicsLayers.BARRIERS
 	query.collide_with_areas = false
 	query.exclude = excluded_rids
 	var shortcut_points: Array[Vector3] = shortcut_definition.points
@@ -490,7 +539,7 @@ func _barriers_contain_drivable_corridors(
 			excluded_rids.append((racer_node as CollisionObject3D).get_rid())
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = probe_shape
-	query.collision_mask = 16 | 32
+	query.collision_mask = PhysicsLayers.BARRIERS
 	query.collide_with_areas = false
 	query.exclude = excluded_rids
 	var space_state := track.get_world_3d().direct_space_state
@@ -517,7 +566,7 @@ func _barriers_contain_drivable_corridors(
 				var ray_query := PhysicsRayQueryParameters3D.create(
 					escape_start,
 					escape_start + escape_motion,
-					16 | 32
+					PhysicsLayers.BARRIERS
 				)
 				ray_query.collide_with_areas = false
 				var ray_hit := space_state.intersect_ray(ray_query)
@@ -571,7 +620,7 @@ func _shortcut_surface_is_continuous(
 			var query := PhysicsRayQueryParameters3D.create(
 				sample_position + Vector3.UP * 0.8,
 				sample_position - Vector3.UP * 0.8,
-				1 | 8
+				PhysicsLayers.DRIVABLE_SURFACES
 			)
 			query.collide_with_areas = false
 			var floor_hit := space_state.intersect_ray(query)
