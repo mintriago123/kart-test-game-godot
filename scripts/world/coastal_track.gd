@@ -16,8 +16,6 @@ const SHORTCUT_ENDPOINT_HANDLE_RATIO := 0.32
 const SHORTCUT_ENDPOINT_HANDLE_MAX_LENGTH := 20.0
 const SHORTCUT_MIDPOINT_HANDLE_RATIO := 0.18
 const BARRIER_PATH_INSET := 0.12
-const BARRIER_SUBDIVISIONS := 5
-const SHORTCUT_PORTAL_SEGMENTS := 10
 const BARRIER_MITER_LIMIT := 2.0
 const BARRIER_THICKNESS := 0.24
 const PORTAL_MIN_WIDTH := 6.0
@@ -569,28 +567,54 @@ func _build_main_barrier_portals(lateral_offset: float) -> Array[Vector2]:
 		var shortcut_points: Array[Vector3] = shortcut.points
 		if shortcut_points.size() < 3:
 			continue
-		var entry_sample_index := mini(
-			SHORTCUT_PORTAL_SEGMENTS,
-			shortcut_points.size() - 1
-		)
-		var exit_sample_index := maxi(
-			shortcut_points.size() - 1 - SHORTCUT_PORTAL_SEGMENTS,
-			0
-		)
-		_append_portal_interval(
-			intervals,
-			shortcut_points[0],
-			shortcut_points[entry_sample_index] - shortcut_points[0],
-			requested_side,
-			route_length
-		)
-		_append_portal_interval(
-			intervals,
-			shortcut_points[-1],
-			shortcut_points[exit_sample_index] - shortcut_points[-1],
-			requested_side,
-			route_length
-		)
+		for is_entry in [true, false]:
+			var portal := _find_shortcut_portal(shortcut_points, is_entry, 0.0)
+			if portal.is_empty() or float(portal.side) != requested_side:
+				continue
+			var edge_progresses: Array[float] = []
+			for corridor_offset in [-3.75, 3.75]:
+				var edge_portal := _find_shortcut_portal(
+					shortcut_points,
+					is_entry,
+					corridor_offset
+				)
+				if (
+					not edge_portal.is_empty()
+					and float(edge_portal.side) == requested_side
+				):
+					edge_progresses.append(
+						float(
+							_get_closest_route_location(
+								edge_portal.point
+							).progress
+						)
+					)
+			var center_progress := float(
+				_get_closest_route_location(portal.point).progress
+			)
+			if edge_progresses.size() == 2:
+				var first_delta := wrapf(
+					edge_progresses[0] - center_progress + 0.5,
+					0.0,
+					1.0
+				) - 0.5
+				var second_delta := wrapf(
+					edge_progresses[1] - center_progress + 0.5,
+					0.0,
+					1.0
+				) - 0.5
+				center_progress = wrapf(
+					center_progress + (first_delta + second_delta) * 0.5,
+					0.0,
+					1.0
+				)
+			_append_portal_interval(
+				intervals,
+				portal.point,
+				portal.direction,
+				route_length,
+				center_progress
+			)
 	intervals.sort_custom(
 		func(first: Vector2, second: Vector2) -> bool:
 			return first.x < second.x
@@ -608,14 +632,13 @@ func _build_main_barrier_portals(lateral_offset: float) -> Array[Vector2]:
 
 func _append_portal_interval(
 	intervals: Array[Vector2],
-	route_point: Vector3,
+	barrier_crossing_point: Vector3,
 	corridor_direction: Vector3,
-	requested_side: float,
-	route_length: float
+	route_length: float,
+	center_progress_override := -1.0
 ) -> void:
-	var route_location := _get_closest_route_location(route_point)
+	var route_location := _get_closest_route_location(barrier_crossing_point)
 	var route_forward: Vector3 = route_location.forward
-	var route_right := Vector3.UP.cross(route_forward).normalized()
 	var flattened_corridor := Vector3(
 		corridor_direction.x,
 		0.0,
@@ -624,31 +647,23 @@ func _append_portal_interval(
 	if flattened_corridor.length_squared() <= 0.0001:
 		return
 	flattened_corridor = flattened_corridor.normalized()
-	var lateral_crossing := flattened_corridor.dot(route_right)
-	var actual_side := signf(lateral_crossing)
-	if actual_side == 0.0 or actual_side != requested_side:
-		return
-	var crossing_distance := (
-		absf(requested_side) * (ROAD_WIDTH * 0.5 - BARRIER_PATH_INSET)
-		/ maxf(absf(lateral_crossing), 0.15)
-	)
-	var barrier_crossing_point := (
-		route_point + flattened_corridor * crossing_distance
-	)
-	route_location = _get_closest_route_location(barrier_crossing_point)
-	route_forward = route_location.forward
 	var crossing_factor := absf(
 		Vector2(route_forward.x, route_forward.z).normalized().cross(
 			Vector2(flattened_corridor.x, flattened_corridor.z)
 		)
 	)
 	var portal_width := clampf(
-		SHORTCUT_WIDTH / maxf(crossing_factor, 0.15),
+		(SHORTCUT_WIDTH + BARRIER_THICKNESS * 2.0 + 1.5)
+		/ maxf(crossing_factor, 0.15),
 		PORTAL_MIN_WIDTH,
 		PORTAL_MAX_WIDTH
 	)
 	var half_progress := portal_width * 0.5 / route_length
-	var center_progress := float(route_location.progress)
+	var center_progress := (
+		center_progress_override
+		if center_progress_override >= 0.0
+		else float(route_location.progress)
+	)
 	var interval_start := center_progress - half_progress
 	var interval_end := center_progress + half_progress
 	if interval_start < 0.0:
@@ -661,12 +676,82 @@ func _append_portal_interval(
 		intervals.append(Vector2(interval_start, interval_end))
 
 
+func _find_shortcut_portal(
+	shortcut_points: Array[Vector3],
+	is_entry: bool,
+	corridor_offset: float,
+	target_lateral_override := -1.0
+) -> Dictionary:
+	var point_count := shortcut_points.size()
+	if point_count < 2:
+		return {}
+	var step := 1 if is_entry else -1
+	var point_index := 0 if is_entry else point_count - 1
+	var previous_point := _offset_path_point(
+		shortcut_points,
+		point_index,
+		corridor_offset,
+		0.0,
+		false
+	)
+	var previous_location := _get_closest_route_location(previous_point)
+	var previous_right := Vector3.UP.cross(
+		previous_location.forward
+	).normalized()
+	var previous_lateral := (
+		previous_point - (previous_location.point as Vector3)
+	).dot(previous_right)
+	var target_lateral := (
+		target_lateral_override
+		if target_lateral_override >= 0.0
+		else ROAD_WIDTH * 0.5 - BARRIER_PATH_INSET
+	)
+	while point_index + step >= 0 and point_index + step < point_count:
+		point_index += step
+		var current_point := _offset_path_point(
+			shortcut_points,
+			point_index,
+			corridor_offset,
+			0.0,
+			false
+		)
+		var current_location := _get_closest_route_location(current_point)
+		var current_right := Vector3.UP.cross(
+			current_location.forward
+		).normalized()
+		var current_lateral := (
+			current_point - (current_location.point as Vector3)
+		).dot(current_right)
+		var side := signf(current_lateral)
+		if side != 0.0 and absf(current_lateral) >= target_lateral:
+			var previous_absolute := absf(previous_lateral)
+			var current_absolute := absf(current_lateral)
+			var weight := 1.0
+			if current_absolute - previous_absolute > 0.0001:
+				weight = clampf(
+					(target_lateral - previous_absolute)
+					/ (current_absolute - previous_absolute),
+					0.0,
+					1.0
+				)
+			return {
+				"point": previous_point.lerp(current_point, weight),
+				"direction": current_point - previous_point,
+				"side": side,
+				"point_index": point_index,
+			}
+		previous_point = current_point
+		previous_lateral = current_lateral
+	return {}
+
+
 func _get_closest_route_location(point: Vector3) -> Dictionary:
 	var flattened_point := Vector2(point.x, point.z)
 	var minimum_distance := INF
 	var cumulative_distance := 0.0
 	var best_distance := 0.0
 	var best_forward := Vector3.FORWARD
+	var best_point := route_points[0]
 	var route_length := get_route_length()
 	for route_index in route_points.size():
 		var next_index := (route_index + 1) % route_points.size()
@@ -692,10 +777,12 @@ func _get_closest_route_location(point: Vector3) -> Dictionary:
 			best_forward = finish - start
 			best_forward.y = 0.0
 			best_forward = best_forward.normalized()
+			best_point = start.lerp(finish, weight)
 		cumulative_distance += segment_length
 	return {
 		"progress": best_distance / route_length if route_length > 0.001 else 0.0,
 		"forward": best_forward,
+		"point": best_point,
 	}
 
 
@@ -937,91 +1024,50 @@ func _create_shortcut_barriers(
 	]:
 		var lateral_offset: float = side_data[0]
 		var barrier_name: String = side_data[1]
-		var surface := SurfaceTool.new()
-		surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for point_index in shortcut_points.size() - 1:
-			var segment_start := _offset_path_point(
+		var join_clearance := _get_shortcut_barrier_join_clearance()
+		var entry_portal := _find_shortcut_portal(
+			shortcut_points,
+			true,
+			lateral_offset,
+			join_clearance
+		)
+		var exit_portal := _find_shortcut_portal(
+			shortcut_points,
+			false,
+			lateral_offset,
+			join_clearance
+		)
+		if entry_portal.is_empty() or exit_portal.is_empty():
+			continue
+		var entry_index := int(entry_portal.point_index)
+		var exit_index := int(exit_portal.point_index)
+		if entry_index > exit_index:
+			continue
+		var barrier_chain := PackedVector3Array([
+			(entry_portal.point as Vector3) + Vector3.UP * 0.08,
+		])
+		for point_index in range(entry_index, exit_index + 1):
+			var barrier_point := _offset_path_point(
 				shortcut_points,
 				point_index,
 				lateral_offset,
 				0.08,
 				false
 			)
-			var segment_end := _offset_path_point(
-				shortcut_points,
-				point_index + 1,
-				lateral_offset,
-				0.08,
-				false
-			)
-			for subdivision in BARRIER_SUBDIVISIONS:
-				var start_weight := float(subdivision) / BARRIER_SUBDIVISIONS
-				var end_weight := float(subdivision + 1) / BARRIER_SUBDIVISIONS
-				var barrier_start := segment_start.lerp(segment_end, start_weight)
-				var barrier_end := segment_start.lerp(segment_end, end_weight)
-				if _distance_to_main_route_2d(
-					barrier_start.lerp(barrier_end, 0.5)
-				) <= _get_shortcut_barrier_join_clearance():
-					continue
-				_add_barrier_segment(surface, barrier_start, barrier_end)
-		_commit_barrier_surface(surface, barrier_name, collision_layer)
+			if barrier_chain[-1].distance_to(barrier_point) > 0.0001:
+				barrier_chain.append(barrier_point)
+		var exit_point := (exit_portal.point as Vector3) + Vector3.UP * 0.08
+		if barrier_chain[-1].distance_to(exit_point) > 0.0001:
+			barrier_chain.append(exit_point)
+		var barrier_mesh := _create_indexed_barrier_mesh(
+			[barrier_chain],
+			false
+		)
+		_commit_barrier_mesh(barrier_mesh, barrier_name, collision_layer)
 
 
 func _get_shortcut_barrier_join_clearance() -> float:
 	return ROAD_WIDTH * 0.5 - BARRIER_PATH_INSET
-
-
-func _is_inside_shortcut_portal(point: Vector3) -> bool:
-	var portal_radius := SHORTCUT_WIDTH * 0.5 - BARRIER_PATH_INSET
-	for shortcut in shortcut_definitions:
-		var shortcut_points: Array[Vector3] = shortcut.points
-		if _distance_to_path_range_2d(
-			point,
-			shortcut_points,
-			0,
-			SHORTCUT_PORTAL_SEGMENTS
-		) <= portal_radius:
-			return true
-		var final_segment_index := shortcut_points.size() - 1
-		if _distance_to_path_range_2d(
-			point,
-			shortcut_points,
-			final_segment_index - SHORTCUT_PORTAL_SEGMENTS,
-			final_segment_index
-		) <= portal_radius:
-			return true
-	return false
-
-
-func _distance_to_path_range_2d(
-	point: Vector3,
-	path_points: Array[Vector3],
-	first_segment: int,
-	final_segment_exclusive: int
-) -> float:
-	var flattened_point := Vector2(point.x, point.z)
-	var minimum_distance := INF
-	for segment_index in range(first_segment, final_segment_exclusive):
-		var segment_start := Vector2(
-			path_points[segment_index].x,
-			path_points[segment_index].z
-		)
-		var segment_end := Vector2(
-			path_points[segment_index + 1].x,
-			path_points[segment_index + 1].z
-		)
-		minimum_distance = minf(
-			minimum_distance,
-			_point_to_segment_distance_2d(flattened_point, segment_start, segment_end)
-		)
-	return minimum_distance
-
-
-func _distance_to_main_route_2d(point: Vector3) -> float:
-	var closest_route_point := _get_closest_main_route_point(point)
-	return Vector2(point.x, point.z).distance_to(
-		Vector2(closest_route_point.x, closest_route_point.z)
-	)
 
 
 func _get_closest_main_route_point(point: Vector3) -> Vector3:
@@ -1099,48 +1145,6 @@ func _get_route_forward(route_index: int) -> Vector3:
 	var previous_index := (route_index - 1 + route_points.size()) % route_points.size()
 	var next_index := (route_index + 1) % route_points.size()
 	return (route_points[next_index] - route_points[previous_index]).normalized()
-
-
-func _add_barrier_segment(
-	surface: SurfaceTool,
-	current_bottom: Vector3,
-	next_bottom: Vector3
-) -> void:
-	var current_top := current_bottom + Vector3.UP * BARRIER_HEIGHT
-	var next_top := next_bottom + Vector3.UP * BARRIER_HEIGHT
-	_add_surface_vertex(surface, current_bottom, Vector2.ZERO)
-	_add_surface_vertex(surface, next_top, Vector2.ONE)
-	_add_surface_vertex(surface, next_bottom, Vector2(1.0, 0.0))
-	_add_surface_vertex(surface, current_bottom, Vector2.ZERO)
-	_add_surface_vertex(surface, current_top, Vector2(0.0, 1.0))
-	_add_surface_vertex(surface, next_top, Vector2.ONE)
-
-
-func _commit_barrier_surface(
-	surface: SurfaceTool,
-	barrier_name: String,
-	collision_layer: int
-) -> void:
-	surface.generate_normals()
-	var barrier_mesh := surface.commit()
-
-	var barrier_visual := MeshInstance3D.new()
-	barrier_visual.name = barrier_name
-	barrier_visual.mesh = barrier_mesh
-	barrier_visual.material_override = _barrier_material
-	add_child(barrier_visual)
-
-	var barrier_body := StaticBody3D.new()
-	barrier_body.name = barrier_name + "Collision"
-	barrier_body.collision_layer = collision_layer
-	barrier_body.collision_mask = 2
-	add_child(barrier_body)
-	var collision := CollisionShape3D.new()
-	var shape := barrier_mesh.create_trimesh_shape()
-	if shape is ConcavePolygonShape3D:
-		(shape as ConcavePolygonShape3D).backface_collision = true
-	collision.shape = shape
-	barrier_body.add_child(collision)
 
 
 func _create_shortcut_gate(

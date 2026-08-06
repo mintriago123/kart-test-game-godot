@@ -10,6 +10,7 @@ func _initialize() -> void:
 func _run() -> void:
 	await _test_guided_screen()
 	await _test_template_and_history()
+	await _test_migration_and_partial_preview()
 	await _test_track_runner()
 	quit(1 if _has_failed else 0)
 
@@ -72,6 +73,55 @@ func _test_guided_screen() -> void:
 	_check(
 		screen.session.track.validate_track().is_empty(),
 		"The automatically connected shortcut passes track validation."
+	)
+	var asset_library := load(
+		"res://assets/track/track_asset_library.tres"
+	) as TrackAssetLibrary
+	var asset_entry := asset_library.get_valid_entries()[0]
+	screen._add_asset(asset_entry, 0, 1.0, 15.0, 30.0)
+	screen._add_item_spawn(0)
+	var anchored_shortcut := screen.session.track.get_shortcuts()[0]
+	var anchored_prop := screen.session.track.get_node("Props").get_child(-1) as Node3D
+	var anchored_item := (
+		screen.session.track.get_node("ItemSpawns").get_child(-1) as Marker3D
+	)
+	var original_shortcut_entry := anchored_shortcut.curve.get_point_position(0)
+	var original_prop_position := anchored_prop.position
+	var original_item_position := anchored_item.position
+	var anchored_route := screen.session.track.get_main_route()
+	screen.session.snapshot_route_for_undo()
+	anchored_route.curve.set_point_position(
+		0,
+		anchored_route.curve.get_point_position(0) + Vector3(12.0, 1.0, -4.0)
+	)
+	screen.session.recalculate_route_dependents()
+	screen.session.mark_dirty()
+	var edited_shortcut_entry := anchored_shortcut.curve.get_point_position(0)
+	var edited_prop_position := anchored_prop.position
+	var edited_item_position := anchored_item.position
+	_check(
+		not edited_shortcut_entry.is_equal_approx(original_shortcut_entry)
+		and not edited_prop_position.is_equal_approx(original_prop_position)
+		and not edited_item_position.is_equal_approx(original_item_position),
+		"Shortcuts, item boxes, and editor props follow a route edit."
+	)
+	screen.session.undo_route()
+	_check(
+		anchored_shortcut.curve.get_point_position(0).is_equal_approx(
+			original_shortcut_entry
+		)
+		and anchored_prop.position.is_equal_approx(original_prop_position)
+		and anchored_item.position.is_equal_approx(original_item_position),
+		"Undo restores the route and all anchored dependents as one operation."
+	)
+	screen.session.redo_route()
+	_check(
+		anchored_shortcut.curve.get_point_position(0).is_equal_approx(
+			edited_shortcut_entry
+		)
+		and anchored_prop.position.is_equal_approx(edited_prop_position)
+		and anchored_item.position.is_equal_approx(edited_item_position),
+		"Redo restores the recalculated dependents with the route."
 	)
 	screen.queue_free()
 	await process_frame
@@ -161,6 +211,80 @@ func _test_template_and_history() -> void:
 	session.clear_recovery()
 	track.queue_free()
 	await process_frame
+
+
+func _test_migration_and_partial_preview() -> void:
+	var legacy_path := "res://levels/tracks/bahia_relampago.tscn"
+	var scene_before := FileAccess.get_file_as_string(legacy_path)
+	var session := TrackEditorSession.new()
+	_check(session.load_track(legacy_path) == OK, "Legacy drafts open through the editor session.")
+	_check(
+		session.last_repair_summary == "2 atajos y 4 cajas reparados"
+		and session.is_dirty
+		and session.can_undo(),
+		"Opening Bahía Relámpago repairs two shortcuts and four boxes as an undoable edit."
+	)
+	var all_anchors_were_created := true
+	for shortcut in session.track.get_shortcuts():
+		all_anchors_were_created = (
+			all_anchors_were_created and shortcut.route_anchor_enabled
+		)
+	for marker in session.track.get_node("ItemSpawns").get_children():
+		all_anchors_were_created = (
+			all_anchors_were_created
+			and marker.has_meta(TrackEditorSession.META_ANCHOR_PROGRESS)
+		)
+	_check(all_anchors_were_created, "Legacy repair creates normalized route anchors.")
+	_check(
+		FileAccess.get_file_as_string(legacy_path) == scene_before,
+		"Automatic repair does not overwrite the source scene."
+	)
+	session.undo_route()
+	_check(
+		not session.track.get_shortcuts()[0].route_anchor_enabled
+		and not session.is_dirty,
+		"Undo removes the in-memory migration and restores the clean draft state."
+	)
+	session.redo_route()
+	_check(
+		session.track.get_shortcuts()[0].route_anchor_enabled and session.is_dirty,
+		"Redo reapplies the legacy migration."
+	)
+
+	root.add_child(session.track)
+	await process_frame
+	var invalid_shortcut := session.track.get_shortcuts()[0]
+	invalid_shortcut.curve.remove_point(1)
+	var preview_errors := session.track.rebuild_preview()
+	_check(
+		not preview_errors.is_empty()
+		and session.track.get_node_or_null("MainRoadCollision") != null
+		and session.track.get_node_or_null("MainBarrierLeftCollision") != null
+		and session.track.get_node_or_null("MainBarrierRightCollision") != null,
+		"An invalid draft keeps its usable road and barriers in the preview."
+	)
+	_check(
+		session.track.shortcut_definitions.size() == 1,
+		"Partial preview omits only the invalid shortcut."
+	)
+	var observed_issues: Dictionary = {}
+	var issues_are_unique := true
+	for issue in session.track.inspect_track():
+		var issue_key := "%s|%s" % [issue.code, issue.target_path]
+		issues_are_unique = issues_are_unique and not observed_issues.has(issue_key)
+		observed_issues[issue_key] = true
+	_check(issues_are_unique, "Structured validation deduplicates issues by code and node.")
+	session.track.queue_free()
+	await process_frame
+
+	var official_session := TrackEditorSession.new()
+	_check(
+		official_session.load_track("res://levels/coastal_track.tscn") == OK
+		and official_session.last_repair_summary.is_empty()
+		and not official_session.is_dirty,
+		"Official tracks already contain anchors and open without migration edits."
+	)
+	official_session.track.free()
 
 
 func _test_track_runner() -> void:

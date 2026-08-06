@@ -543,9 +543,13 @@ func _sample_route_in_node(progress: float, target_node: Node3D) -> Dictionary:
 	var route_position := route.curve.sample_baked(sample_offset, true)
 	var previous_position := route.curve.sample_baked(previous_offset, true)
 	var next_position := route.curve.sample_baked(next_offset, true)
-	var target_position := target_node.to_local(route.to_global(route_position))
-	var target_previous := target_node.to_local(route.to_global(previous_position))
-	var target_next := target_node.to_local(route.to_global(next_position))
+	var route_to_track := _get_transform_relative_to_track(route)
+	var track_to_target := _get_transform_relative_to_track(
+		target_node
+	).affine_inverse()
+	var target_position := track_to_target * (route_to_track * route_position)
+	var target_previous := track_to_target * (route_to_track * previous_position)
+	var target_next := track_to_target * (route_to_track * next_position)
 	var forward := target_next - target_previous
 	if forward.length_squared() <= 0.0001:
 		forward = Vector3.FORWARD
@@ -558,7 +562,20 @@ func _node_point_to_route_local(node: Node3D, point: Vector3) -> Vector3:
 	var route := _get_usable_route()
 	if route == null:
 		return Vector3.ZERO
-	return route.to_local(node.to_global(point))
+	var point_in_track := _get_transform_relative_to_track(node) * point
+	return (
+		_get_transform_relative_to_track(route).affine_inverse()
+		* point_in_track
+	)
+
+
+func _get_transform_relative_to_track(node: Node3D) -> Transform3D:
+	var relative_transform := Transform3D.IDENTITY
+	var current_node := node
+	while current_node != null and current_node != track:
+		relative_transform = current_node.transform * relative_transform
+		current_node = current_node.get_parent() as Node3D
+	return relative_transform
 
 
 func _get_usable_route() -> Path3D:

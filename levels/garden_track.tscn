@@ -41,6 +41,16 @@ curve = SubResource("Curve3D_main")
 curve = SubResource("Curve3D_shortcut")
 script = ExtResource("2_shortcut")
 display_name = "Sendero Central"
+route_anchor_enabled = true
+entry_progress = 0.08551791499598
+exit_progress = 0.36986829097911
+midpoint_lateral_offset = -17.934118270874
+midpoint_longitudinal_offset = 0.78574228286743
+midpoint_height_offset = 0.17500007152557
+entry_handle_length = 14.7523250579834
+exit_handle_length = 14.2894878387451
+midpoint_in_handle_length = 8.03784084320068
+midpoint_out_handle_length = 8.03784084320068
 
 [node name="Props" type="Node3D" parent="."]
 
@@ -84,12 +94,28 @@ scale = Vector3(1.4, 1.2, 1.6)
 
 [node name="Norte" type="Marker3D" parent="ItemSpawns"]
 position = Vector3(36, 0.4, 38)
+metadata/track_editor_anchor_progress = 0.1055443925605
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
 
 [node name="Este" type="Marker3D" parent="ItemSpawns"]
 position = Vector3(54, 1.3, -22)
+metadata/track_editor_anchor_progress = 0.31146517639609
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
 
 [node name="Sur" type="Marker3D" parent="ItemSpawns"]
 position = Vector3(-10, 0.25, -50)
+metadata/track_editor_anchor_progress = 0.53253810419263
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
 
 [node name="Oeste" type="Marker3D" parent="ItemSpawns"]
 position = Vector3(-57, 1.4, 4)
+metadata/track_editor_anchor_progress = 0.769201647512
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
