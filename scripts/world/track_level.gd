@@ -27,10 +27,29 @@ func rebuild_track() -> PackedStringArray:
 	clear_generated_track()
 	var validation_errors := validate_track()
 	if not validation_errors.is_empty():
-		for validation_error in validation_errors:
-			push_error("%s: %s" % [display_name, validation_error])
+		push_error(
+			"%s no se pudo generar (%d problemas): %s"
+			% [
+				display_name,
+				validation_errors.size(),
+				" | ".join(validation_errors),
+			]
+		)
 		return validation_errors
+	_generate_track_output()
+	return PackedStringArray()
 
+
+func rebuild_preview() -> PackedStringArray:
+	clear_generated_track()
+	var validation_errors := validate_track()
+	if not _is_main_route_preview_usable():
+		return validation_errors
+	_generate_track_output()
+	return validation_errors
+
+
+func _generate_track_output() -> void:
 	var source_children := get_children()
 	route_points.clear()
 	item_spawn_points.clear()
@@ -49,11 +68,6 @@ func rebuild_track() -> PackedStringArray:
 	for child in get_children():
 		if child not in source_children:
 			child.add_to_group(GENERATED_GROUP, true)
-	return PackedStringArray()
-
-
-func rebuild_preview() -> PackedStringArray:
-	return rebuild_track()
 
 
 func clear_generated_track() -> void:
@@ -69,78 +83,181 @@ func clear_generated_track() -> void:
 
 func validate_track() -> PackedStringArray:
 	var errors := PackedStringArray()
+	for issue in inspect_track():
+		errors.append(issue.message)
+	return errors
+
+
+func inspect_track() -> Array[TrackValidationIssue]:
+	var issues: Array[TrackValidationIssue] = []
 	if track_id.is_empty():
-		errors.append("La pista necesita un identificador.")
+		_append_issue(
+			issues,
+			&"track_id_missing",
+			"La pista necesita un identificador.",
+			NodePath(".")
+		)
 	if display_name.strip_edges().is_empty():
-		errors.append("La pista necesita un nombre visible.")
+		_append_issue(
+			issues,
+			&"display_name_missing",
+			"La pista necesita un nombre visible.",
+			NodePath(".")
+		)
 
 	var main_route := get_main_route()
 	var validation_route: Array[Vector3] = []
 	if main_route == null:
-		errors.append("Falta el nodo MainRoute de tipo Path3D.")
+		_append_issue(
+			issues,
+			&"route_missing",
+			"Falta el nodo MainRoute de tipo Path3D.",
+			NodePath("MainRoute")
+		)
 	elif main_route.curve == null or main_route.curve.point_count < 4:
-		errors.append("MainRoute necesita al menos cuatro puntos.")
+		_append_issue(
+			issues,
+			&"route_point_count",
+			"MainRoute necesita al menos cuatro puntos.",
+			NodePath("MainRoute")
+		)
 	elif not main_route.curve.closed:
-		errors.append("MainRoute debe ser una curva cerrada.")
+		_append_issue(
+			issues,
+			&"route_not_closed",
+			"MainRoute debe ser una curva cerrada.",
+			NodePath("MainRoute")
+		)
 	elif main_route.curve.get_baked_length() < 120.0:
-		errors.append("La ruta principal debe medir al menos 120 metros.")
+		_append_issue(
+			issues,
+			&"route_too_short",
+			"La ruta principal debe medir al menos 120 metros.",
+			NodePath("MainRoute")
+		)
 	else:
 		if start_point_index >= main_route.curve.point_count:
-			errors.append("La salida apunta a un punto que ya no existe.")
+			_append_issue(
+				issues,
+				&"start_point_invalid",
+				"La salida apunta a un punto que ya no existe.",
+				NodePath("MainRoute")
+			)
 		validation_route = _apply_start_offset(_sample_path(main_route, true))
 
 	var shortcut_ids: Dictionary = {}
 	for shortcut in get_shortcuts():
+		var shortcut_path := get_path_to(shortcut)
 		if shortcut.display_name.strip_edges().is_empty():
-			errors.append("El atajo %d necesita un nombre." % shortcut.shortcut_id)
+			_append_issue(
+				issues,
+				&"shortcut_name_missing",
+				"El atajo %d necesita un nombre." % shortcut.shortcut_id,
+				shortcut_path
+			)
 		if shortcut.shortcut_id in shortcut_ids:
-			errors.append("El identificador de atajo %d está repetido." % shortcut.shortcut_id)
+			_append_issue(
+				issues,
+				&"shortcut_id_duplicate",
+				"El identificador de atajo %d está repetido." % shortcut.shortcut_id,
+				shortcut_path
+			)
 		shortcut_ids[shortcut.shortcut_id] = true
 		if shortcut.curve == null or shortcut.curve.point_count < 3:
-			errors.append("%s necesita al menos tres puntos." % shortcut.display_name)
+			_append_issue(
+				issues,
+				&"shortcut_point_count",
+				"%s necesita al menos tres puntos." % shortcut.display_name,
+				shortcut_path
+			)
 		elif shortcut.curve.closed:
-			errors.append("%s debe ser una curva abierta." % shortcut.display_name)
+			_append_issue(
+				issues,
+				&"shortcut_not_open",
+				"%s debe ser una curva abierta." % shortcut.display_name,
+				shortcut_path
+			)
 		elif not validation_route.is_empty():
-			_validate_shortcut(shortcut, validation_route, errors)
+			var shortcut_errors := PackedStringArray()
+			_validate_shortcut(shortcut, validation_route, shortcut_errors)
+			for shortcut_error in shortcut_errors:
+				var issue_code := &"shortcut_connection"
+				if "meta" in shortcut_error or "sale antes" in shortcut_error:
+					issue_code = &"shortcut_order"
+				elif "contravía" in shortcut_error:
+					issue_code = &"shortcut_direction"
+				_append_issue(
+					issues,
+					issue_code,
+					shortcut_error,
+					shortcut_path
+				)
 
 	var props := get_node_or_null("Props")
 	if props == null:
-		errors.append("Falta el nodo Props.")
+		_append_issue(
+			issues,
+			&"props_missing",
+			"Falta el nodo Props.",
+			NodePath("Props")
+		)
 	var item_spawns := get_node_or_null("ItemSpawns")
 	if item_spawns == null:
-		errors.append("Falta el nodo ItemSpawns.")
+		_append_issue(
+			issues,
+			&"items_missing",
+			"Falta el nodo ItemSpawns.",
+			NodePath("ItemSpawns")
+		)
 	elif item_spawns.get_child_count() < 4:
-		errors.append("ItemSpawns necesita al menos cuatro marcadores.")
+		_append_issue(
+			issues,
+			&"item_count",
+			"ItemSpawns necesita al menos cuatro marcadores.",
+			NodePath("ItemSpawns")
+		)
 	elif not validation_route.is_empty():
 		for child in item_spawns.get_children():
+			var item_path := get_path_to(child)
 			if not child is Marker3D:
-				errors.append("%s debe ser Marker3D." % child.name)
+				_append_issue(
+					issues,
+					&"item_type",
+					"%s debe ser Marker3D." % child.name,
+					item_path
+				)
 				continue
 			var marker_position := to_local((child as Marker3D).global_position)
 			if (
 				_distance_to_route_points_2d(marker_position, validation_route)
 				> ROAD_WIDTH * 0.5
 			):
-				errors.append("%s está fuera de la carretera." % child.name)
-	return errors
-
-
-func inspect_track() -> Array[TrackValidationIssue]:
-	var issues: Array[TrackValidationIssue] = []
-	for message in validate_track():
-		var target := NodePath("MainRoute")
-		var code := &"route_invalid"
-		if "atajo" in message.to_lower() or "contravía" in message.to_lower():
-			target = NodePath("Shortcuts")
-			code = &"shortcut_invalid"
-		elif "ItemSpawn" in message or "caja" in message.to_lower():
-			target = NodePath("ItemSpawns")
-			code = &"item_invalid"
-		elif "Props" in message:
-			target = NodePath("Props")
-			code = &"props_invalid"
-		issues.append(TrackValidationIssue.create(code, message, TrackValidationIssue.Severity.ERROR, target))
+				_append_issue(
+					issues,
+					&"item_off_route",
+					"%s está fuera de la carretera." % child.name,
+					item_path
+				)
 	return issues
+
+
+func _append_issue(
+	issues: Array[TrackValidationIssue],
+	code: StringName,
+	message: String,
+	target_path: NodePath
+) -> void:
+	for issue in issues:
+		if issue.code == code and issue.target_path == target_path:
+			return
+	issues.append(
+		TrackValidationIssue.create(
+			code,
+			message,
+			TrackValidationIssue.Severity.ERROR,
+			target_path
+		)
+	)
 
 
 func _validate_shortcut(
@@ -240,6 +357,35 @@ func get_shortcuts() -> Array[TrackShortcut]:
 	return shortcuts
 
 
+func _is_main_route_preview_usable() -> bool:
+	var main_route := get_main_route()
+	return (
+		main_route != null
+		and main_route.curve != null
+		and main_route.curve.point_count >= 3
+		and main_route.curve.closed
+		and main_route.curve.get_baked_length() > 0.001
+	)
+
+
+func _is_shortcut_preview_usable(
+	shortcut: TrackShortcut,
+	duplicate_ids: Dictionary
+) -> bool:
+	if (
+		shortcut == null
+		or shortcut.shortcut_id in duplicate_ids
+		or shortcut.curve == null
+		or shortcut.curve.point_count < 3
+		or shortcut.curve.closed
+		or route_points.is_empty()
+	):
+		return false
+	var shortcut_errors := PackedStringArray()
+	_validate_shortcut(shortcut, route_points, shortcut_errors)
+	return shortcut_errors.is_empty()
+
+
 func _prepare_materials() -> void:
 	if track_theme == null:
 		super._prepare_materials()
@@ -256,7 +402,18 @@ func _build_route() -> void:
 
 
 func _define_shortcuts() -> void:
+	var shortcut_id_counts: Dictionary = {}
 	for shortcut in get_shortcuts():
+		shortcut_id_counts[shortcut.shortcut_id] = (
+			int(shortcut_id_counts.get(shortcut.shortcut_id, 0)) + 1
+		)
+	var duplicate_ids: Dictionary = {}
+	for shortcut_id in shortcut_id_counts:
+		if int(shortcut_id_counts[shortcut_id]) > 1:
+			duplicate_ids[shortcut_id] = true
+	for shortcut in get_shortcuts():
+		if not _is_shortcut_preview_usable(shortcut, duplicate_ids):
+			continue
 		var shortcut_points := _sample_path(shortcut, false)
 		_align_shortcut_junction_heights(shortcut_points)
 		shortcut_definitions.append({
