@@ -1,0 +1,59 @@
+[gd_resource type="Resource" script_class="TrackAssetLibrary" load_steps=16 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/track_asset_library.gd" id="1_library"]
+[ext_resource type="Script" path="res://scripts/data/track_asset_entry.gd" id="2_entry"]
+[ext_resource type="PackedScene" path="res://assets/track/palm_tree.tscn" id="3_palm"]
+[ext_resource type="PackedScene" path="res://assets/track/oak_tree.tscn" id="4_oak"]
+[ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="5_rock"]
+[ext_resource type="PackedScene" path="res://assets/track/large_bush.tscn" id="6_bush"]
+[ext_resource type="PackedScene" path="res://assets/track/yellow_flower.tscn" id="7_flower"]
+[ext_resource type="PackedScene" path="res://assets/track/racing_tents.tscn" id="8_tents"]
+[ext_resource type="PackedScene" path="res://assets/track/finish_arch.tscn" id="9_finish"]
+
+[sub_resource type="Resource" id="TrackAssetEntry_palm"]
+script = ExtResource("2_entry")
+id = &"palm_tree"
+display_name = "Palmera"
+scene = ExtResource("3_palm")
+
+[sub_resource type="Resource" id="TrackAssetEntry_oak"]
+script = ExtResource("2_entry")
+id = &"oak_tree"
+display_name = "Roble"
+scene = ExtResource("4_oak")
+
+[sub_resource type="Resource" id="TrackAssetEntry_rock"]
+script = ExtResource("2_entry")
+id = &"large_rock"
+display_name = "Roca grande"
+scene = ExtResource("5_rock")
+
+[sub_resource type="Resource" id="TrackAssetEntry_bush"]
+script = ExtResource("2_entry")
+id = &"large_bush"
+display_name = "Arbusto"
+scene = ExtResource("6_bush")
+
+[sub_resource type="Resource" id="TrackAssetEntry_flower"]
+script = ExtResource("2_entry")
+id = &"yellow_flower"
+display_name = "Flor amarilla"
+scene = ExtResource("7_flower")
+
+[sub_resource type="Resource" id="TrackAssetEntry_tents"]
+script = ExtResource("2_entry")
+id = &"racing_tents"
+display_name = "Carpas de carrera"
+category = "Carrera"
+scene = ExtResource("8_tents")
+
+[sub_resource type="Resource" id="TrackAssetEntry_finish"]
+script = ExtResource("2_entry")
+id = &"finish_arch"
+display_name = "Arco de meta"
+category = "Carrera"
+scene = ExtResource("9_finish")
+
+[resource]
+script = ExtResource("1_library")
+entries = Array[ExtResource("2_entry")]([SubResource("TrackAssetEntry_palm"), SubResource("TrackAssetEntry_oak"), SubResource("TrackAssetEntry_rock"), SubResource("TrackAssetEntry_bush"), SubResource("TrackAssetEntry_flower"), SubResource("TrackAssetEntry_tents"), SubResource("TrackAssetEntry_finish")])
