@@ -132,11 +132,26 @@ func _test_template_and_history() -> void:
 		reloaded_session.publish(3, "Pista temporal") == OK,
 		"A valid draft can be published through the guided editor."
 	)
-	var published_catalog := load(catalog_path) as TrackCatalog
+	var published_catalog := ResourceLoader.load(
+		catalog_path,
+		"TrackCatalog",
+		ResourceLoader.CACHE_MODE_REPLACE
+	) as TrackCatalog
+	var published_definition := (
+		published_catalog.get_track(track.track_id)
+		if published_catalog != null
+		else null
+	)
 	_check(
-		published_catalog != null
-		and published_catalog.get_track(track.track_id) != null,
+		published_definition != null,
 		"Publishing registers the track in its catalog."
+	)
+	_check(
+		published_definition != null
+		and published_definition.preview_map != null
+		and published_definition.preview_map.is_valid()
+		and published_definition.preview_map.length_meters > 0.0,
+		"Publishing persists the generated minimap and its metadata."
 	)
 	if reloaded_session.track != null:
 		reloaded_session.track.queue_free()

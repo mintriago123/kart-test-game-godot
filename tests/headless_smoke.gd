@@ -27,6 +27,17 @@ func _run() -> void:
 		and main.main_menu.track_catalog.tracks.size() == 2,
 		"Main menu exposes both authored tracks."
 	)
+	_check(
+		main.main_menu._track_selector != null
+		and not main.main_menu._track_selector.visible,
+		"Main menu keeps track choices in a separate screen."
+	)
+	main.main_menu._show_track_selector()
+	await process_frame
+	_check(
+		main.main_menu._track_selector.visible,
+		"Play opens the dedicated track selection screen."
+	)
 	var track_buttons_are_touch_friendly := true
 	for track_button in main.main_menu._track_buttons.values():
 		track_buttons_are_touch_friendly = (
@@ -55,6 +66,12 @@ func _run() -> void:
 		"Track selection is propagated to game settings."
 	)
 	main.main_menu._select_track(&"coastal")
+	main.main_menu._hide_track_selector()
+	_check(
+		not main.main_menu._track_selector.visible,
+		"Track selection returns to the uncluttered main menu."
+	)
+	await _test_scalable_track_selector()
 	var isolated_settings := GameSettings.new()
 	isolated_settings.is_persistence_enabled = false
 	isolated_settings.register_race_time(95.0, &"coastal")
@@ -331,6 +348,35 @@ func _run() -> void:
 	await process_frame
 	await create_timer(0.25).timeout
 	quit(1 if _has_failed else 0)
+
+
+func _test_scalable_track_selector() -> void:
+	var catalog := TrackCatalog.new()
+	var shared_scene := load("res://levels/coastal_track.tscn") as PackedScene
+	for track_index in 12:
+		var definition := TrackDefinition.new()
+		definition.id = StringName("test_track_%d" % track_index)
+		definition.display_name = "Pista %02d" % (track_index + 1)
+		definition.description = "Pista para verificar el selector escalable."
+		definition.scene = shared_scene
+		definition.preview_color = Color.from_hsv(
+			float(track_index) / 12.0,
+			0.5,
+			0.85
+		)
+		catalog.tracks.append(definition)
+	var selector := TrackSelectScreen.new()
+	root.add_child(selector)
+	await process_frame
+	selector.configure(catalog, {}, &"test_track_0")
+	await process_frame
+	_check(
+		selector.track_buttons.size() == 12
+		and selector.find_child("TrackScroll", true, false) is ScrollContainer,
+		"Track selection scales to many published tracks using a scrollable list."
+	)
+	selector.queue_free()
+	await process_frame
 
 
 func _check(condition: bool, message: String) -> void:

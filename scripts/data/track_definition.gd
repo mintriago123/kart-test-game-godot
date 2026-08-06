@@ -7,6 +7,7 @@ extends Resource
 @export_multiline var description := ""
 @export var preview_color := Color("#167f93")
 @export var preview_texture: Texture2D
+@export var preview_map: TrackMinimapData
 @export var scene: PackedScene
 @export_range(1, 9, 1) var laps := 3
 
