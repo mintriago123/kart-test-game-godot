@@ -395,7 +395,7 @@ func _prepare_materials() -> void:
 	_road_material = _material(track_theme.road_color, 0.9)
 	_edge_material = _material(track_theme.curb_color, 0.72)
 	_sand_material = _material(track_theme.terrain_color, 1.0)
-	_barrier_material = _material(track_theme.barrier_color, 0.68)
+	_barrier_material = _create_barrier_material(track_theme.barrier_color)
 	_shortcut_material = _material(track_theme.shortcut_color, 0.86)
 
 

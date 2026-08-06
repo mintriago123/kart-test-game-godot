@@ -18,6 +18,7 @@ const SHORTCUT_MIDPOINT_HANDLE_RATIO := 0.18
 const BARRIER_PATH_INSET := 0.12
 const BARRIER_MITER_LIMIT := 2.0
 const BARRIER_THICKNESS := 0.24
+const BARRIER_VERTICES_PER_POINT := 6
 const PORTAL_MIN_WIDTH := 6.0
 const PORTAL_MAX_WIDTH := 14.0
 const SHORTCUT_HEIGHT_ALIGNMENT_BLEND_DISTANCE := 4.0
@@ -77,7 +78,7 @@ func _prepare_materials() -> void:
 	_road_material = _material(Color("#33474a"), 0.9)
 	_edge_material = _material(Color("#f6d66f"), 0.72)
 	_sand_material = _material(Color("#e7ba68"), 1.0)
-	_barrier_material = _material(Color("#ef684e"), 0.68)
+	_barrier_material = _create_barrier_material(Color("#ef684e"))
 	_shortcut_material = _material(Color("#2f7774"), 0.86)
 
 
@@ -916,15 +917,23 @@ func _create_indexed_barrier_mesh(chains: Array, is_closed: bool) -> ArrayMesh:
 			vertices.append(left_bottom + Vector3.UP * BARRIER_HEIGHT)
 			vertices.append(right_bottom)
 			vertices.append(right_bottom + Vector3.UP * BARRIER_HEIGHT)
+			vertices.append(left_bottom + Vector3.UP * BARRIER_HEIGHT)
+			vertices.append(right_bottom + Vector3.UP * BARRIER_HEIGHT)
 			normals.append(side)
-			normals.append((side + Vector3.UP * 0.2).normalized())
+			normals.append(side)
 			normals.append(-side)
-			normals.append((-side + Vector3.UP * 0.2).normalized())
+			normals.append(-side)
+			normals.append(Vector3.UP)
+			normals.append(Vector3.UP)
 		var segment_count := chain.size() if is_closed else chain.size() - 1
 		for point_index in segment_count:
 			var next_index := (point_index + 1) % chain.size()
-			var current_base := base_vertex + point_index * 4
-			var next_base := base_vertex + next_index * 4
+			var current_base := (
+				base_vertex + point_index * BARRIER_VERTICES_PER_POINT
+			)
+			var next_base := (
+				base_vertex + next_index * BARRIER_VERTICES_PER_POINT
+			)
 			_append_quad_indices(
 				indices,
 				current_base,
@@ -941,26 +950,65 @@ func _create_indexed_barrier_mesh(chains: Array, is_closed: bool) -> ArrayMesh:
 			)
 			_append_quad_indices(
 				indices,
-				current_base + 1,
-				current_base + 3,
-				next_base + 3,
-				next_base + 1
+				current_base + 4,
+				current_base + 5,
+				next_base + 5,
+				next_base + 4
 			)
 		if not is_closed:
-			var final_base := base_vertex + (chain.size() - 1) * 4
-			_append_quad_indices(
-				indices,
-				base_vertex,
-				base_vertex + 2,
-				base_vertex + 3,
-				base_vertex + 1
+			var final_base := (
+				base_vertex
+				+ (chain.size() - 1) * BARRIER_VERTICES_PER_POINT
+			)
+			var start_tangent := chain[1] - chain[0]
+			start_tangent.y = 0.0
+			if start_tangent.length_squared() <= 0.0001:
+				start_tangent = Vector3.FORWARD
+			else:
+				start_tangent = start_tangent.normalized()
+			var end_tangent := chain[-1] - chain[-2]
+			end_tangent.y = 0.0
+			if end_tangent.length_squared() <= 0.0001:
+				end_tangent = Vector3.FORWARD
+			else:
+				end_tangent = end_tangent.normalized()
+			var start_cap_base := vertices.size()
+			_append_barrier_cap_vertices(
+				vertices,
+				normals,
+				[
+					vertices[base_vertex],
+					vertices[base_vertex + 2],
+					vertices[base_vertex + 3],
+					vertices[base_vertex + 1],
+				],
+				-start_tangent
 			)
 			_append_quad_indices(
 				indices,
-				final_base,
-				final_base + 1,
-				final_base + 3,
-				final_base + 2
+				start_cap_base,
+				start_cap_base + 1,
+				start_cap_base + 2,
+				start_cap_base + 3
+			)
+			var end_cap_base := vertices.size()
+			_append_barrier_cap_vertices(
+				vertices,
+				normals,
+				[
+					vertices[final_base],
+					vertices[final_base + 1],
+					vertices[final_base + 3],
+					vertices[final_base + 2],
+				],
+				end_tangent
+			)
+			_append_quad_indices(
+				indices,
+				end_cap_base,
+				end_cap_base + 1,
+				end_cap_base + 2,
+				end_cap_base + 3
 			)
 	var mesh := ArrayMesh.new()
 	if vertices.is_empty() or indices.is_empty():
@@ -972,6 +1020,17 @@ func _create_indexed_barrier_mesh(chains: Array, is_closed: bool) -> ArrayMesh:
 	arrays[Mesh.ARRAY_INDEX] = indices
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+func _append_barrier_cap_vertices(
+	vertices: PackedVector3Array,
+	normals: PackedVector3Array,
+	cap_vertices: Array[Vector3],
+	normal: Vector3
+) -> void:
+	for cap_vertex in cap_vertices:
+		vertices.append(cap_vertex)
+		normals.append(normal)
 
 
 func _append_quad_indices(
@@ -1437,4 +1496,10 @@ func _material(color: Color, roughness: float) -> StandardMaterial3D:
 	material.albedo_color = color
 	material.roughness = roughness
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
+
+
+func _create_barrier_material(color: Color) -> StandardMaterial3D:
+	var material := _material(color, 0.68)
+	material.cull_mode = BaseMaterial3D.CULL_BACK
 	return material

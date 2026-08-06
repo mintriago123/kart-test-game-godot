@@ -66,7 +66,10 @@ func _test_closed_barrier_geometry() -> void:
 		var mesh := track._create_indexed_barrier_mesh([closed_points], true)
 		var arrays := mesh.surface_get_arrays(0)
 		var indices := arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
-		var final_vertex := (closed_points.size() - 1) * 4
+		var final_vertex := (
+			(closed_points.size() - 1)
+			* CoastalTrack.BARRIER_VERTICES_PER_POINT
+		)
 		_check(
 			not indices.is_empty()
 			and indices.has(0)
@@ -79,6 +82,28 @@ func _test_closed_barrier_geometry() -> void:
 			"Closed barrier shape %d has no visual or physical seam."
 			% (shape_index + 1)
 		)
+		var normals := arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array
+		var normals_match_faces := true
+		for point_index in closed_points.size():
+			var point_base := (
+				point_index * CoastalTrack.BARRIER_VERTICES_PER_POINT
+			)
+			normals_match_faces = (
+				normals_match_faces
+				and normals[point_base].dot(
+					normals[point_base + 1]
+				) > 0.9999
+				and normals[point_base + 2].dot(
+					normals[point_base + 3]
+				) > 0.9999
+				and normals[point_base + 4].dot(Vector3.UP) > 0.9999
+				and normals[point_base + 5].dot(Vector3.UP) > 0.9999
+			)
+		_check(
+			normals_match_faces,
+			"Closed barrier shape %d separates side and top normals."
+			% (shape_index + 1)
+		)
 		track.free()
 
 
@@ -87,6 +112,10 @@ func _test_explicit_portals() -> void:
 	var track := packed_scene.instantiate() as TrackLevel
 	root.add_child(track)
 	await process_frame
+	_check(
+		track._barrier_material.cull_mode == BaseMaterial3D.CULL_BACK,
+		"Barrier material avoids double-sided self-shadowing."
+	)
 	var left_offset := -CoastalTrack.ROAD_WIDTH * 0.5 + CoastalTrack.BARRIER_PATH_INSET
 	var right_offset := CoastalTrack.ROAD_WIDTH * 0.5 - CoastalTrack.BARRIER_PATH_INSET
 	var left_portals := track._build_main_barrier_portals(left_offset)
