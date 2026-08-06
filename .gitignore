@@ -37,3 +37,7 @@ Desktop.ini
 crash_handler_*.log
 core
 core.*
+
+# Local diagnostic captures
+/WhatsApp Image *.jpeg*
+/Imagen pegada*.png*
