@@ -1,8 +1,26 @@
 # Coastal Karts
 
-Prototipo original de carreras arcade para Android creado con Godot 4.7. Incluye una
-pista costera low-poly de más de 400 metros, dos atajos, barreras continuas,
-tres rivales, derrape con miniturbo y dos objetos.
+Prototipo original de carreras arcade para Android creado con Godot 4.7. Incluye
+dos pistas seleccionables, tres atajos físicos, barreras continuas, assets
+low-poly CC0, tres rivales, derrape con miniturbo y dos objetos.
+
+## Editor de pistas
+
+Godot incluye una pestaña principal llamada **Pistas**. No es necesario abrir
+escenas, seleccionar nodos ni usar el Inspector:
+
+1. Entrar en **Pistas** desde la barra superior del editor.
+2. Abrir Costa Turbo o Circuito Jardín, o pulsar **Nueva**.
+3. Seguir los cinco pasos: Configuración, Carretera, Atajos, Objetos y Revisar.
+4. Dibujar desde el mapa aéreo y usar **Vista 3D** para comprobar el resultado.
+5. Guardar el borrador, probarlo con el kart y publicarlo en el menú.
+
+La carretera, las barreras y sus colisiones se regeneran automáticamente. El
+editor permite deshacer cambios de ruta y conserva una recuperación temporal
+de los borradores sin guardar.
+
+La guía completa para crear una pista, configurar atajos y registrar assets está
+en [docs/track-editor.md](docs/track-editor.md).
 
 ## Controles
 
@@ -24,15 +42,18 @@ FRENO, la aceleración automática se suspende para permitir frenar o usar rever
 
 1. Abrir el directorio con Godot 4.7.
 2. Ejecutar la escena principal con `F6`/`F5`.
-3. Para la prueba sin interfaz, ejecutar:
+3. Para la prueba integral sin interfaz, ejecutar:
 
    ```sh
    godot --headless --path . --script tests/headless_smoke.gd
    ```
 
-La prueba prolongada de estabilidad de pista e IA se ejecuta con:
+Las pruebas específicas del sistema de pistas se ejecutan con:
 
 ```sh
+godot --headless --path . --script tests/track_authoring.gd
+godot --headless --path . --script tests/track_editor.gd
+godot --headless --path . --script tests/shortcut_drive.gd
 godot --headless --path . --script tests/race_stability.gd
 ```
 
@@ -63,6 +84,7 @@ godot --headless --path . --export-debug Android build/coastal-karts-debug.apk
 - El perfil **Bajo** desactiva ambos efectos.
 - El objetivo es 60 FPS en un dispositivo Android de gama media.
 
-Todo el arte geométrico y la identidad visual incluidos en este repositorio son
-originales. El prototipo no utiliza personajes, nombres, música ni recursos de
-Nintendo.
+La identidad, la geometría de carretera y el código son originales. Algunos
+props low-poly proceden de packs CC0 de Kenney y están documentados en
+[assets/ASSETS.md](assets/ASSETS.md). El prototipo no utiliza personajes,
+nombres, música ni recursos de Nintendo.
