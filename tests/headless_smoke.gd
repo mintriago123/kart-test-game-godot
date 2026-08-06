@@ -19,13 +19,56 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	main.settings.is_persistence_enabled = false
-	main.settings.best_time = -1.0
+	main.settings.best_times.clear()
+	main.settings.select_track(&"coastal")
 	_check(main.main_menu != null, "Main menu is created.")
+	_check(
+		main.main_menu.track_catalog != null
+		and main.main_menu.track_catalog.tracks.size() == 2,
+		"Main menu exposes both authored tracks."
+	)
+	var track_buttons_are_touch_friendly := true
+	for track_button in main.main_menu._track_buttons.values():
+		track_buttons_are_touch_friendly = (
+			track_buttons_are_touch_friendly
+			and (track_button as Button).custom_minimum_size.y >= 44.0
+		)
+	_check(
+		track_buttons_are_touch_friendly,
+		"Track choices use touch-friendly native buttons."
+	)
+	var track_buttons_are_onscreen := true
+	var menu_viewport_size: Vector2 = main.main_menu.get_viewport().get_visible_rect().size
+	for track_button in main.main_menu._track_buttons.values():
+		var track_button_rect: Rect2 = (track_button as Button).get_global_rect()
+		track_buttons_are_onscreen = (
+			track_buttons_are_onscreen
+			and track_button_rect.position.x >= 0.0
+			and track_button_rect.position.y >= 0.0
+			and track_button_rect.end.x <= menu_viewport_size.x
+			and track_button_rect.end.y <= menu_viewport_size.y
+		)
+	_check(track_buttons_are_onscreen, "Track choices remain inside the viewport.")
+	main.main_menu._select_track(&"garden")
+	_check(
+		main.settings.selected_track_id == &"garden",
+		"Track selection is propagated to game settings."
+	)
+	main.main_menu._select_track(&"coastal")
+	var isolated_settings := GameSettings.new()
+	isolated_settings.is_persistence_enabled = false
+	isolated_settings.register_race_time(95.0, &"coastal")
+	isolated_settings.register_race_time(82.0, &"garden")
+	_check(
+		is_equal_approx(isolated_settings.get_best_time(&"coastal"), 95.0)
+		and is_equal_approx(isolated_settings.get_best_time(&"garden"), 82.0),
+		"Best times are stored independently for each track."
+	)
 	main.main_menu._toggle_settings()
 	await process_frame
 	_check(main.main_menu._settings_panel.visible, "Settings panel opens.")
 	main.main_menu._toggle_settings()
-	main.start_game()
+	main.start_game(&"coastal")
 	await process_frame
 	await process_frame
 	_check(main.race_world != null, "Race world is created.")
@@ -235,6 +278,57 @@ func _run() -> void:
 		_check(not player.is_control_enabled, "Three valid laps finish the player race.")
 	main.queue_free()
 	await process_frame
+	var garden_main := packed_scene.instantiate()
+	root.add_child(garden_main)
+	await process_frame
+	await process_frame
+	garden_main.settings.is_persistence_enabled = false
+	garden_main.start_game(&"garden")
+	await process_frame
+	await process_frame
+	var garden_world: RaceWorld = garden_main.race_world
+	_check(garden_world != null, "Garden track can be selected from the catalog.")
+	if garden_world != null:
+		var garden_track: CoastalTrack = garden_world._track
+		var garden_manager: RaceManager = garden_world.race_manager
+		_check(
+			garden_track.get_route_length() >= 300.0,
+			"Garden track is at least 300 meters long."
+		)
+		_check(
+			garden_track.shortcut_definitions.size() == 1,
+			"Garden track exposes its authored shortcut."
+		)
+		_check(
+			garden_track.get_node("Props").get_child_count() >= 8,
+			"Garden track instantiates its CC0 asset dressing."
+		)
+		for garden_shortcut in garden_track.shortcut_definitions:
+			_check(
+				_is_shortcut_corridor_clear(
+					garden_track,
+					garden_shortcut,
+					garden_manager.racers
+				),
+				"%s is open for the player kart." % garden_shortcut.name
+			)
+			_check(
+				_shortcut_follows_race_direction(garden_track, garden_shortcut),
+				"%s follows the garden race direction." % garden_shortcut.name
+			)
+			_check(
+				_shortcut_surface_is_continuous(garden_track, garden_shortcut),
+				"%s has continuous floor support." % garden_shortcut.name
+			)
+		_check(
+			_barriers_contain_drivable_corridors(
+				garden_track,
+				garden_manager.racers
+			),
+			"Garden route and shortcut are physically contained by barriers."
+		)
+	garden_main.queue_free()
+	await process_frame
 	await create_timer(0.25).timeout
 	quit(1 if _has_failed else 0)
 
@@ -368,11 +462,28 @@ func _barriers_contain_drivable_corridors(
 				space_state,
 				query,
 				track.route_points[route_index] + Vector3.UP * 0.82,
-				route_right * side * 24.0
+				route_right * side * 60.0
 			):
+				var escape_start := (
+					track.route_points[route_index] + Vector3.UP * 0.82
+				)
+				var escape_motion: Vector3 = route_right * float(side) * 60.0
+				var ray_query := PhysicsRayQueryParameters3D.create(
+					escape_start,
+					escape_start + escape_motion,
+					16 | 32
+				)
+				ray_query.collide_with_areas = false
+				var ray_hit := space_state.intersect_ray(ray_query)
 				print(
-					"INFO: Main route can escape at point %d on side %.0f."
-					% [route_index, side]
+					"INFO: Main route can escape at point %d on side %.0f from %s toward %s; ray=%s."
+					% [
+						route_index,
+						side,
+						track.route_points[route_index],
+						route_right * side,
+						ray_hit,
+					]
 				)
 				return false
 	for shortcut_definition in track.shortcut_definitions:

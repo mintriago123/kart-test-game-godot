@@ -1,5 +1,7 @@
 extends Node
 
+const TRACK_CATALOG: TrackCatalog = preload("res://levels/track_catalog.tres")
+
 var settings := GameSettings.new()
 var main_menu: MainMenu
 var race_world: RaceWorld
@@ -9,13 +11,22 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_configure_input_map()
 	settings.load_from_disk()
+	var initial_track := TRACK_CATALOG.get_valid_track(settings.selected_track_id)
+	if initial_track != null:
+		settings.select_track(initial_track.id)
 	_apply_master_volume(settings.master_volume)
 	_show_main_menu()
 	if "--auto-race" in OS.get_cmdline_user_args():
 		start_game.call_deferred()
 
 
-func start_game() -> void:
+func start_game(track_id: StringName = settings.selected_track_id) -> void:
+	var track_definition := TRACK_CATALOG.get_valid_track(track_id)
+	if track_definition == null:
+		push_error("No valid track is available.")
+		return
+	settings.select_track(track_definition.id)
+	settings.save_to_disk()
 	if race_world != null:
 		race_world.queue_free()
 		race_world = null
@@ -26,6 +37,7 @@ func start_game() -> void:
 	race_world = RaceWorld.new()
 	race_world.graphics_profile = settings.graphics_profile
 	race_world.vibration_enabled = settings.vibration_enabled
+	race_world.track_definition = track_definition
 	race_world.retry_requested.connect(_restart_game)
 	race_world.menu_requested.connect(_return_to_menu)
 	race_world.race_completed.connect(_register_race_time)
@@ -36,7 +48,9 @@ func _show_main_menu() -> void:
 	if main_menu != null:
 		return
 	main_menu = MainMenu.new()
+	main_menu.track_catalog = TRACK_CATALOG
 	main_menu.play_requested.connect(start_game)
+	main_menu.track_selected.connect(_set_selected_track)
 	main_menu.graphics_profile_changed.connect(_set_graphics_profile)
 	main_menu.vibration_changed.connect(_set_vibration_enabled)
 	main_menu.volume_changed.connect(_set_master_volume)
@@ -45,7 +59,8 @@ func _show_main_menu() -> void:
 		settings.graphics_profile,
 		settings.vibration_enabled,
 		settings.master_volume,
-		settings.best_time
+		settings.best_times,
+		settings.selected_track_id
 	)
 
 
@@ -77,12 +92,20 @@ func _set_master_volume(value: float) -> void:
 	settings.save_to_disk()
 
 
+func _set_selected_track(track_id: StringName) -> void:
+	var track_definition := TRACK_CATALOG.get_track(track_id)
+	if track_definition == null:
+		return
+	settings.select_track(track_definition.id)
+	settings.save_to_disk()
+
+
 func _apply_master_volume(value: float) -> void:
 	AudioServer.set_bus_volume_db(0, linear_to_db(value) if value > 0.0 else -80.0)
 
 
 func _register_race_time(race_time: float) -> void:
-	if settings.register_race_time(race_time):
+	if settings.register_race_time(race_time, settings.selected_track_id):
 		settings.save_to_disk()
 
 

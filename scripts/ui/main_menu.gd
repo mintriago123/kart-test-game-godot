@@ -1,12 +1,14 @@
 class_name MainMenu
 extends CanvasLayer
 
-signal play_requested
+signal play_requested(track_id: StringName)
+signal track_selected(track_id: StringName)
 signal graphics_profile_changed(profile: String)
 signal vibration_changed(enabled: bool)
 signal volume_changed(value: float)
 
 var graphics_profile := "medium"
+var track_catalog: TrackCatalog
 var _settings_panel: Control
 var _play_button: Button
 var _first_settings_button: Button
@@ -14,6 +16,10 @@ var _profile_value: Label
 var _vibration_toggle: CheckButton
 var _volume_slider: HSlider
 var _best_time_label: Label
+var _track_description_label: Label
+var _track_buttons: Dictionary = {}
+var _best_times: Dictionary = {}
+var _selected_track_id: StringName = &"coastal"
 
 
 func _ready() -> void:
@@ -21,20 +27,23 @@ func _ready() -> void:
 	_build_interface()
 
 
-func apply_settings(profile: String, vibration: bool, volume: float, best_time: float) -> void:
+func apply_settings(
+	profile: String,
+	vibration: bool,
+	volume: float,
+	best_times: Dictionary,
+	selected_track_id: StringName
+) -> void:
 	graphics_profile = profile
+	_best_times = best_times.duplicate(true)
+	_select_track(selected_track_id, false)
 	if _profile_value != null:
 		_profile_value.text = "ACTUAL: " + profile.to_upper()
 	if _vibration_toggle != null:
 		_vibration_toggle.set_pressed_no_signal(vibration)
 	if _volume_slider != null:
 		_volume_slider.set_value_no_signal(volume)
-	if _best_time_label != null:
-		_best_time_label.text = (
-			"MEJOR VUELTA · " + _format_time(best_time)
-			if best_time > 0.0
-			else "MEJOR VUELTA · SIN REGISTRO"
-		)
+	_update_best_time_label()
 
 
 func _build_interface() -> void:
@@ -91,10 +100,41 @@ func _build_interface() -> void:
 	content.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "Tres vueltas. Dos objetos. Una costa para conquistar."
+	subtitle.text = "Tres vueltas. Dos objetos. Dos circuitos para conquistar."
 	subtitle.add_theme_font_size_override("font_size", 21)
 	subtitle.add_theme_color_override("font_color", Color("#d8f4e8"))
 	content.add_child(subtitle)
+
+	var track_label := Label.new()
+	track_label.text = "ELIGE CIRCUITO"
+	track_label.add_theme_font_size_override("font_size", 16)
+	track_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	content.add_child(track_label)
+
+	var track_row := HBoxContainer.new()
+	track_row.add_theme_constant_override("separation", 12)
+	content.add_child(track_row)
+	var track_button_group := ButtonGroup.new()
+	if track_catalog != null:
+		for track_definition in track_catalog.tracks:
+			if track_definition == null:
+				continue
+			var track_button := _create_button(
+				track_definition.display_name.to_upper(),
+				track_definition.preview_color,
+				Vector2(240.0, 58.0)
+			)
+			track_button.toggle_mode = true
+			track_button.button_group = track_button_group
+			track_button.tooltip_text = track_definition.description
+			track_button.pressed.connect(_select_track.bind(track_definition.id))
+			track_row.add_child(track_button)
+			_track_buttons[track_definition.id] = track_button
+
+	_track_description_label = Label.new()
+	_track_description_label.add_theme_font_size_override("font_size", 15)
+	_track_description_label.add_theme_color_override("font_color", Color("#d8f4e8"))
+	content.add_child(_track_description_label)
 
 	_best_time_label = Label.new()
 	_best_time_label.text = "MEJOR VUELTA · SIN REGISTRO"
@@ -107,7 +147,7 @@ func _build_interface() -> void:
 	content.add_child(actions)
 
 	_play_button = _create_button("JUGAR", Color("#f5d25f"), Vector2(190.0, 76.0))
-	_play_button.pressed.connect(func() -> void: play_requested.emit())
+	_play_button.pressed.connect(func() -> void: play_requested.emit(_selected_track_id))
 	actions.add_child(_play_button)
 
 	var settings := _create_button("AJUSTES", Color("#74d3c4"), Vector2(180.0, 76.0))
@@ -134,7 +174,38 @@ func _build_interface() -> void:
 
 	_settings_panel = _build_settings_panel()
 	root.add_child(_settings_panel)
+	_select_track(_selected_track_id, false)
 	_play_button.grab_focus.call_deferred()
+
+
+func _select_track(track_id: StringName, should_emit: bool = true) -> void:
+	var track_definition := (
+		track_catalog.get_track(track_id) if track_catalog != null else null
+	)
+	if track_definition == null and track_catalog != null:
+		track_definition = track_catalog.get_default_track()
+	if track_definition == null:
+		return
+	_selected_track_id = track_definition.id
+	for button_id in _track_buttons:
+		var track_button := _track_buttons[button_id] as Button
+		track_button.set_pressed_no_signal(button_id == _selected_track_id)
+	if _track_description_label != null:
+		_track_description_label.text = track_definition.description
+	_update_best_time_label()
+	if should_emit:
+		track_selected.emit(_selected_track_id)
+
+
+func _update_best_time_label() -> void:
+	if _best_time_label == null:
+		return
+	var best_time := maxf(float(_best_times.get(_selected_track_id, -1.0)), -1.0)
+	_best_time_label.text = (
+		"MEJOR VUELTA · " + _format_time(best_time)
+		if best_time > 0.0
+		else "MEJOR VUELTA · SIN REGISTRO"
+	)
 
 
 func _build_settings_panel() -> Control:

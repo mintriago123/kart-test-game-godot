@@ -1,3 +1,4 @@
+@tool
 class_name CoastalTrack
 extends Node3D
 
@@ -36,6 +37,8 @@ var _active_shortcuts: Dictionary = {}
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		return
 	_prepare_materials()
 	_build_route()
 	_define_shortcuts()
@@ -488,10 +491,14 @@ func _create_shortcut_barriers(
 				var barrier_end := segment_start.lerp(segment_end, end_weight)
 				if _distance_to_main_route_2d(
 					barrier_start.lerp(barrier_end, 0.5)
-				) <= ROAD_WIDTH * 0.5 - BARRIER_PATH_INSET:
+				) <= _get_shortcut_barrier_join_clearance():
 					continue
 				_add_barrier_segment(surface, barrier_start, barrier_end)
 		_commit_barrier_surface(surface, barrier_name, collision_layer)
+
+
+func _get_shortcut_barrier_join_clearance() -> float:
+	return ROAD_WIDTH * 0.5 - BARRIER_PATH_INSET
 
 
 func _is_inside_shortcut_portal(point: Vector3) -> bool:
@@ -875,13 +882,17 @@ func _build_start_arch() -> void:
 	banner.material_override = _material(Color("#f5d66f"), 0.7)
 
 	var sign := Label3D.new()
-	sign.text = "COSTA TURBO"
+	sign.text = _get_start_banner_text()
 	sign.font_size = 72
 	sign.outline_size = 12
 	sign.modulate = Color("#15363a")
 	add_child(sign)
 	sign.position = start + Vector3.UP * 5.05 - forward * 0.31
 	sign.look_at(start - forward, Vector3.UP)
+
+
+func _get_start_banner_text() -> String:
+	return "COSTA TURBO"
 
 
 func _build_decorations() -> void:

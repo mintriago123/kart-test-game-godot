@@ -1,5 +1,6 @@
 extends SceneTree
 
+const TRACK_CATALOG: TrackCatalog = preload("res://levels/track_catalog.tres")
 const MAX_PHYSICS_FRAMES_PER_SHORTCUT := 720
 const TARGET_DISTANCE := 5.0
 
@@ -17,12 +18,24 @@ func _run() -> void:
 	if packed_scene == null:
 		_finish(1)
 		return
+
+	for track_definition in TRACK_CATALOG.tracks:
+		await _test_track_shortcuts(packed_scene, track_definition)
+
+	_finish(1 if _has_failed else 0)
+
+
+func _test_track_shortcuts(
+	packed_scene: PackedScene,
+	track_definition: TrackDefinition
+) -> void:
 	var main := packed_scene.instantiate()
 	root.add_child(main)
 	await process_frame
 	main.settings.is_persistence_enabled = false
-	main.start_game()
+	main.start_game(track_definition.id)
 	await process_frame
+	await physics_frame
 	var world: RaceWorld = main.race_world
 	var player: Kart = world.player_kart
 	var track: CoastalTrack = world._track
@@ -36,87 +49,99 @@ func _run() -> void:
 	player.is_control_enabled = true
 
 	for shortcut_definition in track.shortcut_definitions:
-		player.set_shortcut_surface_enabled(false)
-		var drive_points := _build_drive_points(track, shortcut_definition)
-		var first_forward := (drive_points[1] - drive_points[0]).normalized()
-		player.global_transform = Transform3D(
-			Basis.looking_at(first_forward, Vector3.UP),
-			drive_points[0] + Vector3.UP * 0.45
-		)
-		player.velocity = first_forward * 5.0
-		player.set_respawn_transform(player.global_transform)
-		var initial_recovery_count := player.recovery_count
-		var target_index := 1
-		var shortcut_surface_was_enabled := false
-		for physics_step in MAX_PHYSICS_FRAMES_PER_SHORTCUT:
-			player.is_control_enabled = true
-			while (
-				target_index < drive_points.size() - 1
-				and player.global_position.distance_to(drive_points[target_index])
-				< TARGET_DISTANCE
-			):
-				target_index += 1
-			var lookahead_index := mini(target_index + 2, drive_points.size() - 1)
-			var target_direction := (
-				drive_points[lookahead_index] - player.global_position
-			)
-			target_direction.y = 0.0
-			target_direction = target_direction.normalized()
-			var player_forward := -player.global_transform.basis.z.normalized()
-			var steer := clampf(
-				-player_forward.cross(target_direction).y * 2.4,
-				-1.0,
-				1.0
-			)
-			var alignment := player_forward.dot(target_direction)
-			player.set_drive_input(
-				0.65 if alignment < 0.7 else 1.0,
-				0.35 if alignment < 0.35 else 0.0,
-				steer,
-				false,
-				false
-			)
-			await physics_frame
-			shortcut_surface_was_enabled = (
-				shortcut_surface_was_enabled
-				or (player.collision_mask & Kart.SHORTCUT_SURFACE_LAYER) != 0
-			)
-			if (
-				target_index == drive_points.size() - 1
-				and player.global_position.distance_to(drive_points.back())
-				< TARGET_DISTANCE
-			):
-				break
-		print(
-			"INFO: %s target=%d/%d distance=%.2f speed=%.1f recoveries=%d"
-			% [
-				shortcut_definition.name,
-				target_index,
-				drive_points.size() - 1,
-				player.global_position.distance_to(drive_points.back()),
-				Vector2(player.velocity.x, player.velocity.z).length(),
-				player.recovery_count - initial_recovery_count,
-			]
-		)
-		_check(
-			target_index == drive_points.size() - 1
-			and player.global_position.distance_to(drive_points.back()) < TARGET_DISTANCE,
-			"%s is traversable by the real player kart." % shortcut_definition.name
-		)
-		_check(
-			player.recovery_count == initial_recovery_count,
-			"%s does not trigger player recovery." % shortcut_definition.name
-		)
-		_check(
-			shortcut_surface_was_enabled
-			and (player.collision_mask & Kart.SHORTCUT_SURFACE_LAYER) == 0,
-			"%s enables its floor only during traversal." % shortcut_definition.name
-		)
-		player.set_drive_input(0.0, 1.0, 0.0, false, false)
+		await _drive_shortcut(player, track, shortcut_definition, track_definition)
 
 	main.queue_free()
 	await process_frame
-	_finish(1 if _has_failed else 0)
+
+
+func _drive_shortcut(
+	player: Kart,
+	track: CoastalTrack,
+	shortcut_definition: Dictionary,
+	track_definition: TrackDefinition
+) -> void:
+	player.set_shortcut_surface_enabled(false)
+	var drive_points := _build_drive_points(track, shortcut_definition)
+	var first_forward := (drive_points[1] - drive_points[0]).normalized()
+	player.global_transform = Transform3D(
+		Basis.looking_at(first_forward, Vector3.UP),
+		drive_points[0] + Vector3.UP * 0.45
+	)
+	player.velocity = first_forward * 5.0
+	player.set_respawn_transform(player.global_transform)
+	var initial_recovery_count := player.recovery_count
+	var target_index := 1
+	var shortcut_surface_was_enabled := false
+	for _physics_step in MAX_PHYSICS_FRAMES_PER_SHORTCUT:
+		player.is_control_enabled = true
+		while (
+			target_index < drive_points.size() - 1
+			and player.global_position.distance_to(drive_points[target_index])
+			< TARGET_DISTANCE
+		):
+			target_index += 1
+		var lookahead_index := mini(target_index + 2, drive_points.size() - 1)
+		var target_direction := (
+			drive_points[lookahead_index] - player.global_position
+		)
+		target_direction.y = 0.0
+		target_direction = target_direction.normalized()
+		var player_forward := -player.global_transform.basis.z.normalized()
+		var steer := clampf(
+			-player_forward.cross(target_direction).y * 2.4,
+			-1.0,
+			1.0
+		)
+		var alignment := player_forward.dot(target_direction)
+		player.set_drive_input(
+			0.65 if alignment < 0.7 else 1.0,
+			0.35 if alignment < 0.35 else 0.0,
+			steer,
+			false,
+			false
+		)
+		await physics_frame
+		shortcut_surface_was_enabled = (
+			shortcut_surface_was_enabled
+			or (player.collision_mask & Kart.SHORTCUT_SURFACE_LAYER) != 0
+		)
+		if (
+			target_index == drive_points.size() - 1
+			and player.global_position.distance_to(drive_points.back())
+			< TARGET_DISTANCE
+		):
+			break
+	print(
+		"INFO: %s / %s target=%d/%d distance=%.2f speed=%.1f recoveries=%d"
+		% [
+			track_definition.display_name,
+			shortcut_definition.name,
+			target_index,
+			drive_points.size() - 1,
+			player.global_position.distance_to(drive_points.back()),
+			Vector2(player.velocity.x, player.velocity.z).length(),
+			player.recovery_count - initial_recovery_count,
+		]
+	)
+	_check(
+		target_index == drive_points.size() - 1
+		and player.global_position.distance_to(drive_points.back()) < TARGET_DISTANCE,
+		"%s / %s is traversable by the real player kart."
+		% [track_definition.display_name, shortcut_definition.name]
+	)
+	_check(
+		player.recovery_count == initial_recovery_count,
+		"%s / %s does not trigger player recovery."
+		% [track_definition.display_name, shortcut_definition.name]
+	)
+	_check(
+		shortcut_surface_was_enabled
+		and (player.collision_mask & Kart.SHORTCUT_SURFACE_LAYER) == 0,
+		"%s / %s enables its floor only during traversal."
+		% [track_definition.display_name, shortcut_definition.name]
+	)
+	player.set_drive_input(0.0, 1.0, 0.0, false, false)
 
 
 func _build_drive_points(

@@ -7,6 +7,7 @@ signal race_completed(time: float)
 
 var graphics_profile := "medium"
 var vibration_enabled := true
+var track_definition: TrackDefinition
 var race_manager: RaceManager
 var player_kart: Kart
 
@@ -16,8 +17,8 @@ var _sound: SoundManager
 
 
 func _ready() -> void:
-	_build_environment()
 	_build_track()
+	_build_environment()
 	_build_race()
 
 
@@ -29,9 +30,14 @@ func _build_environment() -> void:
 	var world_environment := WorldEnvironment.new()
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#58bfd0")
+	var theme := _get_track_theme()
+	environment.background_color = (
+		theme.sky_color if theme != null else Color("#58bfd0")
+	)
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#d9f4df")
+	environment.ambient_light_color = (
+		theme.ambient_color if theme != null else Color("#d9f4df")
+	)
 	environment.ambient_light_energy = 0.72
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	environment.glow_enabled = graphics_profile == "medium"
@@ -48,13 +54,18 @@ func _build_environment() -> void:
 
 
 func _build_track() -> void:
-	_track = CoastalTrack.new()
+	if track_definition != null and track_definition.scene != null:
+		_track = track_definition.scene.instantiate() as CoastalTrack
+	if _track == null:
+		_track = CoastalTrack.new()
 	add_child(_track)
 
 
 func _build_race() -> void:
 	race_manager = RaceManager.new()
 	add_child(race_manager)
+	if track_definition != null:
+		race_manager.total_laps = track_definition.laps
 	race_manager.configure(_track.route_points)
 	_track.shortcut_completed.connect(race_manager.complete_shortcut)
 	race_manager.shortcut_accepted.connect(_handle_shortcut_accepted)
@@ -118,6 +129,12 @@ func _build_race() -> void:
 	race_manager.player_finished.connect(_hud.show_results)
 	race_manager.player_finished.connect(_handle_player_finished)
 	race_manager.begin.call_deferred()
+
+
+func _get_track_theme() -> TrackTheme:
+	if _track is TrackLevel:
+		return (_track as TrackLevel).track_theme
+	return null
 
 
 func _add_camera(kart: Kart) -> void:
