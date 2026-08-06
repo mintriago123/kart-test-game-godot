@@ -17,6 +17,7 @@ var _hud: RaceHud
 var _sound: SoundManager
 var _follow_camera: FollowCamera
 var _intro_camera: RaceIntroCamera
+var _projectiles: Node3D
 var _item_boxes: Array[ItemBox] = []
 var _ai_drivers: Array[AiDriver] = []
 var _has_begun_race := false
@@ -25,6 +26,7 @@ var _has_begun_race := false
 func _ready() -> void:
 	_build_track()
 	_build_environment()
+	_build_projectile_container()
 	_build_race()
 
 
@@ -67,6 +69,12 @@ func _build_track() -> void:
 	add_child(_track)
 
 
+func _build_projectile_container() -> void:
+	_projectiles = Node3D.new()
+	_projectiles.name = "Projectiles"
+	add_child(_projectiles)
+
+
 func _build_race() -> void:
 	race_manager = RaceManager.new()
 	add_child(race_manager)
@@ -100,6 +108,9 @@ func _build_race() -> void:
 		kart.global_transform = _track.get_spawn_transform(grid_slot)
 		kart.set_respawn_transform(kart.global_transform)
 		race_manager.register_kart(kart, slot == 0)
+		kart.item_launch_requested.connect(
+			_handle_item_launch_requested.bind(kart)
+		)
 		if slot == 0:
 			player_kart = kart
 			_add_camera(kart)
@@ -131,8 +142,8 @@ func _build_race() -> void:
 	add_child(_hud)
 	_hud.bind_player(player_kart)
 	_hud.update_race_info(1, race_manager.total_laps, race_manager.get_race_position(player_kart), 4, 0.0)
-	_hud.retry_requested.connect(func() -> void: retry_requested.emit())
-	_hud.menu_requested.connect(func() -> void: menu_requested.emit())
+	_hud.retry_requested.connect(_handle_retry_requested)
+	_hud.menu_requested.connect(_handle_menu_requested)
 	_hud.intro_skip_requested.connect(_handle_intro_skip_requested)
 	race_manager.countdown_changed.connect(_hud.show_countdown)
 	race_manager.countdown_changed.connect(_sound.play_countdown)
@@ -240,6 +251,47 @@ func _handle_player_hit() -> void:
 		Input.vibrate_handheld(120, 0.55)
 
 
+func _handle_item_launch_requested(
+	item: ItemDefinition,
+	direction: Vector3,
+	source_kart: Kart
+) -> void:
+	if (
+		item == null
+		or item.type != ItemDefinition.ItemType.TROPICAL_PROJECTILE
+		or _projectiles == null
+		or not is_instance_valid(source_kart)
+	):
+		return
+	var projectile := KartProjectile.new()
+	projectile.setup(source_kart, item, direction)
+	projectile.bounced.connect(_sound.play_projectile_bounce)
+	_projectiles.add_child(projectile)
+	projectile.global_position = (
+		source_kart.global_position
+		+ direction.normalized() * 2.0
+		+ Vector3.UP * (item.projectile_radius + 0.25)
+	)
+
+
+func _handle_retry_requested() -> void:
+	_clear_projectiles()
+	retry_requested.emit()
+
+
+func _handle_menu_requested() -> void:
+	_clear_projectiles()
+	menu_requested.emit()
+
+
+func _clear_projectiles() -> void:
+	if _projectiles == null:
+		return
+	for projectile in _projectiles.get_children():
+		_projectiles.remove_child(projectile)
+		projectile.queue_free()
+
+
 func _handle_shortcut_accepted(kart: Node) -> void:
 	if kart != player_kart:
 		return
@@ -249,6 +301,7 @@ func _handle_shortcut_accepted(kart: Node) -> void:
 
 
 func _handle_player_finished(_position: int, time: float) -> void:
+	_clear_projectiles()
 	_sound.play_finish()
 	if vibration_enabled:
 		Input.vibrate_handheld(220, 0.6)

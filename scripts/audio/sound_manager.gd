@@ -47,6 +47,11 @@ func play_hit() -> void:
 	_play_tone(145.0, 0.24, 0.35)
 
 
+func play_projectile_bounce(bounce_count: int) -> void:
+	var frequency := 310.0 + minf(float(bounce_count), 3.0) * 55.0
+	_play_tone(frequency, 0.08, 0.26)
+
+
 func play_finish() -> void:
 	_play_tone(783.99, 0.48, 0.35)
 

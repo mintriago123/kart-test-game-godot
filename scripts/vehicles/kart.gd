@@ -5,10 +5,11 @@ signal item_changed(display_name: String)
 signal boost_changed(charge_ratio: float)
 signal hit_received
 signal recovered
+signal item_launch_requested(item: ItemDefinition, direction: Vector3)
 
 const GRAVITY := 28.0
 const DRIFT_LEVEL_TIMES := [0.65, 1.25, 1.9]
-const SHORTCUT_SURFACE_LAYER := 8
+const SHORTCUT_SURFACE_LAYER := PhysicsLayers.SHORTCUTS
 
 @export var racer_name := "Piloto"
 @export var is_player := false
@@ -40,8 +41,12 @@ var _visual_root: Node3D
 
 
 func _ready() -> void:
-	collision_layer = 2
-	collision_mask = 1 | 16 | 32
+	collision_layer = PhysicsLayers.KARTS
+	collision_mask = (
+		PhysicsLayers.WORLD
+		| PhysicsLayers.MAIN_BARRIERS
+		| PhysicsLayers.SHORTCUT_BARRIERS
+	)
 	floor_snap_length = 1.1
 	floor_max_angle = deg_to_rad(52.0)
 	_last_valid_transform = global_transform
@@ -138,9 +143,12 @@ func use_item() -> void:
 	item_changed.emit("")
 	match item_to_use.type:
 		ItemDefinition.ItemType.BOOST:
-			_activate_boost(item_to_use.duration, item_to_use.power)
+			_activate_boost(
+				item_to_use.boost_duration,
+				item_to_use.boost_power
+			)
 		ItemDefinition.ItemType.TROPICAL_PROJECTILE:
-			_launch_projectile()
+			_request_projectile_launch(item_to_use)
 
 
 func receive_hit(duration: float) -> void:
@@ -198,15 +206,9 @@ func _activate_boost(duration: float, power: float) -> void:
 	velocity += forward * power
 
 
-func _launch_projectile() -> void:
-	var projectile := KartProjectile.new()
-	var projectile_parent := get_tree().current_scene
-	if projectile_parent == null:
-		projectile_parent = get_tree().root
-	projectile_parent.add_child(projectile)
+func _request_projectile_launch(item: ItemDefinition) -> void:
 	var forward := -global_transform.basis.z.normalized()
-	projectile.global_position = global_position + forward * 2.0 + Vector3.UP * 0.35
-	projectile.setup(self, forward)
+	item_launch_requested.emit(item, forward)
 
 
 func _release_drift() -> void:
