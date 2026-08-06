@@ -1,0 +1,189 @@
+extends SceneTree
+
+var _has_failed := false
+
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
+	await _test_guided_screen()
+	await _test_template_and_history()
+	await _test_track_runner()
+	quit(1 if _has_failed else 0)
+
+
+func _test_guided_screen() -> void:
+	var screen := TrackEditorScreen.new()
+	root.add_child(screen)
+	await process_frame
+	await process_frame
+	_check(screen.session.track != null, "Guided editor opens the first catalog track.")
+	_check(screen.find_child("TrackMap", true, false) != null, "Guided editor exposes the aerial map.")
+	_check(
+		screen.find_child("TrackPreview3D", true, false) != null,
+		"Guided editor exposes the 3D preview."
+	)
+	var interactive_controls_are_accessible := true
+	var button_count := 0
+	for node in _collect_descendants(screen):
+		if node is Button:
+			button_count += 1
+			interactive_controls_are_accessible = (
+				interactive_controls_are_accessible
+				and (node as Button).custom_minimum_size.y >= 44.0
+				and (node as Button).focus_mode == Control.FOCUS_ALL
+			)
+	_check(button_count >= 14, "Guided editor exposes the complete five-step workflow.")
+	_check(
+		interactive_controls_are_accessible,
+		"Guided editor buttons are touch-friendly and keyboard focusable."
+	)
+	for step_index in 5:
+		screen._show_step(step_index)
+		await process_frame
+	_check(
+		screen.session.track != null and is_instance_valid(screen.session.track),
+		"All five guided steps render without losing the edited track."
+	)
+	var screen_route := screen.session.track.get_main_route()
+	var screen_original := screen_route.curve.get_point_position(0)
+	screen.session.snapshot_route_for_undo()
+	screen_route.curve.set_point_position(0, screen_original + Vector3.RIGHT)
+	screen.session.undo_route()
+	await process_frame
+	_check(
+		is_instance_valid(screen.session.track)
+		and screen.session.track.is_inside_tree()
+		and screen.session.track.get_main_route().curve.get_point_position(0).is_equal_approx(
+			screen_original
+		),
+		"Undo refreshes the guided preview without deleting the track."
+	)
+	screen.session.create_track(&"medium", "Atajo guiado")
+	await process_frame
+	screen._create_shortcut(0, 3)
+	await process_frame
+	_check(
+		screen.session.track.get_shortcuts().size() == 1,
+		"The shortcut step creates a physical shortcut without editing nodes."
+	)
+	_check(
+		screen.session.track.validate_track().is_empty(),
+		"The automatically connected shortcut passes track validation."
+	)
+	screen.queue_free()
+	await process_frame
+	await process_frame
+
+
+func _test_template_and_history() -> void:
+	var session := TrackEditorSession.new()
+	session.create_track(&"medium", "Pista de prueba")
+	var track := session.track
+	root.add_child(track)
+	await process_frame
+	_check(track.get_main_route().curve.closed, "New templates create a closed editable route.")
+	_check(track.get_main_route().curve.point_count == 8, "New templates start with eight clear control points.")
+	_check(track.get_node("ItemSpawns").get_child_count() == 4, "New templates include four item boxes.")
+	_check(track.inspect_track().is_empty(), "New medium template passes structured validation.")
+
+	var route := track.get_main_route()
+	var original_position := route.curve.get_point_position(0)
+	session.snapshot_route_for_undo()
+	route.curve.set_point_position(0, original_position + Vector3(8.0, 0.0, 0.0))
+	session.mark_dirty()
+	session.undo_route()
+	_check(
+		route.curve.get_point_position(0).is_equal_approx(original_position),
+		"Route edits can be undone."
+	)
+	session.redo_route()
+	_check(
+		route.curve.get_point_position(0).is_equal_approx(
+			original_position + Vector3(8.0, 0.0, 0.0)
+		),
+		"Undone route edits can be redone."
+	)
+
+	track.start_point_index = 2
+	track.rebuild_preview()
+	_check(
+		track.route_points[0].distance_to(route.curve.get_point_position(2)) < 0.1,
+		"Start selection rotates the generated race route."
+	)
+	var draft_path := "user://coastal_karts_editor_test_draft.tscn"
+	session.scene_path = draft_path
+	_check(session.save() == OK, "Guided editor saves an incomplete or complete draft.")
+	var reloaded_session := TrackEditorSession.new()
+	_check(
+		reloaded_session.load_track(draft_path) == OK
+		and reloaded_session.track.track_id == track.track_id
+		and reloaded_session.track.start_point_index == 2,
+		"Saved drafts reload with their editable data intact."
+	)
+	var catalog_path := "user://coastal_karts_editor_test_catalog.tres"
+	ResourceSaver.save(TrackCatalog.new(), catalog_path)
+	reloaded_session.catalog_path = catalog_path
+	root.add_child(reloaded_session.track)
+	await process_frame
+	_check(
+		reloaded_session.publish(3, "Pista temporal") == OK,
+		"A valid draft can be published through the guided editor."
+	)
+	var published_catalog := load(catalog_path) as TrackCatalog
+	_check(
+		published_catalog != null
+		and published_catalog.get_track(track.track_id) != null,
+		"Publishing registers the track in its catalog."
+	)
+	if reloaded_session.track != null:
+		reloaded_session.track.queue_free()
+		await process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(draft_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(catalog_path))
+	session.clear_recovery()
+	track.queue_free()
+	await process_frame
+
+
+func _test_track_runner() -> void:
+	var config_path := "user://coastal_karts_track_test.cfg"
+	var config := ConfigFile.new()
+	config.set_value("track", "scene_path", "res://levels/coastal_track.tscn")
+	config.set_value("track", "id", &"coastal")
+	config.set_value("track", "laps", 3)
+	config.save(config_path)
+	var runner_scene := load(
+		"res://addons/track_editor/track_test_runner.tscn"
+	) as PackedScene
+	var runner := runner_scene.instantiate()
+	root.add_child(runner)
+	await process_frame
+	await process_frame
+	var test_world := runner.get("_world") as RaceWorld
+	_check(
+		test_world != null and test_world.player_kart != null,
+		"The Test button runner starts the selected draft with the real player kart."
+	)
+	runner.queue_free()
+	await process_frame
+	await process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(config_path))
+
+
+func _collect_descendants(node: Node) -> Array[Node]:
+	var descendants: Array[Node] = []
+	for child in node.get_children():
+		descendants.append(child)
+		descendants.append_array(_collect_descendants(child))
+	return descendants
+
+
+func _check(condition: bool, message: String) -> void:
+	if condition:
+		print("PASS: ", message)
+	else:
+		_has_failed = true
+		push_error("FAIL: " + message)
