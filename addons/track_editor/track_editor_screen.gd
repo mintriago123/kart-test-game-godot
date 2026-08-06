@@ -339,7 +339,13 @@ func _load_path(path: String) -> void:
 	else:
 		_laps = 3
 		_description = ""
-	_show_success("Pista abierta. Comienza por Configuración o Carretera.")
+	if session.last_repair_summary.is_empty():
+		_show_success("Pista abierta. Comienza por Configuración o Carretera.")
+	else:
+		_show_success(
+			"%s. Guarda para conservar la reparación."
+			% session.last_repair_summary.capitalize()
+		)
 
 
 func _handle_track_changed(track: TrackLevel) -> void:
@@ -588,7 +594,7 @@ func _build_review_properties() -> void:
 		"El editor revisa carretera, salida, cajas y atajos. "
 		+ "Puedes guardar un borrador aunque todavía tenga errores."
 	)
-	var issues := session.track.inspect_track()
+	var issues := _deduplicate_issues(session.track.inspect_track())
 	if issues.is_empty():
 		var ready := Label.new()
 		ready.text = "✓ PISTA LISTA PARA PROBAR"
@@ -687,6 +693,7 @@ func _handle_route_edited() -> void:
 
 
 func _handle_route_edit_finished() -> void:
+	session.recalculate_route_dependents()
 	_rebuild_preview()
 	_show_success("Carretera actualizada.")
 
@@ -754,6 +761,7 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 	var shortcuts := session.track.get_node_or_null("Shortcuts")
 	shortcuts.add_child(shortcut)
 	shortcut.owner = session.track
+	session.configure_shortcut_anchor(shortcut)
 	session.mark_dirty()
 	_map_view.queue_redraw()
 	_rebuild_preview()
@@ -787,6 +795,10 @@ func _add_item_spawn(point_index: int) -> void:
 	marker.position = route.curve.get_point_position(point_index)
 	item_root.add_child(marker)
 	marker.owner = session.track
+	session.anchor_item_spawn(
+		marker,
+		session.get_route_progress_for_control_point(point_index)
+	)
 	session.mark_dirty()
 	_rebuild_preview()
 	_show_step(3)
@@ -826,6 +838,13 @@ func _add_asset(
 	instance.scale = entry.default_scale
 	props.add_child(instance)
 	instance.owner = session.track
+	session.anchor_prop(
+		instance,
+		session.get_route_progress_for_control_point(point_index),
+		side_sign * distance,
+		0.0,
+		rotation_degrees_y
+	)
 	session.mark_dirty()
 	_rebuild_preview()
 	_show_step(3)
@@ -846,10 +865,24 @@ func _focus_issue(issue: TrackValidationIssue) -> void:
 func _rebuild_preview() -> void:
 	if session.track == null or not session.track.is_inside_tree():
 		return
-	var errors := session.track.rebuild_preview()
+	session.track.rebuild_preview()
 	_map_view.queue_redraw()
-	if errors.is_empty():
+	if not session.track.route_points.is_empty():
 		_frame_preview_camera()
+
+
+func _deduplicate_issues(
+	issues: Array[TrackValidationIssue]
+) -> Array[TrackValidationIssue]:
+	var unique_issues: Array[TrackValidationIssue] = []
+	var observed: Dictionary = {}
+	for issue in issues:
+		var key := "%s|%s" % [issue.code, issue.target_path]
+		if observed.has(key):
+			continue
+		observed[key] = true
+		unique_issues.append(issue)
+	return unique_issues
 
 
 func _frame_preview_camera() -> void:
