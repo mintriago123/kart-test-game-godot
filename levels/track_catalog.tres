@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="TrackCatalog" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/track_catalog.gd" id="1_catalog"]
+[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="2_definition"]
+[ext_resource type="PackedScene" path="res://levels/coastal_track.tscn" id="3_coastal"]
+[ext_resource type="PackedScene" path="res://levels/garden_track.tscn" id="4_garden"]
+
+[sub_resource type="Resource" id="TrackDefinition_coastal"]
+script = ExtResource("2_definition")
+id = &"coastal"
+display_name = "Costa Turbo"
+description = "Curvas amplias, laguna y cañón junto al mar."
+preview_color = Color(0.0862745, 0.498039, 0.576471, 1)
+scene = ExtResource("3_coastal")
+
+[sub_resource type="Resource" id="TrackDefinition_garden"]
+script = ExtResource("2_definition")
+id = &"garden"
+display_name = "Circuito Jardín"
+description = "Un trazado compacto entre robles, flores y senderos."
+preview_color = Color(0.435294, 0.65098, 0.333333, 1)
+scene = ExtResource("4_garden")
+
+[resource]
+script = ExtResource("1_catalog")
+tracks = Array[ExtResource("2_definition")]([SubResource("TrackDefinition_coastal"), SubResource("TrackDefinition_garden")])
