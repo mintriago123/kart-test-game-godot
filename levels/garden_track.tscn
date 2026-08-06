@@ -1,0 +1,95 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/track_level.gd" id="1_level"]
+[ext_resource type="Script" path="res://scripts/world/track_shortcut.gd" id="2_shortcut"]
+[ext_resource type="Resource" path="res://levels/themes/garden_theme.tres" id="3_theme"]
+[ext_resource type="PackedScene" path="res://assets/track/oak_tree.tscn" id="4_oak"]
+[ext_resource type="PackedScene" path="res://assets/track/large_bush.tscn" id="5_bush"]
+[ext_resource type="PackedScene" path="res://assets/track/yellow_flower.tscn" id="6_flower"]
+[ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="7_rock"]
+
+[sub_resource type="Curve3D" id="Curve3D_main"]
+_data = {
+"points": PackedVector3Array(-11.6667, 0.0416667, -0.666667, 11.6667, -0.0416667, 0.666667, 0, 0.25, 45, -9.16667, -0.125, 3.33333, 9.16667, 0.125, -3.33333, 30, 0.25, 42, -5, -0.291667, 8.66667, 5, 0.291667, -8.66667, 55, 1, 25, 1.66667, 0, 10.8333, -1.66667, 0, -10.8333, 60, 2, -10, 8.33333, 0.291667, 7, -8.33333, -0.291667, -7, 45, 1, -40, 11.6667, 0.125, 1.33333, -11.6667, -0.125, -1.33333, 10, 0.25, -52, 10.8333, -0.125, -4.5, -10.8333, 0.125, 4.5, -25, 0.25, -48, 5.83333, -0.291667, -9.66667, -5.83333, 0.291667, 9.66667, -55, 1, -25, -2.5, 0.0833333, -10.5, 2.5, -0.0833333, 10.5, -60, 2, 10, -10, 0.291667, -5.83333, 10, -0.291667, 5.83333, -40, 0.5, 38),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 10
+closed = true
+
+[sub_resource type="Curve3D" id="Curve3D_shortcut"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 13.863, 0.189041, -5.04109, 30, 0.25, 42, -1.50048, -0.0717961, 7.89622, 1.50048, 0.0717961, -7.89622, 20, 0.8, -3, 10.9376, 0.382816, 9.18759, 0, 0, 0, 45, 1, -40),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[node name="GardenTrack" type="Node3D"]
+script = ExtResource("1_level")
+track_id = &"garden"
+display_name = "Circuito Jardín"
+start_banner_text = "JARDÍN VELOZ"
+track_theme = ExtResource("3_theme")
+shortcut_barrier_overlap = 3.0
+environment_size = Vector2(240, 210)
+
+[node name="MainRoute" type="Path3D" parent="."]
+curve = SubResource("Curve3D_main")
+
+[node name="Shortcuts" type="Node3D" parent="."]
+
+[node name="SenderoCentral" type="Path3D" parent="Shortcuts"]
+curve = SubResource("Curve3D_shortcut")
+script = ExtResource("2_shortcut")
+display_name = "Sendero Central"
+
+[node name="Props" type="Node3D" parent="."]
+
+[node name="OakNorthWest" parent="Props" instance=ExtResource("4_oak")]
+position = Vector3(-23, 0, 27)
+rotation = Vector3(0, 0.5, 0)
+
+[node name="OakNorthEast" parent="Props" instance=ExtResource("4_oak")]
+position = Vector3(43, 0, 24)
+rotation = Vector3(0, -0.7, 0)
+
+[node name="OakSouth" parent="Props" instance=ExtResource("4_oak")]
+position = Vector3(-10, 0, -32)
+rotation = Vector3(0, 1.4, 0)
+
+[node name="BushNorth" parent="Props" instance=ExtResource("5_bush")]
+position = Vector3(12, 0, 27)
+
+[node name="BushWest" parent="Props" instance=ExtResource("5_bush")]
+position = Vector3(-40, 0, -8)
+rotation = Vector3(0, 0.8, 0)
+
+[node name="BushEast" parent="Props" instance=ExtResource("5_bush")]
+position = Vector3(41, 0, -9)
+rotation = Vector3(0, -0.6, 0)
+
+[node name="FlowersNorth" parent="Props" instance=ExtResource("6_flower")]
+position = Vector3(10, 0, 17)
+scale = Vector3(2.4, 2.4, 2.4)
+
+[node name="FlowersSouth" parent="Props" instance=ExtResource("6_flower")]
+position = Vector3(-12, 0, -20)
+scale = Vector3(2.1, 2.1, 2.1)
+
+[node name="GardenRock" parent="Props" instance=ExtResource("7_rock")]
+position = Vector3(-30, 0, 7)
+rotation = Vector3(0, 0.35, 0)
+scale = Vector3(1.4, 1.2, 1.6)
+
+[node name="ItemSpawns" type="Node3D" parent="."]
+
+[node name="Norte" type="Marker3D" parent="ItemSpawns"]
+position = Vector3(36, 0.4, 38)
+
+[node name="Este" type="Marker3D" parent="ItemSpawns"]
+position = Vector3(54, 1.3, -22)
+
+[node name="Sur" type="Marker3D" parent="ItemSpawns"]
+position = Vector3(-10, 0.25, -50)
+
+[node name="Oeste" type="Marker3D" parent="ItemSpawns"]
+position = Vector3(-57, 1.4, 4)
