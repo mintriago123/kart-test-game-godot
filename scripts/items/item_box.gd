@@ -13,8 +13,8 @@ var _visual: Node3D
 
 
 func _ready() -> void:
-	collision_layer = 4
-	collision_mask = 2
+	collision_layer = PhysicsLayers.ITEM_BOXES
+	collision_mask = PhysicsLayers.KARTS
 	monitoring = _is_collection_enabled
 	body_entered.connect(_handle_body_entered)
 	_base_height = position.y

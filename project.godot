@@ -28,6 +28,16 @@ window/stretch/aspect="expand"
 
 enabled=PackedStringArray("res://addons/track_editor/plugin.cfg")
 
+[layer_names]
+
+3d_physics/layer_1="World"
+3d_physics/layer_2="Karts"
+3d_physics/layer_3="ItemBoxes"
+3d_physics/layer_4="Shortcuts"
+3d_physics/layer_5="MainBarriers"
+3d_physics/layer_6="ShortcutBarriers"
+3d_physics/layer_7="Projectiles"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

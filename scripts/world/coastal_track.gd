@@ -22,10 +22,10 @@ const BARRIER_VERTICES_PER_POINT := 6
 const PORTAL_MIN_WIDTH := 6.0
 const PORTAL_MAX_WIDTH := 14.0
 const SHORTCUT_HEIGHT_ALIGNMENT_BLEND_DISTANCE := 4.0
-const MAIN_COLLISION_LAYER := 1
-const SHORTCUT_COLLISION_LAYER := 8
-const MAIN_BARRIER_COLLISION_LAYER := 16
-const SHORTCUT_BARRIER_COLLISION_LAYER := 32
+const MAIN_COLLISION_LAYER := PhysicsLayers.WORLD
+const SHORTCUT_COLLISION_LAYER := PhysicsLayers.SHORTCUTS
+const MAIN_BARRIER_COLLISION_LAYER := PhysicsLayers.MAIN_BARRIERS
+const SHORTCUT_BARRIER_COLLISION_LAYER := PhysicsLayers.SHORTCUT_BARRIERS
 
 var route_points: Array[Vector3] = []
 var item_spawn_points: Array[Vector3] = []
@@ -202,7 +202,7 @@ func _create_drivable_surface(
 	var path_body := StaticBody3D.new()
 	path_body.name = node_name + "Collision"
 	path_body.collision_layer = collision_layer
-	path_body.collision_mask = 2
+	path_body.collision_mask = PhysicsLayers.KARTS
 	add_child(path_body)
 	var path_collision := CollisionShape3D.new()
 	var path_shape := path_mesh.create_trimesh_shape()
@@ -233,7 +233,7 @@ func _create_shortcut_drivable_surface(
 	var path_body := StaticBody3D.new()
 	path_body.name = node_name + "Collision"
 	path_body.collision_layer = SHORTCUT_COLLISION_LAYER
-	path_body.collision_mask = 2
+	path_body.collision_mask = PhysicsLayers.KARTS
 	add_child(path_body)
 	var path_collision := CollisionShape3D.new()
 	var path_shape := collision_mesh.create_trimesh_shape()
@@ -1062,7 +1062,9 @@ func _commit_barrier_mesh(
 	var barrier_body := StaticBody3D.new()
 	barrier_body.name = barrier_name + "Collision"
 	barrier_body.collision_layer = collision_layer
-	barrier_body.collision_mask = 2
+	barrier_body.collision_mask = (
+		PhysicsLayers.KARTS | PhysicsLayers.PROJECTILES
+	)
 	add_child(barrier_body)
 	var collision := CollisionShape3D.new()
 	var shape := barrier_mesh.create_trimesh_shape()
@@ -1218,7 +1220,7 @@ func _create_shortcut_gate(
 	var gate := Area3D.new()
 	gate.name = "Shortcut%d%sGate" % [shortcut_id, "Entry" if is_entry else "Exit"]
 	gate.collision_layer = 0
-	gate.collision_mask = 2
+	gate.collision_mask = PhysicsLayers.KARTS
 	gate.monitoring = true
 	add_child(gate)
 	gate.position = gate_position + Vector3.UP * 0.7
@@ -1359,8 +1361,8 @@ func _create_road_marker(route_index: int) -> void:
 
 func _create_island(island_position: Vector3, island_size: Vector3) -> void:
 	var island_body := StaticBody3D.new()
-	island_body.collision_layer = 1
-	island_body.collision_mask = 2
+	island_body.collision_layer = PhysicsLayers.WORLD
+	island_body.collision_mask = PhysicsLayers.KARTS
 	island_body.position = island_position
 	add_child(island_body)
 	var island := MeshInstance3D.new()
