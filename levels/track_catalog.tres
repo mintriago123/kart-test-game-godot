@@ -1,9 +1,20 @@
-[gd_resource type="Resource" script_class="TrackCatalog" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="TrackCatalog" format=3]
 
 [ext_resource type="Script" path="res://scripts/data/track_catalog.gd" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="2_definition"]
 [ext_resource type="PackedScene" path="res://levels/coastal_track.tscn" id="3_coastal"]
+[ext_resource type="Script" path="res://scripts/data/track_minimap_data.gd" id="3_qkri8"]
 [ext_resource type="PackedScene" path="res://levels/garden_track.tscn" id="4_garden"]
+
+[sub_resource type="Resource" id="Resource_qkri8"]
+script = ExtResource("3_qkri8")
+route_points = PackedVector2Array(0, 60, 29.498684, 64.057915, 46.45607, 60.006855, 62.199547, 52.540787, 71.52871, 44.31325, 79.96541, 31.98228, 85.90956, 18.264334, 88.87053, 3.6236804, 88.49468, -8.827872, 85.35219, -23.440508, 80.157776, -34.75071, 72.27698, -44.38968, 58.83683, -55.51268, 41.61776, -65.55867, 25.202288, -71.45853, 10.45496, -73.92613, -6.99105, -73.802345, -24.159098, -70.72107, -40.4506, -64.48742, -57.531124, -54.226894, -70.75949, -42.90524, -79.83319, -31.068228, -86.055756, -17.492468, -88.96521, -2.8545413, -86.88606, 14.380924, -80.307915, 30.459728, -69.74045, 44.295765, -54.61499, 57.27168, -39.50109, 65.975204, -25.157522, 69.99088, -17.89293, 68.52507, -7.0612645, 62.348824)
+shortcut_points = PackedVector2Array(69.0156, 46.9844, 70.63906, 42.544273, 69.2239, 37.896923, 56.478416, 20.009342, 55.11735, 15.463095, 79.94982, -11.348875, 84.298355, -20.043966, 83.96089, -27.242199, -27.6953, -69.6484, -33.898376, -65.76524, -38.554, -60.060352, -53.180893, -31.775524, -74.939865, -15.777832, -83.6725, -7.160032, -87.48525, -0.87053573, -88.531204, 6.343751)
+shortcut_ranges = PackedInt32Array(0, 8, 8, 8)
+start_position = Vector2(0, 60)
+start_direction = Vector2(0.99067044, 0.13627917)
+length_meters = 511.49285364151
+shortcut_count = 2
 
 [sub_resource type="Resource" id="TrackDefinition_coastal"]
 script = ExtResource("2_definition")
@@ -11,7 +22,18 @@ id = &"coastal"
 display_name = "Costa Turbo"
 description = "Curvas amplias, laguna y cañón junto al mar."
 preview_color = Color(0.0862745, 0.498039, 0.576471, 1)
+preview_map = SubResource("Resource_qkri8")
 scene = ExtResource("3_coastal")
+
+[sub_resource type="Resource" id="Resource_xwiqk"]
+script = ExtResource("3_qkri8")
+route_points = PackedVector2Array(0, 45, 14.891764, 45.081142, 24.70372, 43.602036, 36.39295, 39.457523, 47.19639, 33.392593, 54.14513, 26.36489, 57.389606, 19.684296, 59.74773, 10.053789, 60.615692, -2.3137975, 59.621788, -12.184753, 56.060696, -24.055332, 51.38797, -32.79599, 44.79221, -40.172718, 36.305122, -45.276463, 26.975534, -48.659153, 12.401755, -51.69824, 0.02482092, -52.57747, -12.338923, -51.578323, -24.289553, -48.288925, -35.383312, -42.738525, -45.513355, -35.581882, -52.504475, -28.54918, -56.47559, -22.267565, -59.70201, -12.89961, -61.124504, -0.5954489, -60.165123, 9.272285, -56.92397, 18.636618, -50.288837, 29.076237, -43.138443, 35.92282, -36.697514, 39.62366, -27.170704, 42.382904)
+shortcut_points = PackedVector2Array(30, 42, 33.53981, 38.830025, 33.681812, 31.602606, 19.935635, -2.2651641, 23.657446, -8.40804, 44.44793, -29.074867, 47.14116, -35.7793, 45.000004, -39.999996)
+shortcut_ranges = PackedInt32Array(0, 8)
+start_position = Vector2(0, 45)
+start_direction = Vector2(0.99998516, 0.0054487316)
+length_meters = 355.13415336608887
+shortcut_count = 1
 
 [sub_resource type="Resource" id="TrackDefinition_garden"]
 script = ExtResource("2_definition")
@@ -19,6 +41,7 @@ id = &"garden"
 display_name = "Circuito Jardín"
 description = "Un trazado compacto entre robles, flores y senderos."
 preview_color = Color(0.435294, 0.65098, 0.333333, 1)
+preview_map = SubResource("Resource_xwiqk")
 scene = ExtResource("4_garden")
 
 [resource]

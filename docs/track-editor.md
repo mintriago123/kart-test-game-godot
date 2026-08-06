@@ -68,7 +68,8 @@ la física del kart.
 - Al cambiar de pista se puede Guardar, Descartar o Cancelar.
 - **Probar** ejecuta la escena actual con el kart sin añadirla al menú.
 - **Publicar** exige una validación correcta y registra automáticamente la pista
-  en `levels/track_catalog.tres`.
+  en `levels/track_catalog.tres`. También genera y guarda el plano 2D que aparece
+  en el selector, con distancia, salida, sentido y atajos.
 
 El editor mantiene una copia de recuperación dentro de `user://`; no forma parte
 del repositorio ni del APK.
@@ -83,6 +84,7 @@ Las pruebas automatizadas son:
 
 ```sh
 godot --headless --path . --script tests/track_editor.gd
+godot --headless --path . --script tests/track_minimap.gd
 godot --headless --path . --script tests/track_authoring.gd
 godot --headless --path . --script tests/shortcut_drive.gd
 godot --headless --path . --script tests/race_stability.gd

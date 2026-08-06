@@ -122,6 +122,9 @@ func publish(laps: int, description: String) -> Error:
 		ResourceLoader.CACHE_MODE_REPLACE
 	) as PackedScene
 	definition.laps = clampi(laps, 1, 9)
+	definition.preview_map = TrackMinimapBuilder.build(track)
+	if definition.preview_map == null:
+		return ERR_INVALID_DATA
 	var catalog_error := ResourceSaver.save(catalog, catalog_path)
 	if catalog_error == OK:
 		is_published = true

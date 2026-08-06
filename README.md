@@ -19,6 +19,14 @@ La carretera, las barreras y sus colisiones se regeneran automáticamente. El
 editor permite deshacer cambios de ruta y conserva una recuperación temporal
 de los borradores sin guardar.
 
+## Selector de pistas
+
+El menú principal conserva únicamente las acciones principales. **Jugar** abre
+una pantalla desplazable con la descripción, vueltas, distancia, atajos, récord
+y un plano automático de cada circuito. Las pistas publicadas desde el editor
+aparecen automáticamente en **Mis pistas**, separadas de las pistas oficiales.
+Una portada opcional puede sustituir el plano sin cargar la pista 3D en el menú.
+
 La guía completa para crear una pista, configurar atajos y registrar assets está
 en [docs/track-editor.md](docs/track-editor.md).
 
@@ -53,6 +61,7 @@ Las pruebas específicas del sistema de pistas se ejecutan con:
 ```sh
 godot --headless --path . --script tests/track_authoring.gd
 godot --headless --path . --script tests/track_editor.gd
+godot --headless --path . --script tests/track_minimap.gd
 godot --headless --path . --script tests/shortcut_drive.gd
 godot --headless --path . --script tests/race_stability.gd
 ```
