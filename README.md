@@ -8,13 +8,17 @@ tres rivales, derrape con miniturbo y dos objetos.
 
 | Acción | Android | Teclado |
 | --- | --- | --- |
-| Dirección | Joystick virtual | A / D |
-| Acelerar | GAS | W |
+| Dirección | Zona flotante: tocar y arrastrar | A / D |
+| Acelerar | Automático | W |
 | Frenar o reversa | FRENO | S |
 | Derrapar | DERRAPE | Espacio |
 | Usar objeto | OBJETO | E |
 | Pausa | Botón `Ⅱ` | Escape |
 | Recuperar kart | Automático | R |
+
+En Android, los tres botones de acción están separados por prioridad: derrape
+grande junto al pulgar derecho, objeto a su izquierda y freno encima. Al mantener
+FRENO, la aceleración automática se suspende para permitir frenar o usar reversa.
 
 ## Ejecutar
 
@@ -43,7 +47,8 @@ godot --path . -- --auto-race
 El preset `Android` genera un APK ARM64 de desarrollo en
 `build/coastal-karts-debug.apk`. Antes de exportar, configura el SDK de Android y
 las plantillas de exportación **4.7.1** en el editor. También se requiere un JDK
-completo compatible (recomendado: JDK 17) en `Editor Settings > Export > Android`.
+completo compatible (configurado en este proyecto con JDK 21) en
+`Editor Settings > Export > Android`.
 El proyecto está diseñado para orientación horizontal y Android 9 o superior.
 
 La exportación por terminal se ejecuta con:
