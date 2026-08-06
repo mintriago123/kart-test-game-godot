@@ -8,6 +8,7 @@ signal recovered
 
 const GRAVITY := 28.0
 const DRIFT_LEVEL_TIMES := [0.65, 1.25, 1.9]
+const SHORTCUT_SURFACE_LAYER := 8
 
 @export var racer_name := "Piloto"
 @export var is_player := false
@@ -40,7 +41,7 @@ var _visual_root: Node3D
 
 func _ready() -> void:
 	collision_layer = 2
-	collision_mask = 1 | 8 if is_player else 1
+	collision_mask = 1 | 16 | 32
 	floor_snap_length = 1.1
 	floor_max_angle = deg_to_rad(52.0)
 	_last_valid_transform = global_transform
@@ -156,9 +157,17 @@ func set_respawn_transform(respawn_transform: Transform3D) -> void:
 	_last_valid_transform = respawn_transform
 
 
+func set_shortcut_surface_enabled(is_enabled: bool) -> void:
+	if is_enabled:
+		collision_mask |= SHORTCUT_SURFACE_LAYER
+	else:
+		collision_mask &= ~SHORTCUT_SURFACE_LAYER
+
+
 func reset_to_last_checkpoint(reason: String = "manual") -> void:
 	last_recovery_position = global_position
 	last_recovery_reason = reason
+	set_shortcut_surface_enabled(false)
 	global_transform = _last_valid_transform
 	velocity = Vector3.ZERO
 	_stuck_time = 0.0

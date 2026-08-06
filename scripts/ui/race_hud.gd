@@ -16,6 +16,16 @@ var _results_title: Label
 var _retry_button: Button
 var _pause_overlay: Control
 var _player_kart: Kart
+var _touch_controls: Control
+var _steering_pad: CoastalJoystick
+var _is_auto_accelerating := false
+
+var mobile_controls_enabled := (
+	OS.has_feature("android")
+	or OS.has_feature("ios")
+	or DisplayServer.is_touchscreen_available()
+)
+var vibration_enabled := true
 
 
 func _ready() -> void:
@@ -48,6 +58,7 @@ func show_results(position: int, race_time: float) -> void:
 		_format_time(race_time),
 	]
 	_results_panel.visible = true
+	_set_touch_controls_visible(false)
 	_retry_button.grab_focus()
 
 
@@ -56,6 +67,22 @@ func _process(_delta: float) -> void:
 		_speed_label.text = "%03d km/h" % _player_kart.get_speed_kph()
 	if _pause_overlay != null:
 		_pause_overlay.visible = get_tree().paused and not _results_panel.visible
+	if _touch_controls != null and not _results_panel.visible:
+		_set_touch_controls_visible(mobile_controls_enabled and not get_tree().paused)
+	_update_auto_acceleration()
+
+
+func _exit_tree() -> void:
+	_release_auto_acceleration()
+
+
+func set_mobile_controls_enabled(enabled: bool) -> void:
+	mobile_controls_enabled = enabled
+	if _touch_controls != null:
+		_set_touch_controls_visible(enabled and not get_tree().paused and not _results_panel.visible)
+		_update_auto_acceleration()
+	if not enabled:
+		_release_auto_acceleration()
 
 
 func _build_interface() -> void:
@@ -116,23 +143,7 @@ func _build_interface() -> void:
 	_countdown_label.size = Vector2(360.0, 200.0)
 	root.add_child(_countdown_label)
 
-	var joystick := CoastalJoystick.new()
-	joystick.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	joystick.position = Vector2(24.0, -178.0)
-	joystick.size = Vector2(150.0, 150.0)
-	root.add_child(joystick)
-
-	var action_row := HBoxContainer.new()
-	action_row.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	action_row.position = Vector2(-394.0, -126.0)
-	action_row.size = Vector2(370.0, 102.0)
-	action_row.alignment = BoxContainer.ALIGNMENT_END
-	action_row.add_theme_constant_override("separation", 8)
-	root.add_child(action_row)
-	_add_action_button(action_row, &"brake", "FRENO", Color("#77d0c2"))
-	_add_action_button(action_row, &"drift", "DERRAPE", Color("#f5d66f"))
-	_add_action_button(action_row, &"use_item", "OBJETO", Color("#ff7954"))
-	_add_action_button(action_row, &"accelerate", "GAS", Color("#71d27c"))
+	_build_touch_controls(root)
 
 	var pause_button := Button.new()
 	pause_button.text = "Ⅱ"
@@ -149,6 +160,63 @@ func _build_interface() -> void:
 	root.add_child(_pause_overlay)
 	_results_panel = _build_results_panel()
 	root.add_child(_results_panel)
+
+
+func _build_touch_controls(root: Control) -> void:
+	_touch_controls = Control.new()
+	_touch_controls.name = "TouchControls"
+	_touch_controls.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_touch_controls.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_touch_controls.visible = mobile_controls_enabled
+	root.add_child(_touch_controls)
+
+	_steering_pad = CoastalJoystick.new()
+	_steering_pad.name = "SteeringPad"
+	_steering_pad.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_steering_pad.position = Vector2(20.0, -212.0)
+	_steering_pad.size = Vector2(250.0, 192.0)
+	_touch_controls.add_child(_steering_pad)
+
+	_add_action_button(
+		_touch_controls,
+		"DriftButton",
+		&"drift",
+		"DERRAPE",
+		Color("#f5d66f"),
+		Vector2(132.0, 132.0),
+		Vector2(-156.0, -156.0)
+	)
+	_add_action_button(
+		_touch_controls,
+		"ItemButton",
+		&"use_item",
+		"OBJETO",
+		Color("#ff7954"),
+		Vector2(104.0, 104.0),
+		Vector2(-280.0, -128.0)
+	)
+	_add_action_button(
+		_touch_controls,
+		"BrakeButton",
+		&"brake",
+		"FRENO",
+		Color("#77d0c2"),
+		Vector2(100.0, 100.0),
+		Vector2(-152.0, -280.0)
+	)
+
+	var auto_label := Label.new()
+	auto_label.name = "AutoAccelerateIndicator"
+	auto_label.text = "GAS AUTO"
+	auto_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	auto_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	auto_label.add_theme_font_size_override("font_size", 14)
+	auto_label.add_theme_color_override("font_color", Color("#dfffe3"))
+	auto_label.add_theme_stylebox_override("normal", _style(Color(0.08, 0.35, 0.18, 0.88), 12))
+	auto_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	auto_label.position = Vector2(-286.0, -184.0)
+	auto_label.size = Vector2(122.0, 34.0)
+	_touch_controls.add_child(auto_label)
 
 
 func _build_pause_overlay() -> Control:
@@ -218,10 +286,23 @@ func _build_results_panel() -> Control:
 	return overlay
 
 
-func _add_action_button(parent: Control, action: StringName, label_text: String, color: Color) -> void:
+func _add_action_button(
+	parent: Control,
+	node_name: String,
+	action: StringName,
+	label_text: String,
+	color: Color,
+	button_size: Vector2,
+	button_position: Vector2
+) -> void:
 	var button := MobileActionButton.new()
+	button.name = node_name
 	button.configure(action, label_text, color)
-	button.size_flags_vertical = Control.SIZE_SHRINK_END
+	button.haptics_enabled = vibration_enabled
+	button.custom_minimum_size = button_size
+	button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	button.position = button_position
+	button.size = button_size
 	parent.add_child(button)
 
 
@@ -276,6 +357,41 @@ func _handle_boost_changed(charge_ratio: float) -> void:
 
 func _toggle_pause() -> void:
 	get_tree().paused = not get_tree().paused
+
+
+func _set_touch_controls_visible(is_visible: bool) -> void:
+	if _touch_controls.visible == is_visible:
+		return
+	_touch_controls.visible = is_visible
+	if not is_visible:
+		_release_auto_acceleration()
+
+
+func _update_auto_acceleration() -> void:
+	var should_accelerate := (
+		mobile_controls_enabled
+		and _touch_controls != null
+		and _touch_controls.visible
+		and _player_kart != null
+		and _player_kart.is_control_enabled
+		and not get_tree().paused
+		and not _results_panel.visible
+		and not Input.is_action_pressed(&"brake")
+	)
+	if should_accelerate == _is_auto_accelerating:
+		return
+	_is_auto_accelerating = should_accelerate
+	if _is_auto_accelerating:
+		Input.action_press(&"accelerate")
+	else:
+		Input.action_release(&"accelerate")
+
+
+func _release_auto_acceleration() -> void:
+	if not _is_auto_accelerating:
+		return
+	_is_auto_accelerating = false
+	Input.action_release(&"accelerate")
 
 
 func _format_time(time: float) -> String:

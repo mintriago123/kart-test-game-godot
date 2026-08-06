@@ -4,13 +4,15 @@ extends Control
 @export var action_name: StringName
 @export var button_label: String = "ACCIÓN"
 @export var accent_color := Color("#ffba4a")
+@export var haptics_enabled := true
 
 var _touch_index: int = -1
 var _is_pressed := false
 
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(88.0, 88.0)
+	if custom_minimum_size == Vector2.ZERO:
+		custom_minimum_size = Vector2(96.0, 96.0)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
 	tooltip_text = button_label
@@ -31,6 +33,8 @@ func _gui_input(event: InputEvent) -> void:
 		if touch_event.pressed and _touch_index == -1:
 			_touch_index = touch_event.index
 			_set_pressed(true)
+			if haptics_enabled:
+				Input.vibrate_handheld(18, 0.22)
 			accept_event()
 		elif not touch_event.pressed and touch_event.index == _touch_index:
 			_touch_index = -1
@@ -82,17 +86,28 @@ func _draw() -> void:
 	var center := size * 0.5
 	var radius := minf(size.x, size.y) * 0.46
 	var fill := accent_color
-	fill.a = 0.88 if _is_pressed else 0.68
-	draw_circle(center, radius, Color(0.015, 0.07, 0.09, 0.78))
-	draw_circle(center, radius - 4.0, fill)
+	var press_offset := Vector2(0.0, 4.0) if _is_pressed else Vector2.ZERO
+	fill.a = 1.0 if _is_pressed else 0.84
+	draw_circle(center + Vector2(0.0, 5.0), radius, Color(0.015, 0.07, 0.09, 0.82))
+	draw_circle(center + press_offset, radius - 5.0, fill)
+	draw_arc(
+		center + press_offset,
+		radius - 7.0,
+		0.0,
+		TAU,
+		48,
+		Color(1.0, 1.0, 1.0, 0.42),
+		3.0,
+		true
+	)
 	if has_focus():
 		draw_arc(center, radius, 0.0, TAU, 48, Color.WHITE, 4.0, true)
 	var font := ThemeDB.fallback_font
-	var font_size := 16
+	var font_size := 18 if minf(size.x, size.y) >= 120.0 else 15
 	var text_width := font.get_string_size(button_label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 	draw_string(
 		font,
-		center + Vector2(-text_width * 0.5, font_size * 0.35),
+		center + press_offset + Vector2(-text_width * 0.5, font_size * 0.35),
 		button_label,
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1,
