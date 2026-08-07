@@ -40,12 +40,41 @@ func _exercise_playback_cycle(cycle_index: int) -> void:
 	var music_stream_ref: WeakRef = weakref(manager._music_player.stream)
 	var tone_stream_ref: WeakRef = weakref(manager._sfx_player.stream)
 	var manager_ref: WeakRef = weakref(manager)
+	var playback_state_is_expected := (
+		not manager._music_player.playing
+		and not manager._sfx_player.playing
+		if AudioServer.get_driver_name() == "Dummy"
+		else (
+			manager._music_player.playing
+			and manager._sfx_player.playing
+		)
+	)
 	_check(
-		manager._music_player.playing
-		and manager._music_player.stream is AudioStreamWAV
-		and manager._sfx_player.playing
+		manager._music_player.stream is AudioStreamWAV
 		and manager._sfx_player.stream is AudioStreamWAV,
-		"Playback cycle %d exercises generated music and tones."
+		"Playback cycle %d builds generated music and tones."
+		% (cycle_index + 1)
+	)
+	_check(
+		playback_state_is_expected,
+		"Playback cycle %d respects the active audio driver."
+		% (cycle_index + 1)
+	)
+
+	manager.shutdown()
+	manager.shutdown()
+	_check(
+		manager._music_player == null
+		and manager._sfx_player == null,
+		"Playback cycle %d shuts down idempotently."
+		% (cycle_index + 1)
+	)
+	await process_frame
+	await create_timer(0.05, true, false, true).timeout
+	_check(
+		music_stream_ref.get_ref() == null
+		and tone_stream_ref.get_ref() == null,
+		"Playback cycle %d releases temporary audio streams."
 		% (cycle_index + 1)
 	)
 
@@ -55,12 +84,6 @@ func _exercise_playback_cycle(cycle_index: int) -> void:
 	_check(
 		manager_ref.get_ref() == null,
 		"Playback cycle %d destroys the sound manager."
-		% (cycle_index + 1)
-	)
-	_check(
-		music_stream_ref.get_ref() == null
-		and tone_stream_ref.get_ref() == null,
-		"Playback cycle %d releases temporary audio streams."
 		% (cycle_index + 1)
 	)
 

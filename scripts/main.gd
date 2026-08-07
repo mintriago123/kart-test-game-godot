@@ -31,6 +31,7 @@ func start_game(
 	settings.select_track(track_definition.id)
 	settings.save_to_disk()
 	if race_world != null:
+		race_world.shutdown()
 		race_world.queue_free()
 		race_world = null
 	if main_menu != null:
@@ -74,6 +75,7 @@ func _restart_game() -> void:
 
 func _return_to_menu() -> void:
 	if race_world != null:
+		race_world.shutdown()
 		race_world.queue_free()
 		race_world = null
 	get_tree().paused = false
@@ -116,6 +118,11 @@ func _register_race_time(race_time: float) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and race_world != null:
 		get_tree().paused = true
+
+
+func _exit_tree() -> void:
+	if race_world != null:
+		race_world.shutdown()
 
 
 func _unhandled_input(event: InputEvent) -> void:

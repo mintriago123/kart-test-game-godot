@@ -333,12 +333,12 @@ func _handle_shield_blocked(source_kart: Kart) -> void:
 
 
 func _handle_retry_requested() -> void:
-	_clear_active_items()
+	shutdown()
 	retry_requested.emit()
 
 
 func _handle_menu_requested() -> void:
-	_clear_active_items()
+	shutdown()
 	menu_requested.emit()
 
 
@@ -380,5 +380,11 @@ func _handle_player_finished(_position: int, time: float) -> void:
 	race_completed.emit(time)
 
 
-func _exit_tree() -> void:
+func shutdown() -> void:
 	_clear_active_items()
+	if _sound != null:
+		_sound.shutdown()
+
+
+func _exit_tree() -> void:
+	shutdown()
