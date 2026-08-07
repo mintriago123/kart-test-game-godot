@@ -55,11 +55,71 @@ func _test_guided_screen() -> void:
 	await process_frame
 	await process_frame
 	_check(screen.session.track != null, "Guided editor opens the first catalog track.")
-	_check(screen.find_child("TrackMap", true, false) != null, "Guided editor exposes the aerial map.")
+	var map_view := screen.find_child("TrackMap", true, false) as TrackMapView
+	var preview_container := (
+		screen.find_child("TrackPreview3D", true, false) as SubViewportContainer
+	)
+	_check(map_view != null, "Guided editor exposes the aerial map.")
 	_check(
-		screen.find_child("TrackPreview3D", true, false) != null,
+		preview_container != null,
 		"Guided editor exposes the 3D preview."
 	)
+	_check(
+		screen.find_child("PitLaneToolbar", true, false) != null
+		and screen.find_child("TrackPicker", true, false) != null
+		and screen.find_child("EditorStatus", true, false) != null,
+		"Guided editor preserves the control names used by the plugin and tests."
+	)
+	var step_texts := PackedStringArray()
+	for step_button in screen._step_buttons:
+		step_texts.append(step_button.text)
+	_check(
+		step_texts == PackedStringArray([
+			"1  CONFIGURACIÓN",
+			"2  CARRETERA",
+			"3  ATAJOS",
+			"4  OBJETOS",
+			"5  REVISAR",
+		]),
+		"Guided editor preserves the five workflow steps and their order."
+	)
+	_check(
+		screen._preview_viewport.own_world_3d
+		and screen._preview_viewport.find_child("*", true, false) != null
+		and screen._preview_camera != null
+		and screen._preview_camera.get_parent() == screen._preview_viewport,
+		"3D preview owns its world and keeps its camera inside the viewport."
+	)
+	screen._toggle_view()
+	_check(
+		not map_view.visible
+		and preview_container.visible
+		and screen._view_toggle.text == "MAPA AÉREO",
+		"View toggle replaces the aerial map with the 3D preview."
+	)
+	screen._toggle_view()
+	_check(
+		map_view.visible
+		and not preview_container.visible
+		and screen._view_toggle.text == "VISTA 3D",
+		"View toggle restores the aerial map."
+	)
+	_check(
+		screen._new_dialog.ok_button_text == "Crear pista"
+		and screen._open_dialog.file_mode == FileDialog.FILE_MODE_OPEN_FILE
+		and screen._unsaved_dialog.ok_button_text == "Guardar"
+		and screen._guide_dialog.dialog_text.begins_with("1. CONFIGURACIÓN"),
+		"Editor dialogs preserve their actions and purposes."
+	)
+	screen._show_unsaved_dialog("load", "user://pending-track.tscn")
+	_check(
+		screen._pending_action == "load"
+		and screen._pending_path == "user://pending-track.tscn",
+		"Unsaved changes retain the pending action and target path."
+	)
+	screen._unsaved_dialog.hide()
+	screen._pending_action = ""
+	screen._pending_path = ""
 	var interactive_controls_are_accessible := true
 	var button_count := 0
 	for node in _collect_descendants(screen):
@@ -157,9 +217,26 @@ func _test_guided_screen() -> void:
 		and anchored_item.position.is_equal_approx(edited_item_position),
 		"Redo restores the recalculated dependents with the route."
 	)
+	var test_scene_path := "user://coastal_karts_editor_screen_test.tscn"
+	screen.session.scene_path = test_scene_path
+	var play_request := {}
+	screen.play_requested.connect(
+		func(scene_path: String, track_id: StringName, laps: int) -> void:
+			play_request.scene_path = scene_path
+			play_request.track_id = track_id
+			play_request.laps = laps
+	)
+	screen._handle_test_pressed()
+	_check(
+		play_request.get("scene_path", "") == test_scene_path
+		and play_request.get("track_id", &"") == screen.session.track.track_id
+		and play_request.get("laps", 0) == 3,
+		"Test action preserves the play_requested signal contract."
+	)
 	screen.queue_free()
 	await process_frame
 	await process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_scene_path))
 
 
 func _test_template_and_history() -> void:
