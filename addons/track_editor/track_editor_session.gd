@@ -10,6 +10,9 @@ signal history_changed(can_undo: bool, can_redo: bool)
 const PersistenceService := preload(
 	"res://addons/track_editor/track_editor_persistence.gd"
 )
+const HistoryService := preload(
+	"res://addons/track_editor/track_editor_history.gd"
+)
 const CATALOG_PATH := PersistenceService.CATALOG_PATH
 const NEW_TRACKS_DIRECTORY := PersistenceService.NEW_TRACKS_DIRECTORY
 const RECOVERY_PATH := PersistenceService.RECOVERY_PATH
@@ -17,7 +20,7 @@ const META_ANCHOR_PROGRESS := &"track_editor_anchor_progress"
 const META_ANCHOR_LATERAL := &"track_editor_anchor_lateral"
 const META_ANCHOR_HEIGHT := &"track_editor_anchor_height"
 const META_ANCHOR_ROTATION := &"track_editor_anchor_rotation"
-const HISTORY_LIMIT := 40
+const HISTORY_LIMIT := HistoryService.HISTORY_LIMIT
 
 var track: TrackLevel
 var scene_path := ""
@@ -27,13 +30,13 @@ var catalog_path := CATALOG_PATH
 var new_tracks_directory := NEW_TRACKS_DIRECTORY
 var last_repair_summary := ""
 
-var _undo_states: Array[Dictionary] = []
-var _redo_states: Array[Dictionary] = []
 var _persistence: RefCounted
+var _history: RefCounted
 
 
 func _init() -> void:
 	_persistence = PersistenceService.new(self)
+	_history = HistoryService.new(self)
 
 
 func load_track(path: String) -> Error:
@@ -57,39 +60,23 @@ func snapshot_route_for_undo() -> void:
 
 
 func snapshot_track_for_undo() -> void:
-	if track == null or track.get_main_route() == null:
-		return
-	_undo_states.append(_capture_track_state())
-	if _undo_states.size() > HISTORY_LIMIT:
-		_undo_states.pop_front()
-	_redo_states.clear()
-	history_changed.emit(can_undo(), can_redo())
+	_history.snapshot_track()
 
 
 func undo_route() -> void:
-	if not can_undo():
-		return
-	_redo_states.append(_capture_track_state())
-	_restore_track_state(_undo_states.pop_back())
-	route_changed.emit()
-	history_changed.emit(can_undo(), can_redo())
+	_history.undo()
 
 
 func redo_route() -> void:
-	if not can_redo():
-		return
-	_undo_states.append(_capture_track_state())
-	_restore_track_state(_redo_states.pop_back())
-	route_changed.emit()
-	history_changed.emit(can_undo(), can_redo())
+	_history.redo()
 
 
 func can_undo() -> bool:
-	return not _undo_states.is_empty()
+	return _history.can_undo()
 
 
 func can_redo() -> bool:
-	return not _redo_states.is_empty()
+	return _history.can_redo()
 
 
 func recalculate_route_dependents() -> void:
@@ -255,8 +242,7 @@ func _set_track(new_track: TrackLevel, path: String) -> void:
 	track = new_track
 	scene_path = path
 	last_repair_summary = ""
-	_undo_states.clear()
-	_redo_states.clear()
+	_history.reset()
 	_set_dirty(false)
 	track_changed.emit(track)
 	history_changed.emit(false, false)
@@ -267,132 +253,6 @@ func _set_dirty(value: bool) -> void:
 		return
 	is_dirty = value
 	dirty_changed.emit(is_dirty)
-
-
-func _capture_track_state() -> Dictionary:
-	var state := {
-		"is_dirty": is_dirty,
-		"route_curve": null,
-		"start_point_index": 0,
-		"shortcuts": [],
-		"items": [],
-		"props": [],
-	}
-	if track == null:
-		return state
-	var route := track.get_main_route()
-	if route != null and route.curve != null:
-		state.route_curve = route.curve.duplicate(true) as Curve3D
-	state.start_point_index = track.start_point_index
-	for shortcut in track.get_shortcuts():
-		(state.shortcuts as Array).append({
-			"node": shortcut,
-			"curve": (
-				shortcut.curve.duplicate(true) as Curve3D
-				if shortcut.curve != null
-				else null
-			),
-			"route_anchor_enabled": shortcut.route_anchor_enabled,
-			"entry_progress": shortcut.entry_progress,
-			"exit_progress": shortcut.exit_progress,
-			"midpoint_lateral_offset": shortcut.midpoint_lateral_offset,
-			"midpoint_longitudinal_offset": shortcut.midpoint_longitudinal_offset,
-			"midpoint_height_offset": shortcut.midpoint_height_offset,
-			"entry_handle_length": shortcut.entry_handle_length,
-			"exit_handle_length": shortcut.exit_handle_length,
-			"midpoint_in_handle_length": shortcut.midpoint_in_handle_length,
-			"midpoint_out_handle_length": shortcut.midpoint_out_handle_length,
-		})
-	var item_spawns := track.get_node_or_null("ItemSpawns")
-	if item_spawns != null:
-		for child in item_spawns.get_children():
-			if child is Node3D:
-				(state.items as Array).append(_capture_anchored_node(child as Node3D))
-	var props := track.get_node_or_null("Props")
-	if props != null:
-		for child in props.get_children():
-			if child is Node3D:
-				(state.props as Array).append(_capture_anchored_node(child as Node3D))
-	return state
-
-
-func _restore_track_state(state: Dictionary) -> void:
-	if track == null:
-		return
-	var route := track.get_main_route()
-	var route_curve := state.get("route_curve") as Curve3D
-	if route != null and route_curve != null:
-		route.curve = route_curve.duplicate(true) as Curve3D
-	track.start_point_index = int(state.get("start_point_index", 0))
-	for shortcut_state in state.get("shortcuts", []):
-		var shortcut := shortcut_state.get("node") as TrackShortcut
-		if not is_instance_valid(shortcut):
-			continue
-		var shortcut_curve := shortcut_state.get("curve") as Curve3D
-		shortcut.curve = (
-			shortcut_curve.duplicate(true) as Curve3D
-			if shortcut_curve != null
-			else null
-		)
-		shortcut.route_anchor_enabled = bool(shortcut_state.route_anchor_enabled)
-		shortcut.entry_progress = float(shortcut_state.entry_progress)
-		shortcut.exit_progress = float(shortcut_state.exit_progress)
-		shortcut.midpoint_lateral_offset = float(
-			shortcut_state.midpoint_lateral_offset
-		)
-		shortcut.midpoint_longitudinal_offset = float(
-			shortcut_state.midpoint_longitudinal_offset
-		)
-		shortcut.midpoint_height_offset = float(shortcut_state.midpoint_height_offset)
-		shortcut.entry_handle_length = float(shortcut_state.entry_handle_length)
-		shortcut.exit_handle_length = float(shortcut_state.exit_handle_length)
-		shortcut.midpoint_in_handle_length = float(
-			shortcut_state.midpoint_in_handle_length
-		)
-		shortcut.midpoint_out_handle_length = float(
-			shortcut_state.midpoint_out_handle_length
-		)
-	for node_state in state.get("items", []):
-		_restore_anchored_node(node_state)
-	for node_state in state.get("props", []):
-		_restore_anchored_node(node_state)
-	_set_dirty(bool(state.get("is_dirty", true)))
-
-
-func _capture_anchored_node(node: Node3D) -> Dictionary:
-	return {
-		"node": node,
-		"transform": node.transform,
-		"has_anchor": node.has_meta(META_ANCHOR_PROGRESS),
-		"progress": node.get_meta(META_ANCHOR_PROGRESS, 0.0),
-		"lateral": node.get_meta(META_ANCHOR_LATERAL, 0.0),
-		"height": node.get_meta(META_ANCHOR_HEIGHT, 0.0),
-		"rotation": node.get_meta(META_ANCHOR_ROTATION, 0.0),
-	}
-
-
-func _restore_anchored_node(state: Dictionary) -> void:
-	var node := state.get("node") as Node3D
-	if not is_instance_valid(node):
-		return
-	node.transform = state.transform
-	if bool(state.has_anchor):
-		_set_route_anchor_metadata(
-			node,
-			float(state.progress),
-			float(state.lateral),
-			float(state.height),
-			float(state.rotation)
-		)
-	else:
-		for metadata_key in [
-			META_ANCHOR_PROGRESS,
-			META_ANCHOR_LATERAL,
-			META_ANCHOR_HEIGHT,
-			META_ANCHOR_ROTATION,
-		]:
-			if node.has_meta(metadata_key):
-				node.remove_meta(metadata_key)
 
 
 func _set_route_anchor_metadata(
