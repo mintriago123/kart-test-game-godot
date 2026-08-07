@@ -21,6 +21,9 @@ func _run() -> void:
 	await _test_natural_sequence()
 	await _test_invalid_route_fallback()
 	_test_small_elevated_route_math()
+	await _test_hud_component_contracts()
+	await _test_hud_resolution(Vector2i(640, 360))
+	await _test_hud_resolution(Vector2i(1920, 1080))
 	await _test_hud_skip_inputs()
 	await _test_retry_skips_intro()
 	quit(1 if _has_failed else 0)
@@ -252,6 +255,236 @@ func _test_small_elevated_route_math() -> void:
 		"Small elevated routes produce finite procedural camera poses."
 	)
 	intro.free()
+
+
+func _test_hud_component_contracts() -> void:
+	var status := RaceStatusView.new()
+	status.build_interface()
+	root.add_child(status)
+	status.update_race_info(2, 4, 3, 6, 125.5)
+	status.update_speed(87.9)
+	_check(
+		RaceHudStyle.format_time(0.0) == "00:00.000"
+		and RaceHudStyle.format_time(65.432) == "01:05.432"
+		and RaceHudStyle.format_time(125.5) == "02:05.500"
+		and status.lap_label.text == "VUELTA 2/4"
+		and status.position_label.text == "3º / 6"
+		and status.time_label.text == "02:05.500"
+		and status.speed_label.text == "087 km/h",
+		"RaceStatusView preserves time, lap, position, and speed formats."
+	)
+	status.show_countdown("2", true)
+	_check(
+		status.countdown_label.text == "2"
+		and not status.countdown_label.visible,
+		"RaceStatusView suppresses countdown text during the intro."
+	)
+	status.show_countdown("¡YA!", false)
+	_check(
+		status.countdown_label.visible
+		and status.countdown_label.text == "¡YA!",
+		"RaceStatusView reveals countdown text after the intro."
+	)
+	var boost := ItemDefinition.boost()
+	var shield := ItemDefinition.sea_bubble()
+	status.show_item(boost)
+	status.show_boost(0.75)
+	status.show_shield(shield, 3.25, 7.0, false)
+	_check(
+		status.item_label.text == boost.display_name.to_upper()
+		and status.item_icon.texture == boost.icon
+		and status.drift_bar.value == 0.75
+		and status.shield_panel.visible
+		and status.shield_label.text == "BURBUJA · 3.2 s"
+		and status.shield_bar.value == 3.25
+		and status.shield_bar.max_value == 7.0,
+		"RaceStatusView renders item, shield, and drift state directly."
+	)
+	status.show_item(null)
+	status.show_shield(shield, 3.0, 7.0, true)
+	_check(
+		status.item_label.text == "SIN OBJETO"
+		and not status.item_icon.visible
+		and not status.shield_panel.visible,
+		"RaceStatusView clears item and hides shield state during the intro."
+	)
+	status.queue_free()
+	await process_frame
+
+	Input.action_release(&"accelerate")
+	Input.action_release(&"brake")
+	Input.action_release(&"drift")
+	Input.action_release(&"use_item")
+	var touch := RaceTouchControls.new()
+	touch.build_interface(true, false)
+	root.add_child(touch)
+	var kart := Kart.new()
+	kart.is_control_enabled = true
+	touch.bind_player(kart)
+	touch.show_item(boost)
+	touch.update_state(false, false, false)
+	_check(
+		touch.visible
+		and Input.is_action_pressed(&"accelerate")
+		and touch.item_button.item_icon == boost.icon
+		and boost.display_name in touch.item_button.tooltip_text,
+		"RaceTouchControls exposes item state and automatic acceleration."
+	)
+	Input.action_press(&"brake")
+	touch.update_state(false, false, false)
+	_check(
+		not Input.is_action_pressed(&"accelerate"),
+		"RaceTouchControls yields automatic acceleration while braking."
+	)
+	Input.action_release(&"brake")
+	var drift_button := (
+		touch.get_node("DriftButton") as MobileActionButton
+	)
+	var brake_button := (
+		touch.get_node("BrakeButton") as MobileActionButton
+	)
+	drift_button._set_pressed(true)
+	touch.item_button._set_pressed(true)
+	brake_button._set_pressed(true)
+	touch.set_controls_visible(false)
+	await process_frame
+	_check(
+		not Input.is_action_pressed(&"accelerate")
+		and not Input.is_action_pressed(&"drift")
+		and not Input.is_action_pressed(&"use_item")
+		and not Input.is_action_pressed(&"brake"),
+		"RaceTouchControls releases every action when hidden."
+	)
+	touch.set_controls_visible(true)
+	touch.update_state(false, false, false)
+	drift_button._set_pressed(true)
+	touch.queue_free()
+	await process_frame
+	_check(
+		not Input.is_action_pressed(&"accelerate")
+		and not Input.is_action_pressed(&"drift"),
+		"RaceTouchControls releases actions when destroyed."
+	)
+	kart.free()
+
+	var flow := RaceFlowOverlay.new()
+	flow.build_interface()
+	root.add_child(flow)
+	var flow_events := {
+		"skip": 0,
+		"retry": 0,
+		"menu": 0,
+	}
+	flow.intro_skip_requested.connect(
+		func() -> void: flow_events.skip += 1
+	)
+	flow.retry_requested.connect(
+		func() -> void: flow_events.retry += 1
+	)
+	flow.menu_requested.connect(
+		func() -> void: flow_events.menu += 1
+	)
+	flow.show_intro("Bahía táctil", 5)
+	flow.update_intro_progress(0.5)
+	flow.set_intro_skip_enabled(true)
+	flow.request_intro_skip()
+	_check(
+		flow.is_intro_visible
+		and flow.intro_overlay.visible
+		and flow.intro_title.text == "BAHÍA TÁCTIL"
+		and flow.intro_laps.text == "5 VUELTAS"
+		and flow.intro_content.modulate.a > 0.0
+		and flow.intro_skip_button.visible
+		and flow_events.skip == 1,
+		"RaceFlowOverlay presents intro state and emits skip requests."
+	)
+	flow.hide_intro()
+	flow.update_pause_visibility(true)
+	_check(
+		not flow.intro_overlay.visible
+		and flow.pause_overlay.visible,
+		"RaceFlowOverlay transitions from intro to pause."
+	)
+	flow.show_results(4, 65.432)
+	flow.update_pause_visibility(true)
+	var actions := flow.results_panel.find_child(
+		"Actions",
+		true,
+		false
+	)
+	var menu_button := actions.get_child(1) as Button
+	flow.retry_button.pressed.emit()
+	menu_button.pressed.emit()
+	_check(
+		flow.results_panel.visible
+		and "¡META!" in flow.results_title.text
+		and "4º LUGAR" in flow.results_title.text
+		and "01:05.432" in flow.results_title.text
+		and not flow.pause_overlay.visible
+		and flow_events.retry == 1
+		and flow_events.menu == 1,
+		"RaceFlowOverlay formats results, hides pause, and emits actions."
+	)
+	flow.queue_free()
+	await process_frame
+
+
+func _test_hud_resolution(viewport_size: Vector2i) -> void:
+	var test_viewport := SubViewport.new()
+	test_viewport.size = viewport_size
+	root.add_child(test_viewport)
+	var hud := RaceHud.new()
+	hud.mobile_controls_enabled = true
+	test_viewport.add_child(hud)
+	await process_frame
+	await process_frame
+	var viewport_rect := Rect2(Vector2.ZERO, Vector2(viewport_size))
+	var controls: Array[Control] = [
+		hud._status_view.get_node("RaceInfo") as Control,
+		hud._item_chip,
+		hud._drift_bar,
+		hud._flow_overlay.get_node("PauseButton") as Control,
+		hud._steering_pad,
+		hud._touch_view.get_node("DriftButton") as Control,
+		hud._touch_view.get_node("ItemButton") as Control,
+		hud._touch_view.get_node("BrakeButton") as Control,
+	]
+	var controls_fit := true
+	for control in controls:
+		var control_rect := control.get_global_rect()
+		controls_fit = (
+			controls_fit
+			and viewport_rect.encloses(control_rect)
+		)
+	var drift_rect := (
+		hud._touch_view.get_node("DriftButton") as Control
+	).get_global_rect()
+	var item_rect := (
+		hud._touch_view.get_node("ItemButton") as Control
+	).get_global_rect()
+	var brake_rect := (
+		hud._touch_view.get_node("BrakeButton") as Control
+	).get_global_rect()
+	_check(
+		controls_fit
+		and not drift_rect.intersects(item_rect)
+		and not drift_rect.intersects(brake_rect)
+		and not item_rect.intersects(brake_rect),
+		"HUD controls fit without overlap at %dx%d."
+		% [viewport_size.x, viewport_size.y]
+	)
+	hud.show_results(1, 65.432)
+	await process_frame
+	var results_card := (
+		hud._results_panel.find_child("Card", true, false) as Control
+	)
+	_check(
+		viewport_rect.encloses(results_card.get_global_rect()),
+		"HUD results card fits at %dx%d."
+		% [viewport_size.x, viewport_size.y]
+	)
+	test_viewport.queue_free()
+	await process_frame
 
 
 func _test_hud_skip_inputs() -> void:
