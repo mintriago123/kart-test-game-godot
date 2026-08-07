@@ -10,6 +10,13 @@ var _position_label: Label
 var _time_label: Label
 var _speed_label: Label
 var _item_label: Label
+var _item_chip: PanelContainer
+var _item_icon: TextureRect
+var _item_button: MobileActionButton
+var _shield_panel: PanelContainer
+var _shield_icon: TextureRect
+var _shield_label: Label
+var _shield_bar: ProgressBar
 var _countdown_label: Label
 var _drift_bar: ProgressBar
 var _results_panel: Control
@@ -46,6 +53,8 @@ func bind_player(kart: Kart) -> void:
 	_player_kart = kart
 	kart.item_changed.connect(_handle_item_changed)
 	kart.boost_changed.connect(_handle_boost_changed)
+	kart.shield_state_changed.connect(_handle_shield_state_changed)
+	_handle_item_changed(kart.held_item)
 
 
 func update_race_info(lap: int, total_laps: int, position: int, racers: int, race_time: float) -> void:
@@ -171,13 +180,41 @@ func _build_interface() -> void:
 	_speed_label = _create_chip("000 km/h", 20)
 	top_bar.add_child(_speed_label)
 
-	_item_label = _create_chip("SIN OBJETO", 18)
+	_item_chip = PanelContainer.new()
+	_item_chip.name = "ItemChip"
+	_item_chip.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_item_chip.position = Vector2(-150.0, 102.0)
+	_item_chip.size = Vector2(300.0, 58.0)
+	_item_chip.add_theme_stylebox_override(
+		"panel",
+		_style(Color(0.03, 0.16, 0.18, 0.92), 14)
+	)
+	root.add_child(_item_chip)
+	_race_elements.append(_item_chip)
+
+	var item_row := HBoxContainer.new()
+	item_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	item_row.add_theme_constant_override("separation", 8)
+	_item_chip.add_child(item_row)
+
+	_item_icon = TextureRect.new()
+	_item_icon.name = "Icon"
+	_item_icon.custom_minimum_size = Vector2(44.0, 44.0)
+	_item_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_item_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	item_row.add_child(_item_icon)
+
+	_item_label = Label.new()
+	_item_label.text = "SIN OBJETO"
+	_item_label.custom_minimum_size = Vector2(212.0, 48.0)
+	_item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_item_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_item_label.position = Vector2(-95.0, 102.0)
-	_item_label.size = Vector2(190.0, 54.0)
-	root.add_child(_item_label)
-	_race_elements.append(_item_label)
+	_item_label.add_theme_font_size_override("font_size", 16)
+	_item_label.add_theme_color_override("font_color", Color("#fff6d7"))
+	_item_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	item_row.add_child(_item_label)
+
+	_build_shield_status(root)
 
 	_drift_bar = ProgressBar.new()
 	_drift_bar.min_value = 0.0
@@ -253,7 +290,7 @@ func _build_touch_controls(root: Control) -> void:
 		Vector2(132.0, 132.0),
 		Vector2(-156.0, -156.0)
 	)
-	_add_action_button(
+	_item_button = _add_action_button(
 		_touch_controls,
 		"ItemButton",
 		&"use_item",
@@ -409,7 +446,7 @@ func _add_action_button(
 	color: Color,
 	button_size: Vector2,
 	button_position: Vector2
-) -> void:
+) -> MobileActionButton:
 	var button := MobileActionButton.new()
 	button.name = node_name
 	button.configure(action, label_text, color)
@@ -419,6 +456,56 @@ func _add_action_button(
 	button.position = button_position
 	button.size = button_size
 	parent.add_child(button)
+	return button
+
+
+func _build_shield_status(root: Control) -> void:
+	_shield_panel = PanelContainer.new()
+	_shield_panel.name = "ShieldStatus"
+	_shield_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_shield_panel.position = Vector2(-136.0, 166.0)
+	_shield_panel.size = Vector2(272.0, 50.0)
+	_shield_panel.visible = false
+	_shield_panel.add_theme_stylebox_override(
+		"panel",
+		_style(Color(0.03, 0.16, 0.18, 0.92), 12)
+	)
+	root.add_child(_shield_panel)
+	_race_elements.append(_shield_panel)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	_shield_panel.add_child(row)
+
+	_shield_icon = TextureRect.new()
+	_shield_icon.custom_minimum_size = Vector2(34.0, 34.0)
+	_shield_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_shield_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	row.add_child(_shield_icon)
+
+	var details := VBoxContainer.new()
+	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details.add_theme_constant_override("separation", 2)
+	row.add_child(details)
+
+	_shield_label = Label.new()
+	_shield_label.text = "BURBUJA 7.0 s"
+	_shield_label.add_theme_font_size_override("font_size", 13)
+	_shield_label.add_theme_color_override("font_color", Color("#e9fffa"))
+	details.add_child(_shield_label)
+
+	_shield_bar = ProgressBar.new()
+	_shield_bar.custom_minimum_size = Vector2(176.0, 9.0)
+	_shield_bar.show_percentage = false
+	_shield_bar.add_theme_stylebox_override(
+		"background",
+		_style(Color(0.01, 0.08, 0.1, 0.8), 6)
+	)
+	_shield_bar.add_theme_stylebox_override(
+		"fill",
+		_style(Color("#77d9df"), 6)
+	)
+	details.add_child(_shield_bar)
 
 
 func _create_chip(text: String, font_size: int) -> Label:
@@ -462,8 +549,39 @@ func _style(color: Color, radius: int, border_width: int = 0) -> StyleBoxFlat:
 	return style
 
 
-func _handle_item_changed(display_name: String) -> void:
-	_item_label.text = display_name.to_upper() if not display_name.is_empty() else "SIN OBJETO"
+func _handle_item_changed(item: ItemDefinition) -> void:
+	_item_label.text = (
+		item.display_name.to_upper()
+		if item != null
+		else "SIN OBJETO"
+	)
+	_item_icon.texture = item.icon if item != null else null
+	_item_icon.visible = item != null
+	if _item_button != null:
+		_item_button.set_item_icon(
+			item.icon if item != null else null,
+			item.display_name if item != null else ""
+		)
+
+
+func _handle_shield_state_changed(
+	item: ItemDefinition,
+	remaining: float,
+	total: float
+) -> void:
+	var is_active := (
+		item != null
+		and remaining > 0.0
+		and total > 0.0
+		and not _is_intro_visible
+	)
+	_shield_panel.visible = is_active
+	if not is_active:
+		return
+	_shield_icon.texture = item.icon
+	_shield_label.text = "BURBUJA · %.1f s" % remaining
+	_shield_bar.max_value = total
+	_shield_bar.value = remaining
 
 
 func _handle_boost_changed(charge_ratio: float) -> void:
@@ -521,6 +639,15 @@ func _set_touch_controls_visible(is_visible: bool) -> void:
 func _set_race_elements_visible(is_visible: bool) -> void:
 	for element in _race_elements:
 		element.visible = is_visible
+	if (
+		is_visible
+		and _shield_panel != null
+		and (
+			_player_kart == null
+			or _player_kart.get_shield_remaining() <= 0.0
+		)
+	):
+		_shield_panel.visible = false
 
 
 func _update_auto_acceleration() -> void:

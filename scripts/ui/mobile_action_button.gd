@@ -5,6 +5,7 @@ extends Control
 @export var button_label: String = "ACCIÓN"
 @export var accent_color := Color("#ffba4a")
 @export var haptics_enabled := true
+@export var item_icon: Texture2D
 
 var _touch_index: int = -1
 var _is_pressed := false
@@ -24,6 +25,16 @@ func configure(input_action: StringName, label_text: String, color: Color) -> vo
 	button_label = label_text
 	accent_color = color
 	tooltip_text = label_text
+	queue_redraw()
+
+
+func set_item_icon(texture: Texture2D, item_name: String = "") -> void:
+	item_icon = texture
+	tooltip_text = (
+		button_label
+		if item_name.is_empty()
+		else "%s: %s" % [button_label, item_name]
+	)
 	queue_redraw()
 
 
@@ -103,11 +114,29 @@ func _draw() -> void:
 	if has_focus():
 		draw_arc(center, radius, 0.0, TAU, 48, Color.WHITE, 4.0, true)
 	var font := ThemeDB.fallback_font
-	var font_size := 18 if minf(size.x, size.y) >= 120.0 else 15
+	var font_size := (
+		18
+		if minf(size.x, size.y) >= 120.0
+		else (13 if item_icon != null else 15)
+	)
 	var text_width := font.get_string_size(button_label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var text_baseline := (
+		center + press_offset + Vector2(-text_width * 0.5, radius * 0.5)
+		if item_icon != null
+		else center + press_offset + Vector2(-text_width * 0.5, font_size * 0.35)
+	)
+	if item_icon != null:
+		var icon_size := minf(radius * 0.82, 46.0)
+		var icon_rect := Rect2(
+			center
+			+ press_offset
+			+ Vector2(-icon_size * 0.5, -icon_size * 0.62),
+			Vector2.ONE * icon_size
+		)
+		draw_texture_rect(item_icon, icon_rect, false)
 	draw_string(
 		font,
-		center + press_offset + Vector2(-text_width * 0.5, font_size * 0.35),
+		text_baseline,
 		button_label,
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1,
