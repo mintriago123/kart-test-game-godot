@@ -10,6 +10,8 @@ var _item_cooldown := 2.0
 var _last_checkpoint_index := -1
 var _best_checkpoint_distance := INF
 var _checkpoint_stall_time := 0.0
+var _observed_item: ItemDefinition
+var _held_item_time := 0.0
 
 
 func setup(controlled_kart: Kart, manager: RaceManager, offset: float) -> void:
@@ -22,6 +24,7 @@ func _physics_process(delta: float) -> void:
 	if kart == null or race_manager == null or race_manager.route_points.is_empty():
 		return
 	_item_cooldown = maxf(_item_cooldown - delta, 0.0)
+	_update_held_item_time(delta)
 	var next_index := race_manager.get_next_checkpoint_index(kart)
 	var next_checkpoint := race_manager.route_points[next_index]
 	var checkpoint_distance := kart.global_position.distance_to(next_checkpoint)
@@ -93,10 +96,92 @@ func _update_progress_recovery(
 func _should_use_item(forward: Vector3) -> bool:
 	if kart.held_item == null or _item_cooldown > 0.0:
 		return false
-	if kart.held_item.type == ItemDefinition.ItemType.BOOST:
-		return absf(kart.velocity.length()) < kart.stats.max_speed * 0.9
-	var target := race_manager.get_racer_ahead(kart)
+	match kart.held_item.type:
+		ItemDefinition.ItemType.BOOST:
+			return _horizontal_speed() < kart.stats.max_speed * 0.9
+		ItemDefinition.ItemType.TURBO_COCONUT:
+			return _has_aligned_racer_ahead(forward, 22.0, 0.82)
+		ItemDefinition.ItemType.SEA_BUBBLE:
+			return true
+		ItemDefinition.ItemType.SLIPPERY_PEEL:
+			return _has_racer_behind(forward, 14.0) or _held_item_time >= 4.0
+		ItemDefinition.ItemType.HOMING_PINEAPPLE:
+			if _has_aligned_racer_ahead(forward, 40.0, 0.2):
+				return true
+			if _held_item_time >= 6.0:
+				kart.request_straight_launch()
+				return true
+		ItemDefinition.ItemType.TROPICAL_WAVE:
+			return (
+				_has_visible_racer_in_range(kart.held_item.area_radius)
+				or _held_item_time >= 6.0
+			)
+	return false
+
+
+func _update_held_item_time(delta: float) -> void:
+	if kart.held_item == null:
+		_observed_item = null
+		_held_item_time = 0.0
+		return
+	if kart.held_item != _observed_item:
+		_observed_item = kart.held_item
+		_held_item_time = 0.0
+		return
+	_held_item_time += delta
+
+
+func _horizontal_speed() -> float:
+	return Vector2(kart.velocity.x, kart.velocity.z).length()
+
+
+func _has_aligned_racer_ahead(
+	forward: Vector3,
+	max_distance: float,
+	minimum_alignment: float
+) -> bool:
+	var target := race_manager.get_racer_ahead(kart) as Node3D
 	if target == null:
 		return false
-	var to_target: Vector3 = target.global_position - kart.global_position
-	return to_target.length() < 22.0 and forward.dot(to_target.normalized()) > 0.82
+	var to_target := target.global_position - kart.global_position
+	to_target.y = 0.0
+	return (
+		to_target.length() < max_distance
+		and not to_target.is_zero_approx()
+		and forward.dot(to_target.normalized()) > minimum_alignment
+	)
+
+
+func _has_racer_behind(forward: Vector3, max_distance: float) -> bool:
+	for racer in race_manager.racers:
+		var target := racer as Node3D
+		if target == null or target == kart:
+			continue
+		var to_target := target.global_position - kart.global_position
+		to_target.y = 0.0
+		if (
+			to_target.length() < max_distance
+			and not to_target.is_zero_approx()
+			and forward.dot(to_target.normalized()) < -0.55
+		):
+			return true
+	return false
+
+
+func _has_visible_racer_in_range(max_distance: float) -> bool:
+	var origin := kart.global_position + Vector3.UP * 0.65
+	for racer in race_manager.racers:
+		var target := racer as Node3D
+		if target == null or target == kart:
+			continue
+		var target_point := target.global_position + Vector3.UP * 0.65
+		if (
+			origin.distance_to(target_point) <= max_distance
+			and ItemExecutor.has_clear_line_of_sight(
+				kart.get_world_3d(),
+				origin,
+				target_point
+			)
+		):
+			return true
+	return false
