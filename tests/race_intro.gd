@@ -264,6 +264,7 @@ func _test_hud_skip_inputs() -> void:
 	)
 	hud.show_intro("Circuito táctil", 2)
 	hud.set_intro_skip_enabled(true)
+	hud.show_countdown("2")
 	hud._intro_skip_button.pressed.emit()
 	hud._unhandled_input(_make_skip_key(KEY_ENTER))
 	_check(
@@ -272,8 +273,39 @@ func _test_hud_skip_inputs() -> void:
 		and hud._intro_skip_button.focus_mode == Control.FOCUS_ALL,
 		"Native touch/click and Enter use an accessible skip button."
 	)
+	_check(
+		hud._intro_overlay.visible
+		and not hud._race_elements[0].visible
+		and not hud._countdown_label.visible,
+		"Intro presentation hides race status and pending countdown text."
+	)
+	hud.hide_intro()
+	_check(
+		not hud._intro_overlay.visible
+		and hud._race_elements[0].visible
+		and hud._countdown_label.visible,
+		"Leaving the intro restores race status and pending countdown text."
+	)
+	hud.update_race_info(2, 3, 1, 4, 65.432)
+	hud.show_results(1, 65.432)
+	_check(
+		hud._lap_label.text == "VUELTA 2/3"
+		and hud._time_label.text == "01:05.432"
+		and "01:05.432" in hud._results_title.text
+		and hud._results_panel.visible,
+		"HUD transitions preserve race labels, time format, and results content."
+	)
+	var drift_button := (
+		hud._touch_controls.get_node("DriftButton")
+		as MobileActionButton
+	)
+	drift_button._set_pressed(true)
 	hud.queue_free()
 	await process_frame
+	_check(
+		not Input.is_action_pressed(&"drift"),
+		"Destroying the HUD releases active touch actions."
+	)
 
 
 func _test_retry_skips_intro() -> void:

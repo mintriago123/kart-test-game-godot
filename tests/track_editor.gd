@@ -8,11 +8,45 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_validation_contract()
 	await _test_guided_screen()
 	await _test_template_and_history()
 	await _test_migration_and_partial_preview()
 	await _test_track_runner()
 	quit(1 if _has_failed else 0)
+
+
+func _test_validation_contract() -> void:
+	var track := TrackLevel.new()
+	track.track_id = &""
+	track.display_name = "   "
+	var issue_signatures := PackedStringArray()
+	for issue in track.inspect_track():
+		issue_signatures.append(
+			"%s|%s|%s" % [issue.code, issue.target_path, issue.message]
+		)
+	var expected_signatures := PackedStringArray([
+		"track_id_missing|.|La pista necesita un identificador.",
+		"display_name_missing|.|La pista necesita un nombre visible.",
+		"route_missing|MainRoute|Falta el nodo MainRoute de tipo Path3D.",
+		"props_missing|Props|Falta el nodo Props.",
+		"items_missing|ItemSpawns|Falta el nodo ItemSpawns.",
+	])
+	_check(
+		issue_signatures == expected_signatures,
+		"Structured validation preserves issue codes, paths, messages, and order."
+	)
+	_check(
+		track.validate_track() == PackedStringArray([
+			"La pista necesita un identificador.",
+			"La pista necesita un nombre visible.",
+			"Falta el nodo MainRoute de tipo Path3D.",
+			"Falta el nodo Props.",
+			"Falta el nodo ItemSpawns.",
+		]),
+		"Legacy validation preserves the structured issue messages and order."
+	)
+	track.free()
 
 
 func _test_guided_screen() -> void:
