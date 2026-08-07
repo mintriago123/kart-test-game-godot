@@ -9,6 +9,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_validation_contract()
+	_test_all_validation_contracts()
 	await _test_guided_screen()
 	await _test_template_and_history()
 	await _test_migration_and_partial_preview()
@@ -47,6 +48,222 @@ func _test_validation_contract() -> void:
 		"Legacy validation preserves the structured issue messages and order."
 	)
 	track.free()
+
+
+func _test_all_validation_contracts() -> void:
+	var cases := [
+		{
+			"code": &"track_id_missing",
+			"message": "La pista necesita un identificador.",
+			"path": NodePath("."),
+		},
+		{
+			"code": &"display_name_missing",
+			"message": "La pista necesita un nombre visible.",
+			"path": NodePath("."),
+		},
+		{
+			"code": &"route_missing",
+			"message": "Falta el nodo MainRoute de tipo Path3D.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"route_point_count",
+			"message": "MainRoute necesita al menos cuatro puntos.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"route_not_closed",
+			"message": "MainRoute debe ser una curva cerrada.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"route_too_short",
+			"message": "La ruta principal debe medir al menos 120 metros.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"start_point_invalid",
+			"message": "La salida apunta a un punto que ya no existe.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"shortcut_name_missing",
+			"message": "El atajo 0 necesita un nombre.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_id_duplicate",
+			"message": "El identificador de atajo 0 está repetido.",
+			"path": NodePath("Shortcuts/CorteCanon"),
+		},
+		{
+			"code": &"shortcut_point_count",
+			"message": "Paso Laguna necesita al menos tres puntos.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_not_open",
+			"message": "Paso Laguna debe ser una curva abierta.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_connection",
+			"message": "Paso Laguna debe comenzar y terminar sobre MainRoute.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_order",
+			"message": "Paso Laguna cruza la línea de meta o sale antes de entrar.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_direction",
+			"message": "Paso Laguna entra o sale a contravía.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"props_missing",
+			"message": "Falta el nodo Props.",
+			"path": NodePath("Props"),
+		},
+		{
+			"code": &"items_missing",
+			"message": "Falta el nodo ItemSpawns.",
+			"path": NodePath("ItemSpawns"),
+		},
+		{
+			"code": &"item_count",
+			"message": "ItemSpawns necesita al menos cuatro marcadores.",
+			"path": NodePath("ItemSpawns"),
+		},
+		{
+			"code": &"item_type",
+			"message": "BrokenItem debe ser Marker3D.",
+			"path": NodePath("ItemSpawns/BrokenItem"),
+		},
+		{
+			"code": &"item_off_route",
+			"message": "Norte está fuera de la carretera.",
+			"path": NodePath("ItemSpawns/Norte"),
+		},
+	]
+	var observed_codes: Dictionary = {}
+	for case_data in cases:
+		var expected_code: StringName = case_data.code
+		var track := _create_validation_case_track(expected_code)
+		var issues := track.inspect_track()
+		var matching_issue_count := 0
+		var signatures: Dictionary = {}
+		var ordered_messages := PackedStringArray()
+		for issue in issues:
+			var signature := "%s|%s" % [issue.code, issue.target_path]
+			_check(
+				not signatures.has(signature),
+				"Validation case %s deduplicates code and target."
+				% expected_code
+			)
+			signatures[signature] = true
+			ordered_messages.append(issue.message)
+			if issue.code == expected_code:
+				matching_issue_count += 1
+				_check(
+					issue.message == case_data.message
+					and issue.target_path == case_data.path,
+					"Validation code %s preserves message and target."
+					% expected_code
+				)
+		_check(
+			matching_issue_count == 1,
+			"Validation case %s emits its code exactly once."
+			% expected_code
+		)
+		_check(
+			track.validate_track() == ordered_messages,
+			"Validation case %s preserves issue order in validate_track()."
+			% expected_code
+		)
+		observed_codes[expected_code] = true
+		track.free()
+	_check(
+		observed_codes.size() == 19,
+		"Parameterized validation covers all 19 issue codes."
+	)
+
+
+func _create_validation_case_track(code: StringName) -> TrackLevel:
+	var packed_scene := load("res://levels/coastal_track.tscn") as PackedScene
+	var track := packed_scene.instantiate() as TrackLevel
+	var route := track.get_main_route()
+	route.curve = route.curve.duplicate(true) as Curve3D
+	for shortcut in track.get_shortcuts():
+		shortcut.curve = shortcut.curve.duplicate(true) as Curve3D
+	var primary_shortcut := track.get_shortcuts()[0]
+	match code:
+		&"track_id_missing":
+			track.track_id = &""
+		&"display_name_missing":
+			track.display_name = "   "
+		&"route_missing":
+			route.free()
+		&"route_point_count":
+			while route.curve.point_count > 3:
+				route.curve.remove_point(route.curve.point_count - 1)
+		&"route_not_closed":
+			route.curve.closed = false
+		&"route_too_short":
+			var short_curve := Curve3D.new()
+			for point in [
+				Vector3(-10.0, 0.0, -10.0),
+				Vector3(10.0, 0.0, -10.0),
+				Vector3(10.0, 0.0, 10.0),
+				Vector3(-10.0, 0.0, 10.0),
+			]:
+				short_curve.add_point(point)
+			short_curve.closed = true
+			route.curve = short_curve
+		&"start_point_invalid":
+			track.start_point_index = route.curve.point_count
+		&"shortcut_name_missing":
+			primary_shortcut.display_name = " "
+		&"shortcut_id_duplicate":
+			track.get_shortcuts()[1].shortcut_id = primary_shortcut.shortcut_id
+		&"shortcut_point_count":
+			while primary_shortcut.curve.point_count > 2:
+				primary_shortcut.curve.remove_point(1)
+		&"shortcut_not_open":
+			primary_shortcut.curve.closed = true
+		&"shortcut_connection":
+			for point_index in primary_shortcut.curve.point_count:
+				primary_shortcut.curve.set_point_position(
+					point_index,
+					primary_shortcut.curve.get_point_position(point_index)
+					+ Vector3(500.0, 0.0, 500.0)
+				)
+		&"shortcut_order":
+			var final_index := primary_shortcut.curve.point_count - 1
+			var entry := primary_shortcut.curve.get_point_position(0)
+			var exit := primary_shortcut.curve.get_point_position(final_index)
+			primary_shortcut.curve.set_point_position(0, exit)
+			primary_shortcut.curve.set_point_position(final_index, entry)
+		&"shortcut_direction":
+			var sampled_points := track._sample_path(primary_shortcut, false)
+			var valid_forward := (sampled_points[2] - sampled_points[0]).normalized()
+			primary_shortcut.curve.set_point_out(0, -valid_forward * 80.0)
+		&"props_missing":
+			track.get_node("Props").free()
+		&"items_missing":
+			track.get_node("ItemSpawns").free()
+		&"item_count":
+			track.get_node("ItemSpawns").get_child(-1).free()
+		&"item_type":
+			var broken_item := Node3D.new()
+			broken_item.name = "BrokenItem"
+			track.get_node("ItemSpawns").add_child(broken_item)
+		&"item_off_route":
+			var marker := track.get_node("ItemSpawns/Norte") as Marker3D
+			marker.position = Vector3(1000.0, 0.0, 1000.0)
+	return track
 
 
 func _test_guided_screen() -> void:
