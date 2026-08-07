@@ -1,11 +1,23 @@
 class_name Kart
 extends CharacterBody3D
 
-signal item_changed(display_name: String)
+signal item_changed(item: ItemDefinition)
 signal boost_changed(charge_ratio: float)
 signal hit_received
+signal hit_blocked
 signal recovered
-signal item_launch_requested(item: ItemDefinition, direction: Vector3)
+signal item_use_requested(item: ItemDefinition, direction: Vector3)
+signal shield_state_changed(
+	item: ItemDefinition,
+	remaining: float,
+	total: float
+)
+
+enum HitResult {
+	IGNORED,
+	BLOCKED,
+	APPLIED,
+}
 
 const GRAVITY := 28.0
 const DRIFT_LEVEL_TIMES := [0.65, 1.25, 1.9]
@@ -18,6 +30,8 @@ const SHORTCUT_SURFACE_LAYER := PhysicsLayers.SHORTCUTS
 var stats := KartStats.new()
 var is_control_enabled := false
 var held_item: ItemDefinition
+var item_catalog: ItemCatalog
+var item_rng: RandomNumberGenerator
 var race_manager: RaceManager
 var recovery_count := 0
 var last_recovery_position := Vector3.ZERO
@@ -32,6 +46,11 @@ var _drift_charge := 0.0
 var _boost_remaining := 0.0
 var _stun_remaining := 0.0
 var _invulnerable_remaining := 0.0
+var _held_item_elapsed := 0.0
+var _shield_item: ItemDefinition
+var _shield_remaining := 0.0
+var _shield_visual: Node3D
+var _straight_launch_requested := false
 var _last_valid_transform := Transform3D.IDENTITY
 var _stuck_time := 0.0
 var _movement_sample_time := 0.0
@@ -128,11 +147,17 @@ func set_drive_input(
 
 
 func grant_random_item() -> bool:
-	if held_item != null:
+	if held_item != null or item_catalog == null or item_rng == null:
 		return false
-	held_item = ItemDefinition.boost() if randf() < 0.5 else ItemDefinition.tropical_projectile()
-	item_changed.emit(held_item.display_name)
-	return true
+	var position := 1
+	var total_racers := 1
+	if race_manager != null:
+		position = race_manager.get_race_position(self)
+		total_racers = race_manager.racers.size()
+	held_item = item_catalog.draw_item(position, total_racers, item_rng)
+	_held_item_elapsed = 0.0
+	item_changed.emit(held_item)
+	return held_item != null
 
 
 func use_item() -> void:
@@ -140,25 +165,78 @@ func use_item() -> void:
 		return
 	var item_to_use := held_item
 	held_item = null
-	item_changed.emit("")
-	match item_to_use.type:
-		ItemDefinition.ItemType.BOOST:
-			_activate_boost(
-				item_to_use.boost_duration,
-				item_to_use.boost_power
-			)
-		ItemDefinition.ItemType.TROPICAL_PROJECTILE:
-			_request_projectile_launch(item_to_use)
+	_held_item_elapsed = 0.0
+	item_changed.emit(null)
+	var forward := -global_transform.basis.z.normalized()
+	var direction := (
+		-forward
+		if item_to_use.category == ItemDefinition.ItemCategory.TRAP
+		else forward
+	)
+	item_use_requested.emit(item_to_use, direction)
 
 
-func receive_hit(duration: float) -> void:
+func receive_hit(duration: float) -> HitResult:
 	if _invulnerable_remaining > 0.0:
-		return
+		return HitResult.IGNORED
+	if _shield_remaining > 0.0:
+		_clear_shield()
+		hit_blocked.emit()
+		return HitResult.BLOCKED
 	_stun_remaining = duration
 	_invulnerable_remaining = duration + 1.0
 	velocity *= 0.45
 	rotation.y += PI * 0.3
 	hit_received.emit()
+	return HitResult.APPLIED
+
+
+func activate_boost(duration: float, power: float) -> void:
+	_activate_boost(duration, power)
+
+
+func activate_shield(item: ItemDefinition) -> void:
+	if item == null or item.shield_duration <= 0.0:
+		return
+	_clear_shield()
+	_shield_item = item
+	_shield_remaining = item.shield_duration
+	if item.visual_scene != null:
+		_shield_visual = item.visual_scene.instantiate() as Node3D
+		if _shield_visual != null:
+			add_child(_shield_visual)
+	shield_state_changed.emit(
+		_shield_item,
+		_shield_remaining,
+		_shield_item.shield_duration
+	)
+
+
+func get_shield_remaining() -> float:
+	return _shield_remaining
+
+
+func get_held_item_time() -> float:
+	return _held_item_elapsed
+
+
+func request_straight_launch() -> void:
+	_straight_launch_requested = true
+
+
+func consume_straight_launch_request() -> bool:
+	var was_requested := _straight_launch_requested
+	_straight_launch_requested = false
+	return was_requested
+
+
+func clear_item_effects() -> void:
+	held_item = null
+	_held_item_elapsed = 0.0
+	_straight_launch_requested = false
+	_boost_remaining = 0.0
+	_clear_shield()
+	item_changed.emit(null)
 
 
 func set_respawn_transform(respawn_transform: Transform3D) -> void:
@@ -206,11 +284,6 @@ func _activate_boost(duration: float, power: float) -> void:
 	velocity += forward * power
 
 
-func _request_projectile_launch(item: ItemDefinition) -> void:
-	var forward := -global_transform.basis.z.normalized()
-	item_launch_requested.emit(item, forward)
-
-
 func _release_drift() -> void:
 	var boost_level := 0
 	for threshold in DRIFT_LEVEL_TIMES:
@@ -226,8 +299,36 @@ func _update_timers(delta: float) -> void:
 	_boost_remaining = maxf(_boost_remaining - delta, 0.0)
 	_stun_remaining = maxf(_stun_remaining - delta, 0.0)
 	_invulnerable_remaining = maxf(_invulnerable_remaining - delta, 0.0)
+	if held_item != null:
+		_held_item_elapsed += delta
+	else:
+		_held_item_elapsed = 0.0
+	if _shield_remaining > 0.0:
+		_shield_remaining = maxf(_shield_remaining - delta, 0.0)
+		if _shield_remaining <= 0.0:
+			_clear_shield()
+		else:
+			shield_state_changed.emit(
+				_shield_item,
+				_shield_remaining,
+				_shield_item.shield_duration
+			)
 	if _drift_charge > 0.0:
 		boost_changed.emit(_drift_charge / DRIFT_LEVEL_TIMES.back())
+
+
+func _clear_shield() -> void:
+	var previous_item := _shield_item
+	_shield_item = null
+	_shield_remaining = 0.0
+	if _shield_visual != null and is_instance_valid(_shield_visual):
+		_shield_visual.queue_free()
+	_shield_visual = null
+	shield_state_changed.emit(
+		previous_item,
+		0.0,
+		previous_item.shield_duration if previous_item != null else 0.0
+	)
 
 
 func _check_recovery(delta: float) -> void:

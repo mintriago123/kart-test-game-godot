@@ -1,6 +1,10 @@
 class_name RaceWorld
 extends Node3D
 
+const DEFAULT_ITEM_CATALOG: ItemCatalog = preload(
+	"res://items/item_catalog.tres"
+)
+
 signal retry_requested
 signal menu_requested
 signal race_completed(time: float)
@@ -11,22 +15,34 @@ var play_intro := true
 var track_definition: TrackDefinition
 var race_manager: RaceManager
 var player_kart: Kart
+var item_catalog: ItemCatalog = DEFAULT_ITEM_CATALOG
 
 var _track: CoastalTrack
 var _hud: RaceHud
 var _sound: SoundManager
 var _follow_camera: FollowCamera
 var _intro_camera: RaceIntroCamera
+var _active_items: Node3D
 var _projectiles: Node3D
+var _traps: Node3D
+var _effects: Node3D
+var _item_executor: ItemExecutor
 var _item_boxes: Array[ItemBox] = []
 var _ai_drivers: Array[AiDriver] = []
 var _has_begun_race := false
+var _item_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	var catalog_errors := item_catalog.validate() if item_catalog != null else [
+		"RaceWorld requires an item catalog."
+	]
+	if not catalog_errors.is_empty():
+		push_error("Invalid RaceWorld item catalog: %s" % "; ".join(catalog_errors))
+	_item_rng.randomize()
 	_build_track()
 	_build_environment()
-	_build_projectile_container()
+	_build_active_item_container()
 	_build_race()
 
 
@@ -69,10 +85,22 @@ func _build_track() -> void:
 	add_child(_track)
 
 
-func _build_projectile_container() -> void:
+func _build_active_item_container() -> void:
+	_active_items = Node3D.new()
+	_active_items.name = "ActiveItems"
+	add_child(_active_items)
+
 	_projectiles = Node3D.new()
 	_projectiles.name = "Projectiles"
-	add_child(_projectiles)
+	_active_items.add_child(_projectiles)
+
+	_traps = Node3D.new()
+	_traps.name = "Traps"
+	_active_items.add_child(_traps)
+
+	_effects = Node3D.new()
+	_effects.name = "Effects"
+	_active_items.add_child(_effects)
 
 
 func _build_race() -> void:
@@ -83,6 +111,14 @@ func _build_race() -> void:
 	race_manager.configure(_track.route_points)
 	_track.shortcut_completed.connect(race_manager.complete_shortcut)
 	race_manager.shortcut_accepted.connect(_handle_shortcut_accepted)
+
+	_item_executor = ItemExecutor.new()
+	_item_executor.name = "ItemExecutor"
+	add_child(_item_executor)
+	_item_executor.setup(race_manager, _projectiles, _traps, _effects)
+	_item_executor.item_activated.connect(_handle_item_activated)
+	_item_executor.kart_hit.connect(_handle_item_hit)
+	_item_executor.projectile_bounced.connect(_sound.play_projectile_bounce)
 
 	var colors := [
 		Color("#ef684e"),
@@ -103,14 +139,17 @@ func _build_race() -> void:
 		kart.body_color = colors[slot]
 		kart.is_player = slot == 0
 		kart.stats = stat_sets[slot]
+		kart.item_catalog = item_catalog
+		kart.item_rng = _item_rng
 		add_child(kart)
 		var grid_slot := 3 if slot == 0 else slot - 1
 		kart.global_transform = _track.get_spawn_transform(grid_slot)
 		kart.set_respawn_transform(kart.global_transform)
 		race_manager.register_kart(kart, slot == 0)
-		kart.item_launch_requested.connect(
-			_handle_item_launch_requested.bind(kart)
+		kart.item_use_requested.connect(
+			_handle_item_use_requested.bind(kart)
 		)
+		kart.hit_blocked.connect(_handle_shield_blocked.bind(kart))
 		if slot == 0:
 			player_kart = kart
 			_add_camera(kart)
@@ -246,50 +285,83 @@ func _handle_item_collected(kart: Node) -> void:
 
 
 func _handle_player_hit() -> void:
-	_sound.play_hit()
 	if vibration_enabled:
 		Input.vibrate_handheld(120, 0.55)
 
 
-func _handle_item_launch_requested(
+func _handle_item_use_requested(
 	item: ItemDefinition,
 	direction: Vector3,
 	source_kart: Kart
 ) -> void:
-	if (
-		item == null
-		or item.type != ItemDefinition.ItemType.TROPICAL_PROJECTILE
-		or _projectiles == null
-		or not is_instance_valid(source_kart)
-	):
+	if _item_executor == null:
 		return
-	var projectile := KartProjectile.new()
-	projectile.setup(source_kart, item, direction)
-	projectile.bounced.connect(_sound.play_projectile_bounce)
-	_projectiles.add_child(projectile)
-	projectile.global_position = (
-		source_kart.global_position
-		+ direction.normalized() * 2.0
-		+ Vector3.UP * (item.projectile_radius + 0.25)
+	_item_executor.execute(
+		item,
+		source_kart,
+		direction,
+		not source_kart.consume_straight_launch_request()
 	)
 
 
+func _handle_item_activated(
+	item: ItemDefinition,
+	_source_kart: Kart
+) -> void:
+	match item.category:
+		ItemDefinition.ItemCategory.PROJECTILE:
+			_sound.play_item_launch()
+		ItemDefinition.ItemCategory.TRAP:
+			_sound.play_item_deploy()
+		_:
+			_sound.play_item_activation()
+
+
+func _handle_item_hit(
+	_item: ItemDefinition,
+	_kart: Node3D,
+	result: int
+) -> void:
+	if result != Kart.HitResult.BLOCKED:
+		_sound.play_item_impact()
+
+
+func _handle_shield_blocked(source_kart: Kart) -> void:
+	_sound.play_shield_block()
+	if source_kart == player_kart and vibration_enabled:
+		Input.vibrate_handheld(85, 0.46)
+
+
 func _handle_retry_requested() -> void:
-	_clear_projectiles()
+	_clear_active_items()
 	retry_requested.emit()
 
 
 func _handle_menu_requested() -> void:
-	_clear_projectiles()
+	_clear_active_items()
 	menu_requested.emit()
 
 
 func _clear_projectiles() -> void:
-	if _projectiles == null:
+	_clear_container(_projectiles)
+
+
+func _clear_active_items() -> void:
+	_clear_container(_projectiles)
+	_clear_container(_traps)
+	_clear_container(_effects)
+	if race_manager != null:
+		for racer in race_manager.racers:
+			if is_instance_valid(racer) and racer.has_method("clear_item_effects"):
+				racer.clear_item_effects()
+
+
+func _clear_container(container: Node3D) -> void:
+	if container == null:
 		return
-	for projectile in _projectiles.get_children():
-		_projectiles.remove_child(projectile)
-		projectile.queue_free()
+	for active_item in container.get_children():
+		container.remove_child(active_item)
+		active_item.queue_free()
 
 
 func _handle_shortcut_accepted(kart: Node) -> void:
@@ -301,8 +373,12 @@ func _handle_shortcut_accepted(kart: Node) -> void:
 
 
 func _handle_player_finished(_position: int, time: float) -> void:
-	_clear_projectiles()
+	_clear_active_items()
 	_sound.play_finish()
 	if vibration_enabled:
 		Input.vibrate_handheld(220, 0.6)
 	race_completed.emit(time)
+
+
+func _exit_tree() -> void:
+	_clear_active_items()

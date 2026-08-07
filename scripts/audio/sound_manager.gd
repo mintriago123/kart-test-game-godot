@@ -2,6 +2,21 @@ class_name SoundManager
 extends Node
 
 const SAMPLE_RATE := 22050
+const ITEM_ACTIVATION_SOUND: AudioStream = preload(
+	"res://assets/vendor/kenney/digital-audio/powerUp2.ogg"
+)
+const ITEM_DEPLOY_SOUND: AudioStream = preload(
+	"res://assets/vendor/kenney/digital-audio/lowDown.ogg"
+)
+const ITEM_LAUNCH_SOUND: AudioStream = preload(
+	"res://assets/vendor/kenney/digital-audio/laser3.ogg"
+)
+const ITEM_BLOCK_SOUND: AudioStream = preload(
+	"res://assets/vendor/kenney/impact-sounds/impactGlass_light_000.ogg"
+)
+const ITEM_IMPACT_SOUND: AudioStream = preload(
+	"res://assets/vendor/kenney/impact-sounds/impactSoft_heavy_000.ogg"
+)
 
 var _music_player: AudioStreamPlayer
 var _sfx_player: AudioStreamPlayer
@@ -52,8 +67,33 @@ func play_projectile_bounce(bounce_count: int) -> void:
 	_play_tone(frequency, 0.08, 0.26)
 
 
+func play_item_activation() -> void:
+	_play_stream(ITEM_ACTIVATION_SOUND)
+
+
+func play_shield_block() -> void:
+	_play_stream(ITEM_BLOCK_SOUND)
+
+
+func play_item_deploy() -> void:
+	_play_stream(ITEM_DEPLOY_SOUND)
+
+
+func play_item_launch() -> void:
+	_play_stream(ITEM_LAUNCH_SOUND)
+
+
+func play_item_impact() -> void:
+	_play_stream(ITEM_IMPACT_SOUND)
+
+
 func play_finish() -> void:
 	_play_tone(783.99, 0.48, 0.35)
+
+
+func _play_stream(stream: AudioStream) -> void:
+	_sfx_player.stream = stream
+	_sfx_player.play()
 
 
 func _play_tone(frequency: float, duration: float, volume: float) -> void:

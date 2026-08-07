@@ -2,7 +2,7 @@ class_name KartProjectile
 extends CharacterBody3D
 
 signal bounced(bounce_count: int)
-signal kart_hit(kart: Node3D)
+signal kart_hit(kart: Node3D, result: int)
 
 const MAX_COLLISIONS_PER_FRAME := 3
 const MAX_TIME_WITHOUT_GROUND := 0.5
@@ -225,8 +225,15 @@ func _hit_kart(kart: Node3D) -> void:
 	if kart_id in _hit_karts:
 		return
 	_hit_karts[kart_id] = true
-	kart.receive_hit(item_definition.projectile_impact_duration)
-	kart_hit.emit(kart)
+	var raw_result: Variant = kart.receive_hit(
+		item_definition.projectile_impact_duration
+	)
+	var hit_result := (
+		int(raw_result)
+		if raw_result != null
+		else Kart.HitResult.APPLIED
+	)
+	kart_hit.emit(kart, hit_result)
 	queue_free()
 
 
@@ -247,6 +254,12 @@ func _build_collision() -> void:
 
 
 func _build_visual() -> void:
+	if item_definition.visual_scene != null:
+		var item_visual := item_definition.visual_scene.instantiate() as Node3D
+		if item_visual != null:
+			add_child(item_visual)
+			_build_bounce_flash()
+			return
 	var mesh_instance := MeshInstance3D.new()
 	var mesh := SphereMesh.new()
 	mesh.radius = item_definition.projectile_radius
@@ -265,6 +278,10 @@ func _build_visual() -> void:
 	crown.material_override = _material(Color("#4fbb6a"))
 	add_child(crown)
 
+	_build_bounce_flash()
+
+
+func _build_bounce_flash() -> void:
 	_bounce_flash = MeshInstance3D.new()
 	var flash_mesh := SphereMesh.new()
 	flash_mesh.radius = item_definition.projectile_radius * 1.18
