@@ -6,6 +6,10 @@ signal menu_requested
 signal intro_skip_requested
 
 var _status_view: RaceStatusView
+var _touch_view: RaceTouchControls
+var _flow_overlay: RaceFlowOverlay
+var _player_kart: Kart
+
 var _lap_label: Label
 var _position_label: Label
 var _time_label: Label
@@ -24,7 +28,6 @@ var _results_panel: Control
 var _results_title: Label
 var _retry_button: Button
 var _pause_overlay: Control
-var _player_kart: Kart
 var _touch_controls: Control
 var _steering_pad: CoastalJoystick
 var _race_elements: Array[CanvasItem] = []
@@ -34,7 +37,6 @@ var _intro_title: Label
 var _intro_laps: Label
 var _intro_skip_button: Button
 var _is_intro_visible := false
-var _is_auto_accelerating := false
 
 var mobile_controls_enabled := (
 	OS.has_feature("android")
@@ -52,13 +54,20 @@ func _ready() -> void:
 
 func bind_player(kart: Kart) -> void:
 	_player_kart = kart
+	_touch_view.bind_player(kart)
 	kart.item_changed.connect(_handle_item_changed)
 	kart.boost_changed.connect(_handle_boost_changed)
 	kart.shield_state_changed.connect(_handle_shield_state_changed)
 	_handle_item_changed(kart.held_item)
 
 
-func update_race_info(lap: int, total_laps: int, position: int, racers: int, race_time: float) -> void:
+func update_race_info(
+	lap: int,
+	total_laps: int,
+	position: int,
+	racers: int,
+	race_time: float
+) -> void:
 	_status_view.update_race_info(
 		lap,
 		total_laps,
@@ -74,66 +83,45 @@ func show_countdown(text: String) -> void:
 
 func show_intro(track_name: String, total_laps: int) -> void:
 	_is_intro_visible = true
-	_intro_title.text = track_name.to_upper()
-	_intro_laps.text = "%d VUELTAS" % total_laps
-	_intro_content.modulate.a = 0.0
-	_intro_overlay.visible = true
-	set_intro_skip_enabled(false)
+	_flow_overlay.show_intro(track_name, total_laps)
 	_set_race_elements_visible(false)
 	_set_touch_controls_visible(false)
 	_release_auto_acceleration()
 
 
 func update_intro_progress(elapsed: float) -> void:
-	if not _is_intro_visible:
-		return
-	var fade_in := smoothstep(0.0, 0.75, elapsed)
-	var fade_out := 1.0 - smoothstep(4.8, 6.0, elapsed)
-	_intro_content.modulate.a = minf(fade_in, fade_out)
+	_flow_overlay.update_intro_progress(elapsed)
 
 
 func set_intro_skip_enabled(enabled: bool) -> void:
-	if _intro_skip_button == null:
-		return
-	_intro_skip_button.visible = enabled
-	_intro_skip_button.disabled = not enabled
-	if enabled:
-		_intro_skip_button.grab_focus.call_deferred()
+	_flow_overlay.set_intro_skip_enabled(enabled)
 
 
 func hide_intro() -> void:
 	if not _is_intro_visible:
 		return
 	_is_intro_visible = false
-	_intro_overlay.visible = false
-	set_intro_skip_enabled(false)
+	_flow_overlay.hide_intro()
 	_set_race_elements_visible(true)
 	_countdown_label.visible = not _countdown_label.text.is_empty()
 
 
 func show_results(position: int, race_time: float) -> void:
-	_results_title.text = "%s\n%s · %s" % [
-		"¡PODIO!" if position <= 3 else "¡META!",
-		"%dº LUGAR" % position,
-		RaceHudStyle.format_time(race_time),
-	]
-	_results_panel.visible = true
+	_flow_overlay.show_results(position, race_time)
 	_set_touch_controls_visible(false)
-	_retry_button.grab_focus()
 
 
 func _process(_delta: float) -> void:
 	if _player_kart != null:
 		_status_view.update_speed(_player_kart.get_speed_kph())
-	if _pause_overlay != null:
-		_pause_overlay.visible = get_tree().paused and not _results_panel.visible
-	if _touch_controls != null and not _results_panel.visible:
-		_set_touch_controls_visible(
-			mobile_controls_enabled
-			and not get_tree().paused
-			and not _is_intro_visible
+	if _flow_overlay != null:
+		_flow_overlay.update_pause_visibility(get_tree().paused)
+	if _touch_view != null:
+		_touch_view.update_state(
+			get_tree().paused,
+			_results_panel.visible,
+			_is_intro_visible
 		)
-	_update_auto_acceleration()
 
 
 func _exit_tree() -> void:
@@ -142,16 +130,14 @@ func _exit_tree() -> void:
 
 func set_mobile_controls_enabled(enabled: bool) -> void:
 	mobile_controls_enabled = enabled
-	if _touch_controls != null:
-		_set_touch_controls_visible(
-			enabled
-			and not get_tree().paused
-			and not _results_panel.visible
-			and not _is_intro_visible
-		)
-		_update_auto_acceleration()
-	if not enabled:
-		_release_auto_acceleration()
+	if _touch_view == null:
+		return
+	_touch_view.set_mobile_controls_enabled(enabled)
+	_touch_view.update_state(
+		get_tree().paused,
+		_results_panel.visible,
+		_is_intro_visible
+	)
 
 
 func _build_interface() -> void:
@@ -165,26 +151,27 @@ func _build_interface() -> void:
 	root.add_child(_status_view)
 	_bind_status_references()
 
-	_build_touch_controls(root)
+	_touch_view = RaceTouchControls.new()
+	_touch_view.build_interface(
+		mobile_controls_enabled,
+		vibration_enabled
+	)
+	root.add_child(_touch_view)
+	_bind_touch_references()
 
-	var pause_button := Button.new()
-	pause_button.name = "PauseButton"
-	pause_button.text = "Ⅱ"
-	pause_button.tooltip_text = "Pausa"
-	pause_button.custom_minimum_size = Vector2(64.0, 64.0)
-	pause_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	pause_button.position = Vector2(-86.0, 106.0)
-	pause_button.size = Vector2(64.0, 64.0)
-	pause_button.pressed.connect(_toggle_pause)
-	RaceHudStyle.apply_button_style(pause_button, Color("#f5d66f"))
-	root.add_child(pause_button)
-
-	_intro_overlay = _build_intro_overlay()
-	root.add_child(_intro_overlay)
-	_pause_overlay = _build_pause_overlay()
-	root.add_child(_pause_overlay)
-	_results_panel = _build_results_panel()
-	root.add_child(_results_panel)
+	_flow_overlay = RaceFlowOverlay.new()
+	_flow_overlay.build_interface()
+	root.add_child(_flow_overlay)
+	_flow_overlay.retry_requested.connect(
+		func() -> void: retry_requested.emit()
+	)
+	_flow_overlay.menu_requested.connect(
+		func() -> void: menu_requested.emit()
+	)
+	_flow_overlay.intro_skip_requested.connect(
+		func() -> void: intro_skip_requested.emit()
+	)
+	_bind_flow_references()
 
 
 func _bind_status_references() -> void:
@@ -204,219 +191,27 @@ func _bind_status_references() -> void:
 	_race_elements = _status_view.race_elements
 
 
-func _build_touch_controls(root: Control) -> void:
-	_touch_controls = Control.new()
-	_touch_controls.name = "TouchControls"
-	_touch_controls.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_touch_controls.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_touch_controls.visible = mobile_controls_enabled
-	root.add_child(_touch_controls)
-
-	_steering_pad = CoastalJoystick.new()
-	_steering_pad.name = "SteeringPad"
-	_steering_pad.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_steering_pad.position = Vector2(20.0, -212.0)
-	_steering_pad.size = Vector2(250.0, 192.0)
-	_touch_controls.add_child(_steering_pad)
-
-	_add_action_button(
-		_touch_controls,
-		"DriftButton",
-		&"drift",
-		"DERRAPE",
-		Color("#f5d66f"),
-		Vector2(132.0, 132.0),
-		Vector2(-156.0, -156.0)
-	)
-	_item_button = _add_action_button(
-		_touch_controls,
-		"ItemButton",
-		&"use_item",
-		"OBJETO",
-		Color("#ff7954"),
-		Vector2(104.0, 104.0),
-		Vector2(-280.0, -128.0)
-	)
-	_add_action_button(
-		_touch_controls,
-		"BrakeButton",
-		&"brake",
-		"FRENO",
-		Color("#77d0c2"),
-		Vector2(100.0, 100.0),
-		Vector2(-152.0, -280.0)
-	)
-
-	var auto_label := Label.new()
-	auto_label.name = "AutoAccelerateIndicator"
-	auto_label.text = "GAS AUTO"
-	auto_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	auto_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	auto_label.add_theme_font_size_override("font_size", 14)
-	auto_label.add_theme_color_override("font_color", Color("#dfffe3"))
-	auto_label.add_theme_stylebox_override(
-		"normal",
-		RaceHudStyle.style(Color(0.08, 0.35, 0.18, 0.88), 12)
-	)
-	auto_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	auto_label.position = Vector2(-286.0, -184.0)
-	auto_label.size = Vector2(122.0, 34.0)
-	_touch_controls.add_child(auto_label)
+func _bind_touch_references() -> void:
+	_touch_controls = _touch_view
+	_steering_pad = _touch_view.steering_pad
+	_item_button = _touch_view.item_button
 
 
-func _build_intro_overlay() -> Control:
-	var overlay := Control.new()
-	overlay.name = "RaceIntro"
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.visible = false
-
-	_intro_content = VBoxContainer.new()
-	_intro_content.name = "Presentation"
-	_intro_content.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_intro_content.position = Vector2(-360.0, 66.0)
-	_intro_content.size = Vector2(720.0, 180.0)
-	_intro_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_intro_content.add_theme_constant_override("separation", 6)
-	overlay.add_child(_intro_content)
-
-	_intro_title = Label.new()
-	_intro_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_intro_title.add_theme_font_size_override("font_size", 48)
-	_intro_title.add_theme_color_override("font_color", Color("#fff4c7"))
-	_intro_title.add_theme_color_override("font_outline_color", Color("#13373d"))
-	_intro_title.add_theme_constant_override("outline_size", 12)
-	_intro_content.add_child(_intro_title)
-
-	_intro_laps = Label.new()
-	_intro_laps.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_intro_laps.add_theme_font_size_override("font_size", 23)
-	_intro_laps.add_theme_color_override("font_color", Color("#d8f4e8"))
-	_intro_laps.add_theme_color_override("font_outline_color", Color("#13373d"))
-	_intro_laps.add_theme_constant_override("outline_size", 7)
-	_intro_content.add_child(_intro_laps)
-
-	_intro_skip_button = Button.new()
-	_intro_skip_button.name = "SkipIntro"
-	_intro_skip_button.text = "OMITIR"
-	_intro_skip_button.tooltip_text = "Omitir introducción (Enter o Espacio)"
-	_intro_skip_button.custom_minimum_size = Vector2(180.0, 64.0)
-	_intro_skip_button.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_intro_skip_button.position = Vector2(-90.0, -102.0)
-	_intro_skip_button.size = Vector2(180.0, 64.0)
-	_intro_skip_button.visible = false
-	_intro_skip_button.disabled = true
-	_intro_skip_button.pressed.connect(_request_intro_skip)
-	RaceHudStyle.apply_button_style(
-		_intro_skip_button,
-		Color("#f5d66f")
-	)
-	overlay.add_child(_intro_skip_button)
-	return overlay
-
-
-func _build_pause_overlay() -> Control:
-	var overlay := ColorRect.new()
-	overlay.color = Color(0.01, 0.06, 0.08, 0.58)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.visible = false
-	var label := Label.new()
-	label.text = "PAUSA\nToca Ⅱ o pulsa Esc para continuar"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 34)
-	label.add_theme_color_override("font_color", Color("#fff1b5"))
-	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.add_child(label)
-	return overlay
-
-
-func _build_results_panel() -> Control:
-	var overlay := ColorRect.new()
-	overlay.name = "Results"
-	overlay.color = Color(0.01, 0.06, 0.08, 0.78)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.visible = false
-
-	var card := VBoxContainer.new()
-	card.name = "Card"
-	card.set_anchors_preset(Control.PRESET_CENTER)
-	card.position = Vector2(-260.0, -150.0)
-	card.size = Vector2(520.0, 300.0)
-	card.alignment = BoxContainer.ALIGNMENT_CENTER
-	card.add_theme_constant_override("separation", 22)
-	card.add_theme_stylebox_override(
-		"panel",
-		RaceHudStyle.style(Color("#123b42"), 24)
-	)
-	var card_panel := PanelContainer.new()
-	card_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	card_panel.add_theme_stylebox_override(
-		"panel",
-		RaceHudStyle.style(Color("#123b42"), 24)
-	)
-	overlay.add_child(card_panel)
-	card_panel.add_child(card)
-
-	_results_title = Label.new()
-	_results_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_results_title.add_theme_font_size_override("font_size", 36)
-	_results_title.add_theme_color_override("font_color", Color("#fff1b5"))
-	card.add_child(_results_title)
-
-	var actions := HBoxContainer.new()
-	actions.name = "Actions"
-	actions.alignment = BoxContainer.ALIGNMENT_CENTER
-	actions.add_theme_constant_override("separation", 14)
-	card.add_child(actions)
-
-	_retry_button = Button.new()
-	_retry_button.name = "Retry"
-	_retry_button.text = "OTRA CARRERA"
-	_retry_button.custom_minimum_size = Vector2(190.0, 72.0)
-	_retry_button.pressed.connect(func() -> void: retry_requested.emit())
-	RaceHudStyle.apply_button_style(_retry_button, Color("#f2c958"))
-	actions.add_child(_retry_button)
-
-	var menu := Button.new()
-	menu.text = "MENÚ"
-	menu.custom_minimum_size = Vector2(140.0, 72.0)
-	menu.pressed.connect(func() -> void: menu_requested.emit())
-	RaceHudStyle.apply_button_style(menu, Color("#ef7656"))
-	actions.add_child(menu)
-	return overlay
-
-
-func _add_action_button(
-	parent: Control,
-	node_name: String,
-	action: StringName,
-	label_text: String,
-	color: Color,
-	button_size: Vector2,
-	button_position: Vector2
-) -> MobileActionButton:
-	var button := MobileActionButton.new()
-	button.name = node_name
-	button.configure(action, label_text, color)
-	button.haptics_enabled = vibration_enabled
-	button.custom_minimum_size = button_size
-	button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	button.position = button_position
-	button.size = button_size
-	parent.add_child(button)
-	return button
-
+func _bind_flow_references() -> void:
+	_intro_overlay = _flow_overlay.intro_overlay
+	_intro_content = _flow_overlay.intro_content
+	_intro_title = _flow_overlay.intro_title
+	_intro_laps = _flow_overlay.intro_laps
+	_intro_skip_button = _flow_overlay.intro_skip_button
+	_pause_overlay = _flow_overlay.pause_overlay
+	_results_panel = _flow_overlay.results_panel
+	_results_title = _flow_overlay.results_title
+	_retry_button = _flow_overlay.retry_button
 
 
 func _handle_item_changed(item: ItemDefinition) -> void:
 	_status_view.show_item(item)
-	if _item_button != null:
-		_item_button.set_item_icon(
-			item.icon if item != null else null,
-			item.display_name if item != null else ""
-		)
+	_touch_view.show_item(item)
 
 
 func _handle_shield_state_changed(
@@ -436,52 +231,17 @@ func _handle_boost_changed(charge_ratio: float) -> void:
 	_status_view.show_boost(charge_ratio)
 
 
-func _toggle_pause() -> void:
-	get_tree().paused = not get_tree().paused
-
-
 func _unhandled_input(event: InputEvent) -> void:
-	if (
-		not _is_intro_visible
-		or _intro_skip_button == null
-		or not _intro_skip_button.visible
-		or _intro_skip_button.disabled
-	):
-		return
-	if event.is_action_pressed(&"ui_accept"):
-		_request_intro_skip()
-		get_viewport().set_input_as_handled()
-		return
-	if not event is InputEventKey:
-		return
-	var key_event := event as InputEventKey
-	if not key_event.pressed or key_event.echo:
-		return
-	if (
-		key_event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]
-		or key_event.physical_keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]
-	):
-		_request_intro_skip()
+	if _flow_overlay.handle_input(event):
 		get_viewport().set_input_as_handled()
 
 
 func _request_intro_skip() -> void:
-	if (
-		not _is_intro_visible
-		or _intro_skip_button == null
-		or not _intro_skip_button.visible
-		or _intro_skip_button.disabled
-	):
-		return
-	intro_skip_requested.emit()
+	_flow_overlay.request_intro_skip()
 
 
 func _set_touch_controls_visible(is_visible: bool) -> void:
-	if _touch_controls.visible == is_visible:
-		return
-	_touch_controls.visible = is_visible
-	if not is_visible:
-		_release_auto_acceleration()
+	_touch_view.set_controls_visible(is_visible)
 
 
 func _set_race_elements_visible(is_visible: bool) -> void:
@@ -494,28 +254,6 @@ func _set_race_elements_visible(is_visible: bool) -> void:
 	)
 
 
-func _update_auto_acceleration() -> void:
-	var should_accelerate := (
-		mobile_controls_enabled
-		and _touch_controls != null
-		and _touch_controls.visible
-		and _player_kart != null
-		and _player_kart.is_control_enabled
-		and not get_tree().paused
-		and not _results_panel.visible
-		and not Input.is_action_pressed(&"brake")
-	)
-	if should_accelerate == _is_auto_accelerating:
-		return
-	_is_auto_accelerating = should_accelerate
-	if _is_auto_accelerating:
-		Input.action_press(&"accelerate")
-	else:
-		Input.action_release(&"accelerate")
-
-
 func _release_auto_acceleration() -> void:
-	if not _is_auto_accelerating:
-		return
-	_is_auto_accelerating = false
-	Input.action_release(&"accelerate")
+	if _touch_view != null:
+		_touch_view.release_auto_acceleration()
