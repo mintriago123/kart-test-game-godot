@@ -6,6 +6,9 @@ signal play_requested(scene_path: String, track_id: StringName, laps: int)
 
 const CATALOG_PATH := "res://levels/track_catalog.tres"
 const ASSET_LIBRARY_PATH := "res://assets/track/track_asset_library.tres"
+const PreviewController := preload(
+	"res://addons/track_editor/track_editor_preview_controller.gd"
+)
 const STEP_LABELS := [
 	"1  CONFIGURACIÓN",
 	"2  CARRETERA",
@@ -15,6 +18,7 @@ const STEP_LABELS := [
 ]
 
 var session := TrackEditorSession.new()
+var _preview_controller := PreviewController.new()
 
 var _title_label: Label
 var _dirty_label: Label
@@ -231,17 +235,9 @@ func _build_workspace() -> VBoxContainer:
 	_map_view.point_selected.connect(_handle_point_selected)
 	view_stack.add_child(_map_view)
 
-	_preview_container = SubViewportContainer.new()
-	_preview_container.name = "TrackPreview3D"
-	_preview_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_preview_container.stretch = true
-	_preview_container.visible = false
-	view_stack.add_child(_preview_container)
-	_preview_viewport = SubViewport.new()
-	_preview_viewport.own_world_3d = true
-	_preview_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_preview_container.add_child(_preview_viewport)
-	_build_preview_world()
+	_preview_container = _preview_controller.build(view_stack)
+	_preview_viewport = _preview_controller.viewport
+	_preview_camera = _preview_controller.camera
 	return workspace
 
 
@@ -257,33 +253,6 @@ func _build_inspector() -> Control:
 	_properties.add_theme_constant_override("separation", 10)
 	scroll.add_child(_properties)
 	return panel
-
-
-func _build_preview_world() -> void:
-	var environment_node := WorldEnvironment.new()
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#22343a")
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#d8ece6")
-	environment.ambient_light_energy = 0.8
-	environment_node.environment = environment
-	_preview_viewport.add_child(environment_node)
-
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-55.0, -35.0, 0.0)
-	light.light_energy = 1.25
-	light.shadow_enabled = true
-	_preview_viewport.add_child(light)
-
-	_preview_camera = Camera3D.new()
-	_preview_camera.position = Vector3(135.0, 150.0, 135.0)
-	_preview_camera.fov = 58.0
-	_preview_camera.look_at_from_position(
-		_preview_camera.position,
-		Vector3.ZERO
-	)
-	_preview_viewport.add_child(_preview_camera)
 
 
 func _connect_session() -> void:
@@ -349,13 +318,7 @@ func _load_path(path: String) -> void:
 
 
 func _handle_track_changed(track: TrackLevel) -> void:
-	for child in _preview_viewport.get_children():
-		if child is TrackLevel:
-			_preview_viewport.remove_child(child)
-			child.queue_free()
-	if track.get_parent() != null:
-		track.get_parent().remove_child(track)
-	_preview_viewport.add_child(track)
+	_preview_controller.set_track(track)
 	_map_view.set_track(track)
 	_title_label.text = "PISTAS  /  %s" % track.display_name.to_upper()
 	_rebuild_preview()
@@ -863,12 +826,7 @@ func _focus_issue(issue: TrackValidationIssue) -> void:
 
 
 func _rebuild_preview() -> void:
-	if session.track == null or not session.track.is_inside_tree():
-		return
-	session.track.rebuild_preview()
-	_map_view.queue_redraw()
-	if not session.track.route_points.is_empty():
-		_frame_preview_camera()
+	_preview_controller.rebuild(session.track, _map_view)
 
 
 func _deduplicate_issues(
@@ -886,31 +844,17 @@ func _deduplicate_issues(
 
 
 func _frame_preview_camera() -> void:
-	var route := session.track.route_points
-	if route.is_empty():
+	if session.track == null:
 		return
-	var maximum_radius := 50.0
-	var center := Vector3.ZERO
-	for point in route:
-		center += point
-	center /= route.size()
-	for point in route:
-		maximum_radius = maxf(maximum_radius, center.distance_to(point))
-	_preview_camera.position = center + Vector3(
-		maximum_radius * 1.25,
-		maximum_radius * 1.15,
-		maximum_radius * 1.25
-	)
-	_preview_camera.look_at(center)
+	_preview_controller.frame_camera(session.track.route_points)
 
 
 func _toggle_view() -> void:
-	_is_showing_preview = not _is_showing_preview
-	_map_view.visible = not _is_showing_preview
-	_preview_container.visible = _is_showing_preview
-	_view_toggle.text = "MAPA AÉREO" if _is_showing_preview else "VISTA 3D"
-	if _is_showing_preview:
-		_rebuild_preview()
+	_is_showing_preview = _preview_controller.toggle_view(
+		_map_view,
+		_view_toggle,
+		session.track
+	)
 
 
 func _route_point_count() -> int:
