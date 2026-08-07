@@ -93,6 +93,18 @@ func _run() -> void:
 		_check(main.race_world.race_manager.racers.size() == 4, "Four racers are registered.")
 		_check(main.race_world.race_manager.route_points.size() >= 40, "Track route is complete.")
 		_check(main.race_world.player_kart != null, "Player kart is available.")
+		var racers_share_catalog := true
+		for registered_racer in main.race_world.race_manager.racers:
+			racers_share_catalog = (
+				racers_share_catalog
+				and registered_racer.item_catalog
+				== main.race_world.item_catalog
+			)
+		_check(
+			main.race_world.item_catalog.items.size() == 6
+			and racers_share_catalog,
+			"Player and bots share RaceWorld's six-item catalog."
+		)
 		await create_timer(4.2).timeout
 		_check(
 			main.race_world.race_manager.state == RaceManager.RaceState.RACING,
