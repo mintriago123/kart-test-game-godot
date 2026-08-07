@@ -9,7 +9,9 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_surface_geometry()
+	_test_surface_edge_cases()
 	_test_closed_barrier_geometry()
+	_test_barrier_edge_cases()
 	await _test_explicit_portals()
 	quit(1 if _has_failed else 0)
 
@@ -76,6 +78,89 @@ func _test_surface_geometry() -> void:
 		and is_equal_approx(endpoint_left.y, path_points[0].y + 0.5)
 		and is_equal_approx(endpoint_right.y, path_points[0].y + 0.5),
 		"Open-path offsets preserve width and height at endpoints."
+	)
+
+
+func _test_surface_edge_cases() -> void:
+	var minimal_open: Array[Vector3] = [
+		Vector3.ZERO,
+		Vector3(8.0, 1.0, 0.0),
+	]
+	var minimal_closed: Array[Vector3] = [
+		Vector3(-5.0, 0.0, -4.0),
+		Vector3(5.0, 0.0, -4.0),
+		Vector3(0.0, 0.0, 5.0),
+	]
+	var repeated_points: Array[Vector3] = [
+		Vector3.ZERO,
+		Vector3.ZERO,
+		Vector3(8.0, 0.0, 0.0),
+	]
+	var collinear_points: Array[Vector3] = [
+		Vector3(-8.0, 0.0, 0.0),
+		Vector3.ZERO,
+		Vector3(8.0, 0.0, 0.0),
+	]
+	var cases := [
+		{
+			"name": "minimal open",
+			"points": minimal_open,
+			"closed": false,
+			"vertices": 6,
+		},
+		{
+			"name": "minimal closed",
+			"points": minimal_closed,
+			"closed": true,
+			"vertices": 18,
+		},
+		{
+			"name": "repeated-point",
+			"points": repeated_points,
+			"closed": false,
+			"vertices": 12,
+		},
+		{
+			"name": "collinear",
+			"points": collinear_points,
+			"closed": false,
+			"vertices": 12,
+		},
+	]
+	for case_data in cases:
+		var points: Array[Vector3] = case_data.points
+		var mesh := TrackSurfaceBuilder.create_ribbon_mesh(
+			points,
+			-2.0,
+			2.0,
+			0.1,
+			case_data.closed
+		)
+		var arrays := mesh.surface_get_arrays(0)
+		var vertices := arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+		var normals := arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array
+		_check(
+			vertices.size() == case_data.vertices
+			and normals.size() == vertices.size()
+			and _vectors_are_finite(vertices)
+			and _vectors_are_finite(normals),
+			"%s ribbon preserves finite vertices and normals."
+			% case_data.name
+		)
+	var repeated_collision := (
+		TrackSurfaceBuilder.create_shortcut_collision_mesh(
+			repeated_points,
+			CoastalTrack.SHORTCUT_WIDTH
+		)
+	)
+	var repeated_collision_vertices := (
+		repeated_collision.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		as PackedVector3Array
+	)
+	_check(
+		repeated_collision_vertices.size() == 12
+		and _vectors_are_finite(repeated_collision_vertices),
+		"Shortcut collision tolerates a repeated path point."
 	)
 
 
@@ -179,6 +264,125 @@ func _test_closed_barrier_geometry() -> void:
 		track.free()
 
 
+func _test_barrier_edge_cases() -> void:
+	var too_short: Array[Vector3] = [Vector3.ZERO, Vector3.RIGHT]
+	_check(
+		TrackBarrierBuilder.build_miter_barrier_ring(
+			too_short,
+			4.0
+		).is_empty(),
+		"Barrier rings reject paths with fewer than three points."
+	)
+	var repeated_path: Array[Vector3] = [
+		Vector3(-10.0, 0.0, -10.0),
+		Vector3(10.0, 0.0, -10.0),
+		Vector3(10.0, 0.0, -10.0),
+		Vector3(10.0, 0.0, 10.0),
+		Vector3(-10.0, 0.0, 10.0),
+	]
+	var repeated_ring := TrackBarrierBuilder.build_miter_barrier_ring(
+		repeated_path,
+		4.0
+	)
+	var repeated_ring_is_finite := repeated_ring.size() >= 3
+	for ring_point in repeated_ring:
+		repeated_ring_is_finite = (
+			repeated_ring_is_finite
+			and (ring_point.point as Vector3).is_finite()
+			and is_finite(float(ring_point.progress))
+		)
+	_check(
+		repeated_ring_is_finite,
+		"Barrier mitering skips repeated points without producing invalid geometry."
+	)
+
+	var overlapping_portals: Array[Vector2] = [
+		Vector2(0.1, 0.3),
+		Vector2(0.2, 0.4),
+	]
+	var allowed_ranges := TrackBarrierBuilder._get_allowed_barrier_ranges(
+		0.0,
+		1.0,
+		overlapping_portals
+	)
+	_check(
+		allowed_ranges == [
+			Vector2(0.0, 0.1),
+			Vector2(0.4, 1.0),
+		],
+		"Overlapping portal intervals behave as one opening."
+	)
+	var wrapped_portals: Array[Vector2] = [
+		Vector2(0.0, 0.1),
+		Vector2(0.9, 1.0),
+	]
+	var wrapped_allowed := TrackBarrierBuilder._get_allowed_barrier_ranges(
+		0.0,
+		1.0,
+		wrapped_portals
+	)
+	_check(
+		wrapped_allowed == [Vector2(0.1, 0.9)],
+		"Wrapped portal halves leave only the middle barrier range."
+	)
+
+	var open_chain := PackedVector3Array([
+		Vector3.ZERO,
+		Vector3(5.0, 0.0, 0.0),
+	])
+	var open_mesh := TrackBarrierBuilder.create_indexed_barrier_mesh(
+		[open_chain],
+		false
+	)
+	var open_arrays := open_mesh.surface_get_arrays(0)
+	var open_vertices := (
+		open_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+	)
+	var open_normals := (
+		open_arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array
+	)
+	var open_indices := (
+		open_arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
+	)
+	var caps_have_expected_normals := true
+	for vertex_index in range(12, 16):
+		caps_have_expected_normals = (
+			caps_have_expected_normals
+			and open_normals[vertex_index].dot(Vector3.LEFT) > 0.9999
+		)
+	for vertex_index in range(16, 20):
+		caps_have_expected_normals = (
+			caps_have_expected_normals
+			and open_normals[vertex_index].dot(Vector3.RIGHT) > 0.9999
+		)
+	_check(
+		open_vertices.size() == 20
+		and open_normals.size() == 20
+		and open_indices.size() == 30
+		and caps_have_expected_normals,
+		"Minimal open barriers include indexed caps with outward normals."
+	)
+
+	var closed_triangle := PackedVector3Array([
+		Vector3(-4.0, 0.0, -3.0),
+		Vector3(4.0, 0.0, -3.0),
+		Vector3(0.0, 0.0, 4.0),
+	])
+	var closed_mesh := TrackBarrierBuilder.create_indexed_barrier_mesh(
+		[closed_triangle],
+		true
+	)
+	var closed_arrays := closed_mesh.surface_get_arrays(0)
+	_check(
+		(closed_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		== 18
+		and (
+			closed_arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
+		).size() == 54,
+		"Minimal closed barriers connect three points without end caps."
+	)
+
+
 func _test_explicit_portals() -> void:
 	var packed_scene := load("res://levels/coastal_track.tscn") as PackedScene
 	var track := packed_scene.instantiate() as TrackLevel
@@ -261,6 +465,59 @@ func _test_explicit_portals() -> void:
 		and is_equal_approx(wrapping_intervals[0].y, 1.0),
 		"Portal intervals wrap safely across normalized progress 0.0/1.0."
 	)
+	var collision_contracts := [
+		{
+			"visual": "MainRoad",
+			"body": "MainRoadCollision",
+			"layer": CoastalTrack.MAIN_COLLISION_LAYER,
+			"mask": PhysicsLayers.KARTS,
+			"backface": true,
+		},
+		{
+			"visual": "Shortcut0",
+			"body": "Shortcut0Collision",
+			"layer": CoastalTrack.SHORTCUT_COLLISION_LAYER,
+			"mask": PhysicsLayers.KARTS,
+			"backface": false,
+		},
+		{
+			"visual": "MainBarrierRight",
+			"body": "MainBarrierRightCollision",
+			"layer": CoastalTrack.MAIN_BARRIER_COLLISION_LAYER,
+			"mask": PhysicsLayers.KARTS | PhysicsLayers.PROJECTILES,
+			"backface": true,
+		},
+		{
+			"visual": "Shortcut0BarrierRight",
+			"body": "Shortcut0BarrierRightCollision",
+			"layer": CoastalTrack.SHORTCUT_BARRIER_COLLISION_LAYER,
+			"mask": PhysicsLayers.KARTS | PhysicsLayers.PROJECTILES,
+			"backface": true,
+		},
+	]
+	for contract in collision_contracts:
+		var visual := track.get_node_or_null(contract.visual) as MeshInstance3D
+		var body := track.get_node_or_null(contract.body) as StaticBody3D
+		var collision := (
+			body.get_child(0) as CollisionShape3D
+			if body != null and body.get_child_count() > 0
+			else null
+		)
+		var shape := (
+			collision.shape as ConcavePolygonShape3D
+			if collision != null
+			else null
+		)
+		_check(
+			visual != null
+			and body != null
+			and body.collision_layer == contract.layer
+			and body.collision_mask == contract.mask
+			and shape != null
+			and shape.backface_collision == contract.backface,
+			"%s preserves its visual name, collision name, layer, mask, and normals."
+			% contract.visual
+		)
 	track.queue_free()
 	await process_frame
 
@@ -271,6 +528,13 @@ func _create_circle_points(point_count: int, radius: float) -> Array[Vector3]:
 		var angle := TAU * float(point_index) / point_count
 		points.append(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
 	return points
+
+
+func _vectors_are_finite(vectors: PackedVector3Array) -> bool:
+	for vector in vectors:
+		if not vector.is_finite():
+			return false
+	return true
 
 
 func _check(condition: bool, message: String) -> void:
