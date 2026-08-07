@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ItemDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_definition.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/homing-pineapple.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://assets/items/visuals/homing_pineapple.tscn" id="3_visual"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"homing_pineapple"
+type = 5
+category = 2
+display_name = "Piña perseguidora"
+icon = ExtResource("2_icon")
+hud_color = Color(0.470588, 0.8, 0.392157, 1)
+visual_scene = ExtResource("3_visual")
+position_weights = PackedInt32Array(4, 15, 25, 30)
+barrier_response = 0
+projectile_speed = 27.0
+projectile_duration = 6.0
+projectile_radius = 0.5
+projectile_impact_duration = 1.25
+projectile_speed_retention = 1.0
+projectile_owner_immunity = 0.25
+projectile_max_turn_rate = 2.8

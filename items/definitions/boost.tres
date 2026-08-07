@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="ItemDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_definition.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/boost.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://assets/items/visuals/boost_effect.tscn" id="3_visual"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"boost"
+type = 1
+category = 1
+display_name = "Impulso"
+icon = ExtResource("2_icon")
+hud_color = Color(0.960784, 0.788235, 0.34902, 1)
+visual_scene = ExtResource("3_visual")
+position_weights = PackedInt32Array(8, 15, 25, 32)
+boost_duration = 1.25
+boost_power = 11.0
+effect_visual_duration = 1.25

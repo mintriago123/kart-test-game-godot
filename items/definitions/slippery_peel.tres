@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ItemDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_definition.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/slippery-peel.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://assets/items/visuals/slippery_peel.tscn" id="3_visual"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"slippery_peel"
+type = 4
+category = 4
+display_name = "Cáscara resbalosa"
+icon = ExtResource("2_icon")
+hud_color = Color(1, 0.847059, 0.286275, 1)
+visual_scene = ExtResource("3_visual")
+position_weights = PackedInt32Array(32, 20, 8, 4)
+trap_spawn_distance = 2.2
+trap_duration = 10.0
+trap_radius = 0.65
+trap_impact_duration = 1.0
+trap_owner_immunity = 0.75

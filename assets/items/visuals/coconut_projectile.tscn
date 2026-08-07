@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/vendor/kenney/food-kit/coconut.glb" id="1_coconut"]
+
+[node name="CoconutProjectileVisual" type="Node3D"]
+
+[node name="Coconut" parent="." instance=ExtResource("1_coconut")]
+rotation = Vector3(0, 0, 0.36)
+scale = Vector3(0.72, 0.72, 0.72)

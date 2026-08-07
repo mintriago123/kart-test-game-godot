@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ItemDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_definition.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/turbo-coconut.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://assets/items/visuals/coconut_projectile.tscn" id="3_visual"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"turbo_coconut"
+type = 2
+category = 2
+display_name = "Coco turbo"
+icon = ExtResource("2_icon")
+hud_color = Color(1, 0.47451, 0.309804, 1)
+visual_scene = ExtResource("3_visual")
+position_weights = PackedInt32Array(12, 20, 20, 12)
+barrier_response = 1
+projectile_speed = 31.0
+projectile_duration = 4.0
+projectile_radius = 0.48
+projectile_impact_duration = 1.1
+projectile_max_bounces = 3
+projectile_speed_retention = 0.88
+projectile_owner_immunity = 0.25

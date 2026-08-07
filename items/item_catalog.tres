@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ItemCatalog" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_catalog.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/data/item_definition.gd" id="2_definition_script"]
+[ext_resource type="Resource" path="res://items/definitions/boost.tres" id="2_boost"]
+[ext_resource type="Resource" path="res://items/definitions/turbo_coconut.tres" id="3_coconut"]
+[ext_resource type="Resource" path="res://items/definitions/sea_bubble.tres" id="4_bubble"]
+[ext_resource type="Resource" path="res://items/definitions/slippery_peel.tres" id="5_peel"]
+[ext_resource type="Resource" path="res://items/definitions/homing_pineapple.tres" id="6_pineapple"]
+[ext_resource type="Resource" path="res://items/definitions/tropical_wave.tres" id="7_wave"]
+
+[resource]
+script = ExtResource("1_script")
+items = Array[ExtResource("2_definition_script")]([
+	ExtResource("2_boost"),
+	ExtResource("3_coconut"),
+	ExtResource("4_bubble"),
+	ExtResource("5_peel"),
+	ExtResource("6_pineapple"),
+	ExtResource("7_wave")
+])

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ItemDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_definition.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/sea-bubble.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://assets/items/visuals/sea_bubble.tscn" id="3_visual"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"sea_bubble"
+type = 3
+category = 3
+display_name = "Burbuja marina"
+icon = ExtResource("2_icon")
+hud_color = Color(0.301961, 0.85098, 0.870588, 1)
+visual_scene = ExtResource("3_visual")
+position_weights = PackedInt32Array(32, 20, 12, 8)
+shield_duration = 7.0

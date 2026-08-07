@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/vendor/kenney/food-kit/pineapple.glb" id="1_pineapple"]
+
+[node name="HomingPineappleVisual" type="Node3D"]
+
+[node name="Pineapple" parent="." instance=ExtResource("1_pineapple")]
+rotation = Vector3(-1.5708, 0, 0)
+scale = Vector3(0.58, 0.58, 0.58)
