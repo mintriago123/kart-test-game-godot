@@ -15,28 +15,30 @@ func _run() -> void:
 
 
 func _test_surface_geometry() -> void:
-	var track := CoastalTrack.new()
 	var path_points: Array[Vector3] = [
 		Vector3(-10.0, 0.25, -6.0),
 		Vector3(10.0, 0.25, -6.0),
 		Vector3(10.0, 1.25, 6.0),
 		Vector3(-10.0, 1.25, 6.0),
 	]
-	var closed_mesh := track._create_ribbon_mesh(
+	var closed_mesh := TrackSurfaceBuilder.create_ribbon_mesh(
 		path_points,
 		-4.0,
 		4.0,
 		0.0,
 		true
 	)
-	var open_mesh := track._create_ribbon_mesh(
+	var open_mesh := TrackSurfaceBuilder.create_ribbon_mesh(
 		path_points,
 		-4.0,
 		4.0,
 		0.0,
 		false
 	)
-	var shortcut_mesh := track._create_shortcut_collision_mesh(path_points)
+	var shortcut_mesh := TrackSurfaceBuilder.create_shortcut_collision_mesh(
+		path_points,
+		CoastalTrack.SHORTCUT_WIDTH
+	)
 	var closed_vertices := (
 		closed_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 		as PackedVector3Array
@@ -55,14 +57,14 @@ func _test_surface_geometry() -> void:
 		and shortcut_vertices.size() == (path_points.size() - 1) * 6,
 		"Road and shortcut ribbons preserve their six-vertices-per-segment signature."
 	)
-	var endpoint_left := track._offset_path_point(
+	var endpoint_left := TrackSurfaceBuilder.offset_path_point(
 		path_points,
 		0,
 		-4.0,
 		0.5,
 		false
 	)
-	var endpoint_right := track._offset_path_point(
+	var endpoint_right := TrackSurfaceBuilder.offset_path_point(
 		path_points,
 		0,
 		4.0,
@@ -75,7 +77,6 @@ func _test_surface_geometry() -> void:
 		and is_equal_approx(endpoint_right.y, path_points[0].y + 0.5),
 		"Open-path offsets preserve width and height at endpoints."
 	)
-	track.free()
 
 
 func _test_closed_barrier_geometry() -> void:

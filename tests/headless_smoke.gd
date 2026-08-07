@@ -715,7 +715,7 @@ func _shortcut_barriers_clear_main_road(
 	var minimum_point_index := -1
 	for point_index in range(8, shortcut_points.size() - 8):
 		for side in [-1.0, 1.0]:
-			var barrier_point: Vector3 = track._offset_path_point(
+			var barrier_point := TrackSurfaceBuilder.offset_path_point(
 				shortcut_points,
 				point_index,
 				side * CoastalTrack.SHORTCUT_WIDTH * 0.5,

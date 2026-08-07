@@ -163,7 +163,8 @@ func _build_environment() -> void:
 
 
 func _build_road() -> void:
-	_create_drivable_surface(
+	TrackSurfaceBuilder.create_drivable_surface(
+		self,
 		route_points,
 		ROAD_WIDTH,
 		_road_material,
@@ -172,188 +173,24 @@ func _build_road() -> void:
 		MAIN_COLLISION_LAYER
 	)
 
-	_create_curb(route_points, -ROAD_WIDTH * 0.5, -ROAD_WIDTH * 0.5 + CURB_WIDTH, true)
-	_create_curb(route_points, ROAD_WIDTH * 0.5 - CURB_WIDTH, ROAD_WIDTH * 0.5, true)
+	TrackSurfaceBuilder.create_curb(
+		self,
+		route_points,
+		-ROAD_WIDTH * 0.5,
+		-ROAD_WIDTH * 0.5 + CURB_WIDTH,
+		true,
+		_edge_material
+	)
+	TrackSurfaceBuilder.create_curb(
+		self,
+		route_points,
+		ROAD_WIDTH * 0.5 - CURB_WIDTH,
+		ROAD_WIDTH * 0.5,
+		true,
+		_edge_material
+	)
 	for route_index in range(0, route_points.size(), 6):
 		_create_road_marker(route_index)
-
-
-func _create_drivable_surface(
-	path_points: Array[Vector3],
-	width: float,
-	material: StandardMaterial3D,
-	node_name: String,
-	is_closed: bool,
-	collision_layer: int
-) -> void:
-	var path_mesh := _create_ribbon_mesh(
-		path_points,
-		-width * 0.5,
-		width * 0.5,
-		0.0,
-		is_closed
-	)
-	var path_visual := MeshInstance3D.new()
-	path_visual.name = node_name
-	path_visual.mesh = path_mesh
-	path_visual.material_override = material
-	add_child(path_visual)
-
-	var path_body := StaticBody3D.new()
-	path_body.name = node_name + "Collision"
-	path_body.collision_layer = collision_layer
-	path_body.collision_mask = PhysicsLayers.KARTS
-	add_child(path_body)
-	var path_collision := CollisionShape3D.new()
-	var path_shape := path_mesh.create_trimesh_shape()
-	if path_shape is ConcavePolygonShape3D:
-		(path_shape as ConcavePolygonShape3D).backface_collision = true
-	path_collision.shape = path_shape
-	path_body.add_child(path_collision)
-
-
-func _create_shortcut_drivable_surface(
-	path_points: Array[Vector3],
-	node_name: String
-) -> void:
-	var visual_mesh := _create_ribbon_mesh(
-		path_points,
-		-SHORTCUT_WIDTH * 0.5,
-		SHORTCUT_WIDTH * 0.5,
-		0.0,
-		false
-	)
-	var path_visual := MeshInstance3D.new()
-	path_visual.name = node_name
-	path_visual.mesh = visual_mesh
-	path_visual.material_override = _shortcut_material
-	add_child(path_visual)
-
-	var collision_mesh := _create_shortcut_collision_mesh(path_points)
-	var path_body := StaticBody3D.new()
-	path_body.name = node_name + "Collision"
-	path_body.collision_layer = SHORTCUT_COLLISION_LAYER
-	path_body.collision_mask = PhysicsLayers.KARTS
-	add_child(path_body)
-	var path_collision := CollisionShape3D.new()
-	var path_shape := collision_mesh.create_trimesh_shape()
-	if path_shape is ConcavePolygonShape3D:
-		(path_shape as ConcavePolygonShape3D).backface_collision = false
-	path_collision.shape = path_shape
-	path_body.add_child(path_collision)
-
-
-func _create_shortcut_collision_mesh(path_points: Array[Vector3]) -> ArrayMesh:
-	var surface := SurfaceTool.new()
-	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for point_index in path_points.size() - 1:
-		var next_index := point_index + 1
-		var current_left := _offset_path_point(
-			path_points,
-			point_index,
-			-SHORTCUT_WIDTH * 0.5,
-			0.0,
-			false
-		)
-		var current_right := _offset_path_point(
-			path_points,
-			point_index,
-			SHORTCUT_WIDTH * 0.5,
-			0.0,
-			false
-		)
-		var next_left := _offset_path_point(
-			path_points,
-			next_index,
-			-SHORTCUT_WIDTH * 0.5,
-			0.0,
-			false
-		)
-		var next_right := _offset_path_point(
-			path_points,
-			next_index,
-			SHORTCUT_WIDTH * 0.5,
-			0.0,
-			false
-		)
-		_add_surface_vertex(surface, current_left, Vector2.ZERO)
-		_add_surface_vertex(surface, current_right, Vector2(1.0, 0.0))
-		_add_surface_vertex(surface, next_right, Vector2.ONE)
-		_add_surface_vertex(surface, current_left, Vector2.ZERO)
-		_add_surface_vertex(surface, next_right, Vector2.ONE)
-		_add_surface_vertex(surface, next_left, Vector2(0.0, 1.0))
-	surface.generate_normals()
-	return surface.commit()
-
-
-func _create_ribbon_mesh(
-	path_points: Array[Vector3],
-	offset_a: float,
-	offset_b: float,
-	height_offset: float,
-	is_closed: bool
-) -> ArrayMesh:
-	var surface := SurfaceTool.new()
-	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var cumulative_distance := 0.0
-	var segment_count := path_points.size() if is_closed else path_points.size() - 1
-	for point_index in segment_count:
-		var next_index := (point_index + 1) % path_points.size()
-		var current_left := _offset_path_point(path_points, point_index, offset_a, height_offset, is_closed)
-		var current_right := _offset_path_point(path_points, point_index, offset_b, height_offset, is_closed)
-		var next_left := _offset_path_point(path_points, next_index, offset_a, height_offset, is_closed)
-		var next_right := _offset_path_point(path_points, next_index, offset_b, height_offset, is_closed)
-		var next_distance := cumulative_distance + path_points[point_index].distance_to(path_points[next_index])
-		_add_surface_vertex(surface, current_left, Vector2(0.0, cumulative_distance * 0.08))
-		_add_surface_vertex(surface, next_right, Vector2(1.0, next_distance * 0.08))
-		_add_surface_vertex(surface, current_right, Vector2(1.0, cumulative_distance * 0.08))
-		_add_surface_vertex(surface, current_left, Vector2(0.0, cumulative_distance * 0.08))
-		_add_surface_vertex(surface, next_left, Vector2(0.0, next_distance * 0.08))
-		_add_surface_vertex(surface, next_right, Vector2(1.0, next_distance * 0.08))
-		cumulative_distance = next_distance
-	surface.generate_normals()
-	return surface.commit()
-
-
-func _offset_path_point(
-	path_points: Array[Vector3],
-	point_index: int,
-	lateral_offset: float,
-	height_offset: float,
-	is_closed: bool
-) -> Vector3:
-	var previous_index := point_index - 1
-	var next_index := point_index + 1
-	if is_closed:
-		previous_index = (previous_index + path_points.size()) % path_points.size()
-		next_index %= path_points.size()
-	else:
-		previous_index = maxi(previous_index, 0)
-		next_index = mini(next_index, path_points.size() - 1)
-	var previous := path_points[previous_index]
-	var next := path_points[next_index]
-	var tangent := next - previous
-	tangent.y = 0.0
-	tangent = tangent.normalized()
-	var right := Vector3.UP.cross(tangent).normalized()
-	return path_points[point_index] + right * lateral_offset + Vector3.UP * height_offset
-
-
-func _add_surface_vertex(surface: SurfaceTool, vertex: Vector3, uv: Vector2) -> void:
-	surface.set_uv(uv)
-	surface.add_vertex(vertex)
-
-
-func _create_curb(
-	path_points: Array[Vector3],
-	inner_offset: float,
-	outer_offset: float,
-	is_closed: bool
-) -> void:
-	var curb := MeshInstance3D.new()
-	curb.mesh = _create_ribbon_mesh(path_points, inner_offset, outer_offset, 0.055, is_closed)
-	curb.material_override = _edge_material
-	add_child(curb)
 
 
 func _build_shortcuts() -> void:
@@ -361,9 +198,13 @@ func _build_shortcuts() -> void:
 		var shortcut_id: int = shortcut.id
 		var shortcut_name: String = shortcut.name
 		var shortcut_points: Array[Vector3] = shortcut.points
-		_create_shortcut_drivable_surface(
+		TrackSurfaceBuilder.create_shortcut_drivable_surface(
+			self,
 			shortcut_points,
-			"Shortcut%d" % shortcut_id
+			SHORTCUT_WIDTH,
+			_shortcut_material,
+			"Shortcut%d" % shortcut_id,
+			SHORTCUT_COLLISION_LAYER
 		)
 		var trimmed_shortcut_points: Array[Vector3] = []
 		for point_index in range(
@@ -371,17 +212,21 @@ func _build_shortcuts() -> void:
 			shortcut_points.size() - SHORTCUT_CURB_TRIM_SEGMENTS
 		):
 			trimmed_shortcut_points.append(shortcut_points[point_index])
-		_create_curb(
+		TrackSurfaceBuilder.create_curb(
+			self,
 			trimmed_shortcut_points,
 			-SHORTCUT_WIDTH * 0.5,
 			-SHORTCUT_WIDTH * 0.5 + CURB_WIDTH,
-			false
+			false,
+			_edge_material
 		)
-		_create_curb(
+		TrackSurfaceBuilder.create_curb(
+			self,
 			trimmed_shortcut_points,
 			SHORTCUT_WIDTH * 0.5 - CURB_WIDTH,
 			SHORTCUT_WIDTH * 0.5,
-			false
+			false,
+			_edge_material
 		)
 		_create_shortcut_barriers(
 			shortcut_points,
@@ -688,7 +533,7 @@ func _find_shortcut_portal(
 		return {}
 	var step := 1 if is_entry else -1
 	var point_index := 0 if is_entry else point_count - 1
-	var previous_point := _offset_path_point(
+	var previous_point := TrackSurfaceBuilder.offset_path_point(
 		shortcut_points,
 		point_index,
 		corridor_offset,
@@ -709,7 +554,7 @@ func _find_shortcut_portal(
 	)
 	while point_index + step >= 0 and point_index + step < point_count:
 		point_index += step
-		var current_point := _offset_path_point(
+		var current_point := TrackSurfaceBuilder.offset_path_point(
 			shortcut_points,
 			point_index,
 			corridor_offset,
@@ -1108,7 +953,7 @@ func _create_shortcut_barriers(
 			(entry_portal.point as Vector3) + Vector3.UP * 0.08,
 		])
 		for point_index in range(entry_index, exit_index + 1):
-			var barrier_point := _offset_path_point(
+			var barrier_point := TrackSurfaceBuilder.offset_path_point(
 				shortcut_points,
 				point_index,
 				lateral_offset,
