@@ -104,7 +104,10 @@ func _test_closed_barrier_geometry() -> void:
 		var track := CoastalTrack.new()
 		track.route_points.assign(shapes[shape_index])
 		var offset := 4.0
-		var ring := track._build_miter_barrier_ring(track.route_points, offset)
+		var ring := TrackBarrierBuilder.build_miter_barrier_ring(
+			track.route_points,
+			offset
+		)
 		var ring_has_no_spikes := ring.size() >= track.route_points.size()
 		for ring_point in ring:
 			var closest_control_distance := INF
@@ -129,7 +132,10 @@ func _test_closed_barrier_geometry() -> void:
 		var closed_points := PackedVector3Array()
 		for ring_point in ring:
 			closed_points.append(ring_point.point)
-		var mesh := track._create_indexed_barrier_mesh([closed_points], true)
+		var mesh := TrackBarrierBuilder.create_indexed_barrier_mesh(
+			[closed_points],
+			true
+		)
 		var arrays := mesh.surface_get_arrays(0)
 		var indices := arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
 		var final_vertex := (
@@ -178,14 +184,23 @@ func _test_explicit_portals() -> void:
 	var track := packed_scene.instantiate() as TrackLevel
 	root.add_child(track)
 	await process_frame
+	var builder := TrackBarrierBuilder.new(
+		track,
+		track.route_points,
+		track.shortcut_definitions,
+		CoastalTrack.ROAD_WIDTH,
+		CoastalTrack.SHORTCUT_WIDTH,
+		track._barrier_material,
+		track._get_shortcut_barrier_join_clearance()
+	)
 	_check(
 		track._barrier_material.cull_mode == BaseMaterial3D.CULL_BACK,
 		"Barrier material avoids double-sided self-shadowing."
 	)
 	var left_offset := -CoastalTrack.ROAD_WIDTH * 0.5 + CoastalTrack.BARRIER_PATH_INSET
 	var right_offset := CoastalTrack.ROAD_WIDTH * 0.5 - CoastalTrack.BARRIER_PATH_INSET
-	var left_portals := track._build_main_barrier_portals(left_offset)
-	var right_portals := track._build_main_barrier_portals(right_offset)
+	var left_portals := builder.build_main_barrier_portals(left_offset)
+	var right_portals := builder.build_main_barrier_portals(right_offset)
 	_check(
 		left_portals.is_empty() and right_portals.size() == 4,
 		"Only the real entry and exit sides open four main-route portals."
@@ -203,12 +218,18 @@ func _test_explicit_portals() -> void:
 		"Shortcut portal openings stay within the 6–14 meter bounds."
 	)
 
-	var barrier_ring := track._build_miter_barrier_ring(
+	var barrier_ring := TrackBarrierBuilder.build_miter_barrier_ring(
 		track.route_points,
 		right_offset
 	)
-	var open_chains := track._split_barrier_ring(barrier_ring, right_portals)
-	var open_mesh := track._create_indexed_barrier_mesh(open_chains, false)
+	var open_chains := TrackBarrierBuilder.split_barrier_ring(
+		barrier_ring,
+		right_portals
+	)
+	var open_mesh := TrackBarrierBuilder.create_indexed_barrier_mesh(
+		open_chains,
+		false
+	)
 	var open_arrays := open_mesh.surface_get_arrays(0)
 	var open_indices := open_arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
 	var expected_index_count := 0
@@ -222,9 +243,12 @@ func _test_explicit_portals() -> void:
 	)
 
 	var wrapping_intervals: Array[Vector2] = []
-	var route_forward := track._get_route_forward(0)
+	var route_forward := TrackBarrierBuilder.get_route_forward(
+		track.route_points,
+		0
+	)
 	var route_right := Vector3.UP.cross(route_forward).normalized()
-	track._append_portal_interval(
+	builder.append_portal_interval(
 		wrapping_intervals,
 		track.route_points[0],
 		route_forward.lerp(route_right, 0.75).normalized(),
