@@ -5,10 +5,14 @@ extends Control
 signal play_requested(scene_path: String, track_id: StringName, laps: int)
 
 const CATALOG_PATH := "res://levels/track_catalog.tres"
-const ASSET_LIBRARY_PATH := "res://assets/track/track_asset_library.tres"
 const PreviewController := preload(
 	"res://addons/track_editor/track_editor_preview_controller.gd"
 )
+const SetupPanel := preload("res://addons/track_editor/track_setup_panel.gd")
+const RoutePanel := preload("res://addons/track_editor/track_route_panel.gd")
+const ShortcutPanel := preload("res://addons/track_editor/track_shortcut_panel.gd")
+const ObjectPanel := preload("res://addons/track_editor/track_object_panel.gd")
+const ReviewPanel := preload("res://addons/track_editor/track_review_panel.gd")
 const STEP_LABELS := [
 	"1  CONFIGURACIÓN",
 	"2  CARRETERA",
@@ -350,7 +354,6 @@ func _show_step(step_index: int) -> void:
 	_step_buttons[_current_step].set_pressed_no_signal(true)
 	for child in _properties.get_children():
 		child.queue_free()
-	_add_section_title(STEP_LABELS[_current_step])
 	if session.track == null:
 		_add_help("Abre o crea una pista para comenzar.")
 		return
@@ -368,221 +371,64 @@ func _show_step(step_index: int) -> void:
 
 
 func _build_setup_properties() -> void:
-	_add_help("Ponle identidad a la pista. Las opciones técnicas se configuran solas.")
-	_add_field_label("Nombre visible")
-	var name_edit := LineEdit.new()
-	name_edit.text = session.track.display_name
-	name_edit.custom_minimum_size.y = 44.0
-	name_edit.text_changed.connect(func(value: String) -> void:
-		session.track.display_name = value
-		session.track.start_banner_text = value.to_upper()
-		_title_label.text = "PISTAS  /  %s" % value.to_upper()
-		session.mark_dirty()
+	var panel := SetupPanel.new()
+	panel.name = "TrackSetupPanel"
+	panel.configure(session.track, _laps, _description, _button)
+	panel.name_changed.connect(_handle_track_name_changed)
+	panel.laps_changed.connect(func(value: int) -> void: _laps = value)
+	panel.description_changed.connect(
+		func(value: String) -> void: _description = value
 	)
-	_properties.add_child(name_edit)
-	_add_field_label("Identificador")
-	var id_label := Label.new()
-	id_label.text = str(session.track.track_id)
-	id_label.add_theme_color_override("font_color", Color("#aab5b9"))
-	_properties.add_child(id_label)
-	_add_field_label("Vueltas")
-	var laps := SpinBox.new()
-	laps.min_value = 1.0
-	laps.max_value = 9.0
-	laps.value = _laps
-	laps.custom_minimum_size.y = 44.0
-	laps.value_changed.connect(func(value: float) -> void: _laps = int(value))
-	_properties.add_child(laps)
-	_add_field_label("Descripción para el menú")
-	var description := TextEdit.new()
-	description.text = _description
-	description.custom_minimum_size.y = 100.0
-	description.text_changed.connect(func() -> void: _description = description.text)
-	_properties.add_child(description)
+	_properties.add_child(panel)
 
 
 func _build_route_properties() -> void:
-	_add_help(
-		"Selecciona un punto blanco y arrástralo. Las flechas del teclado "
-		+ "también lo mueven con precisión."
-	)
-	var selected := _map_view.selected_point
-	var selected_label := Label.new()
-	selected_label.text = (
-		"Punto seleccionado: %d" % (selected + 1)
-		if selected >= 0
-		else "Selecciona un punto en el mapa"
-	)
-	selected_label.add_theme_color_override("font_color", Color("#f6c344"))
-	_properties.add_child(selected_label)
-	var add_button := _button("＋ AÑADIR PUNTO DESPUÉS", _handle_add_point)
-	add_button.disabled = selected < 0
-	_properties.add_child(add_button)
-	var delete_button := _button("ELIMINAR PUNTO", _handle_delete_point)
-	delete_button.disabled = selected < 0 or _route_point_count() <= 4
-	_properties.add_child(delete_button)
-	_add_field_label("Altura del punto")
-	var height := SpinBox.new()
-	height.min_value = 0.0
-	height.max_value = 12.0
-	height.step = 0.25
-	height.custom_minimum_size.y = 44.0
-	height.editable = selected >= 0
-	if selected >= 0:
-		height.value = session.track.get_main_route().curve.get_point_position(selected).y
-	height.value_changed.connect(func(value: float) -> void:
-		if height.editable:
-			_map_view.set_selected_height(value)
-	)
-	_properties.add_child(height)
-	var start_button := _button("MARCAR COMO SALIDA", _handle_mark_start)
-	start_button.disabled = selected < 0
-	_properties.add_child(start_button)
+	var panel := RoutePanel.new()
+	panel.name = "TrackRoutePanel"
+	panel.configure(session.track, _map_view.selected_point, _button)
+	panel.add_point_requested.connect(_handle_add_point)
+	panel.delete_point_requested.connect(_handle_delete_point)
+	panel.height_changed.connect(_map_view.set_selected_height)
+	panel.mark_start_requested.connect(_handle_mark_start)
+	_properties.add_child(panel)
 
 
 func _build_shortcut_properties() -> void:
-	_add_help(
-		"Elige dos puntos de la carretera. La entrada debe aparecer antes "
-		+ "que la salida siguiendo las flechas."
-	)
-	var entry := OptionButton.new()
-	var exit := OptionButton.new()
-	for point_index in _route_point_count():
-		entry.add_item("Entrada en punto %d" % (point_index + 1))
-		exit.add_item("Salida en punto %d" % (point_index + 1))
-	entry.custom_minimum_size.y = 44.0
-	exit.custom_minimum_size.y = 44.0
-	exit.select(mini(3, maxi(0, exit.item_count - 1)))
-	_properties.add_child(entry)
-	_properties.add_child(exit)
-	_properties.add_child(
-		_button(
-			"＋ CREAR ATAJO",
-			func() -> void: _create_shortcut(entry.selected, exit.selected)
-		)
-	)
-	for shortcut in session.track.get_shortcuts():
-		var row := HBoxContainer.new()
-		var label := Label.new()
-		label.text = "✓ %s" % shortcut.display_name
-		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(label)
-		row.add_child(
-			_button(
-				"Eliminar",
-				_delete_shortcut.bind(shortcut),
-				"Eliminar %s" % shortcut.display_name
-			)
-		)
-		_properties.add_child(row)
+	var panel := ShortcutPanel.new()
+	panel.name = "TrackShortcutPanel"
+	panel.configure(session.track, _button)
+	panel.create_shortcut_requested.connect(_create_shortcut)
+	panel.delete_shortcut_requested.connect(_delete_shortcut)
+	_properties.add_child(panel)
 
 
 func _build_object_properties() -> void:
-	_add_help(
-		"Elige un punto y un lado. El editor coloca la decoración fuera "
-		+ "de la carretera para no bloquear los karts."
-	)
-	_add_field_label("Cajas de objetos")
-	var route_point := OptionButton.new()
-	for point_index in _route_point_count():
-		route_point.add_item("Punto %d" % (point_index + 1))
-	route_point.custom_minimum_size.y = 44.0
-	_properties.add_child(route_point)
-	_properties.add_child(
-		_button(
-			"＋ AÑADIR CAJA",
-			func() -> void: _add_item_spawn(route_point.selected)
-		)
-	)
-	_add_field_label("Decoración CC0")
-	var asset_picker := OptionButton.new()
-	var asset_entries: Array[TrackAssetEntry] = []
-	var library := load(ASSET_LIBRARY_PATH) as TrackAssetLibrary
-	if library != null:
-		asset_entries = library.get_valid_entries()
-		for entry in asset_entries:
-			asset_picker.add_item("%s  ·  %s" % [entry.category, entry.display_name])
-	asset_picker.custom_minimum_size.y = 44.0
-	asset_picker.disabled = asset_entries.is_empty()
-	_properties.add_child(asset_picker)
-	var side_picker := OptionButton.new()
-	side_picker.add_item("Lado izquierdo")
-	side_picker.add_item("Lado derecho")
-	side_picker.custom_minimum_size.y = 44.0
-	_properties.add_child(side_picker)
-	_add_field_label("Distancia desde el centro")
-	var asset_distance := SpinBox.new()
-	asset_distance.min_value = 12.0
-	asset_distance.max_value = 35.0
-	asset_distance.step = 1.0
-	asset_distance.value = 15.0
-	asset_distance.suffix = " m"
-	asset_distance.custom_minimum_size.y = 44.0
-	_properties.add_child(asset_distance)
-	_add_field_label("Rotación")
-	var asset_rotation := SpinBox.new()
-	asset_rotation.min_value = -180.0
-	asset_rotation.max_value = 180.0
-	asset_rotation.step = 15.0
-	asset_rotation.suffix = "°"
-	asset_rotation.custom_minimum_size.y = 44.0
-	_properties.add_child(asset_rotation)
-	var add_asset := _button(
-		"＋ COLOCAR DECORACIÓN",
-		func() -> void:
-			if asset_picker.selected >= 0:
-				_add_asset(
-					asset_entries[asset_picker.selected],
-					route_point.selected,
-					-1.0 if side_picker.selected == 0 else 1.0,
-					asset_distance.value,
-					asset_rotation.value
-				)
-	)
-	add_asset.disabled = asset_entries.is_empty()
-	_properties.add_child(add_asset)
-	var counts := Label.new()
-	var props := session.track.get_node_or_null("Props")
-	var items := session.track.get_node_or_null("ItemSpawns")
-	counts.text = "Decoración: %d\nCajas: %d" % [
-		props.get_child_count() if props != null else 0,
-		items.get_child_count() if items != null else 0,
-	]
-	counts.add_theme_color_override("font_color", Color("#aab5b9"))
-	_properties.add_child(counts)
+	var panel := ObjectPanel.new()
+	panel.name = "TrackObjectPanel"
+	panel.configure(session.track, _button)
+	panel.add_item_requested.connect(_add_item_spawn)
+	panel.add_asset_requested.connect(_add_asset)
+	_properties.add_child(panel)
 
 
 func _build_review_properties() -> void:
-	_add_help(
-		"El editor revisa carretera, salida, cajas y atajos. "
-		+ "Puedes guardar un borrador aunque todavía tenga errores."
-	)
 	var issues := _deduplicate_issues(session.track.inspect_track())
-	if issues.is_empty():
-		var ready := Label.new()
-		ready.text = "✓ PISTA LISTA PARA PROBAR"
-		ready.add_theme_color_override("font_color", Color("#42c7b9"))
-		ready.add_theme_font_size_override("font_size", 17)
-		_properties.add_child(ready)
-	else:
-		for issue in issues:
-			var issue_button := _button(
-				"⚠  " + issue.message,
-				_focus_issue.bind(issue),
-				"Ir al elemento con este problema"
-			)
-			issue_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			issue_button.add_theme_color_override("font_color", Color("#ffd3c8"))
-			_properties.add_child(issue_button)
-	_properties.add_child(_button("VALIDAR DE NUEVO", _handle_validate_pressed))
-	_properties.add_child(_button("GUARDAR BORRADOR", _handle_save_pressed))
-	var test_button := _button("▶ PROBAR CON EL KART", _handle_test_pressed)
-	test_button.disabled = not issues.is_empty()
-	_properties.add_child(test_button)
-	var publish_button := _button("PUBLICAR EN EL JUEGO", _handle_publish_pressed, "", true)
-	publish_button.disabled = not issues.is_empty()
-	_properties.add_child(publish_button)
+	var panel := ReviewPanel.new()
+	panel.name = "TrackReviewPanel"
+	panel.configure(issues, _button)
+	panel.issue_focus_requested.connect(_focus_issue)
+	panel.validate_requested.connect(_handle_validate_pressed)
+	panel.save_requested.connect(_handle_save_pressed)
+	panel.test_requested.connect(_handle_test_pressed)
+	panel.publish_requested.connect(_handle_publish_pressed)
+	_properties.add_child(panel)
+
+
+func _handle_track_name_changed(value: String) -> void:
+	session.track.display_name = value
+	session.track.start_banner_text = value.to_upper()
+	_title_label.text = "PISTAS  /  %s" % value.to_upper()
+	session.mark_dirty()
 
 
 func _handle_new_pressed() -> void:
@@ -857,11 +703,6 @@ func _toggle_view() -> void:
 	)
 
 
-func _route_point_count() -> int:
-	var route := session.track.get_main_route() if session.track != null else null
-	return route.curve.point_count if route != null and route.curve != null else 0
-
-
 func _show_success(message: String) -> void:
 	_status_label.text = "✓  " + message
 	_status_label.add_theme_color_override("font_color", Color("#42c7b9"))
@@ -872,26 +713,11 @@ func _show_error(message: String) -> void:
 	_status_label.add_theme_color_override("font_color", Color("#ffd3c8"))
 
 
-func _add_section_title(text: String) -> void:
-	var label := Label.new()
-	label.text = text
-	label.add_theme_font_size_override("font_size", 18)
-	label.add_theme_color_override("font_color", Color("#f6c344"))
-	_properties.add_child(label)
-
-
 func _add_help(text: String) -> void:
 	var label := Label.new()
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.add_theme_color_override("font_color", Color("#c4ced1"))
-	_properties.add_child(label)
-
-
-func _add_field_label(text: String) -> void:
-	var label := Label.new()
-	label.text = text
-	label.add_theme_color_override("font_color", Color("#aab5b9"))
 	_properties.add_child(label)
 
 
