@@ -5,6 +5,7 @@ signal retry_requested
 signal menu_requested
 signal intro_skip_requested
 
+var _status_view: RaceStatusView
 var _lap_label: Label
 var _position_label: Label
 var _time_label: Label
@@ -58,16 +59,17 @@ func bind_player(kart: Kart) -> void:
 
 
 func update_race_info(lap: int, total_laps: int, position: int, racers: int, race_time: float) -> void:
-	_lap_label.text = "VUELTA %d/%d" % [lap, total_laps]
-	_position_label.text = "%dº / %d" % [position, racers]
-	_time_label.text = _format_time(race_time)
+	_status_view.update_race_info(
+		lap,
+		total_laps,
+		position,
+		racers,
+		race_time
+	)
 
 
 func show_countdown(text: String) -> void:
-	_countdown_label.text = text
-	_countdown_label.visible = (
-		not _is_intro_visible and not text.is_empty()
-	)
+	_status_view.show_countdown(text, _is_intro_visible)
 
 
 func show_intro(track_name: String, total_laps: int) -> void:
@@ -113,7 +115,7 @@ func show_results(position: int, race_time: float) -> void:
 	_results_title.text = "%s\n%s · %s" % [
 		"¡PODIO!" if position <= 3 else "¡META!",
 		"%dº LUGAR" % position,
-		_format_time(race_time),
+		RaceHudStyle.format_time(race_time),
 	]
 	_results_panel.visible = true
 	_set_touch_controls_visible(false)
@@ -122,7 +124,7 @@ func show_results(position: int, race_time: float) -> void:
 
 func _process(_delta: float) -> void:
 	if _player_kart != null:
-		_speed_label.text = "%03d km/h" % _player_kart.get_speed_kph()
+		_status_view.update_speed(_player_kart.get_speed_kph())
 	if _pause_overlay != null:
 		_pause_overlay.visible = get_tree().paused and not _results_panel.visible
 	if _touch_controls != null and not _results_panel.visible:
@@ -157,92 +159,11 @@ func _build_interface() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
 
-	var top_bar := HBoxContainer.new()
-	top_bar.name = "RaceInfo"
-	top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top_bar.offset_left = 24.0
-	top_bar.offset_top = 18.0
-	top_bar.offset_right = -24.0
-	top_bar.offset_bottom = 92.0
-	top_bar.add_theme_constant_override("separation", 12)
-	root.add_child(top_bar)
-	_race_elements.append(top_bar)
-
-	_position_label = _create_chip("1º / 4", 28)
-	top_bar.add_child(_position_label)
-	_lap_label = _create_chip("VUELTA 1/3", 22)
-	top_bar.add_child(_lap_label)
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_bar.add_child(spacer)
-	_time_label = _create_chip("00:00.000", 22)
-	top_bar.add_child(_time_label)
-	_speed_label = _create_chip("000 km/h", 20)
-	top_bar.add_child(_speed_label)
-
-	_item_chip = PanelContainer.new()
-	_item_chip.name = "ItemChip"
-	_item_chip.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_item_chip.position = Vector2(-150.0, 102.0)
-	_item_chip.size = Vector2(300.0, 58.0)
-	_item_chip.add_theme_stylebox_override(
-		"panel",
-		_style(Color(0.03, 0.16, 0.18, 0.92), 14)
-	)
-	root.add_child(_item_chip)
-	_race_elements.append(_item_chip)
-
-	var item_row := HBoxContainer.new()
-	item_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	item_row.add_theme_constant_override("separation", 8)
-	_item_chip.add_child(item_row)
-
-	_item_icon = TextureRect.new()
-	_item_icon.name = "Icon"
-	_item_icon.custom_minimum_size = Vector2(44.0, 44.0)
-	_item_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_item_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	item_row.add_child(_item_icon)
-
-	_item_label = Label.new()
-	_item_label.text = "SIN OBJETO"
-	_item_label.custom_minimum_size = Vector2(212.0, 48.0)
-	_item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_item_label.add_theme_font_size_override("font_size", 16)
-	_item_label.add_theme_color_override("font_color", Color("#fff6d7"))
-	_item_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	item_row.add_child(_item_label)
-
-	_build_shield_status(root)
-
-	_drift_bar = ProgressBar.new()
-	_drift_bar.min_value = 0.0
-	_drift_bar.max_value = 1.0
-	_drift_bar.value = 0.0
-	_drift_bar.show_percentage = false
-	_drift_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_drift_bar.position = Vector2(-90.0, -52.0)
-	_drift_bar.size = Vector2(180.0, 13.0)
-	_drift_bar.add_theme_stylebox_override("background", _style(Color(0.02, 0.08, 0.1, 0.76), 8))
-	_drift_bar.add_theme_stylebox_override("fill", _style(Color("#f5d66f"), 8))
-	root.add_child(_drift_bar)
-	_race_elements.append(_drift_bar)
-
-	_countdown_label = Label.new()
-	_countdown_label.text = "3"
-	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_countdown_label.add_theme_font_size_override("font_size", 78)
-	_countdown_label.add_theme_color_override("font_color", Color("#fff4c7"))
-	_countdown_label.add_theme_color_override("font_outline_color", Color("#13373d"))
-	_countdown_label.add_theme_constant_override("outline_size", 14)
-	_countdown_label.set_anchors_preset(Control.PRESET_CENTER)
-	_countdown_label.position = Vector2(-180.0, -100.0)
-	_countdown_label.size = Vector2(360.0, 200.0)
-	_countdown_label.visible = false
-	root.add_child(_countdown_label)
-	_race_elements.append(_countdown_label)
+	_status_view = RaceStatusView.new()
+	_status_view.name = "RaceStatus"
+	_status_view.build_interface()
+	root.add_child(_status_view)
+	_bind_status_references()
 
 	_build_touch_controls(root)
 
@@ -255,7 +176,7 @@ func _build_interface() -> void:
 	pause_button.position = Vector2(-86.0, 106.0)
 	pause_button.size = Vector2(64.0, 64.0)
 	pause_button.pressed.connect(_toggle_pause)
-	_apply_button_style(pause_button, Color("#f5d66f"))
+	RaceHudStyle.apply_button_style(pause_button, Color("#f5d66f"))
 	root.add_child(pause_button)
 
 	_intro_overlay = _build_intro_overlay()
@@ -264,6 +185,23 @@ func _build_interface() -> void:
 	root.add_child(_pause_overlay)
 	_results_panel = _build_results_panel()
 	root.add_child(_results_panel)
+
+
+func _bind_status_references() -> void:
+	_lap_label = _status_view.lap_label
+	_position_label = _status_view.position_label
+	_time_label = _status_view.time_label
+	_speed_label = _status_view.speed_label
+	_item_label = _status_view.item_label
+	_item_chip = _status_view.item_chip
+	_item_icon = _status_view.item_icon
+	_shield_panel = _status_view.shield_panel
+	_shield_icon = _status_view.shield_icon
+	_shield_label = _status_view.shield_label
+	_shield_bar = _status_view.shield_bar
+	_countdown_label = _status_view.countdown_label
+	_drift_bar = _status_view.drift_bar
+	_race_elements = _status_view.race_elements
 
 
 func _build_touch_controls(root: Control) -> void:
@@ -316,7 +254,10 @@ func _build_touch_controls(root: Control) -> void:
 	auto_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	auto_label.add_theme_font_size_override("font_size", 14)
 	auto_label.add_theme_color_override("font_color", Color("#dfffe3"))
-	auto_label.add_theme_stylebox_override("normal", _style(Color(0.08, 0.35, 0.18, 0.88), 12))
+	auto_label.add_theme_stylebox_override(
+		"normal",
+		RaceHudStyle.style(Color(0.08, 0.35, 0.18, 0.88), 12)
+	)
 	auto_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	auto_label.position = Vector2(-286.0, -184.0)
 	auto_label.size = Vector2(122.0, 34.0)
@@ -366,7 +307,10 @@ func _build_intro_overlay() -> Control:
 	_intro_skip_button.visible = false
 	_intro_skip_button.disabled = true
 	_intro_skip_button.pressed.connect(_request_intro_skip)
-	_apply_button_style(_intro_skip_button, Color("#f5d66f"))
+	RaceHudStyle.apply_button_style(
+		_intro_skip_button,
+		Color("#f5d66f")
+	)
 	overlay.add_child(_intro_skip_button)
 	return overlay
 
@@ -402,10 +346,16 @@ func _build_results_panel() -> Control:
 	card.size = Vector2(520.0, 300.0)
 	card.alignment = BoxContainer.ALIGNMENT_CENTER
 	card.add_theme_constant_override("separation", 22)
-	card.add_theme_stylebox_override("panel", _style(Color("#123b42"), 24))
+	card.add_theme_stylebox_override(
+		"panel",
+		RaceHudStyle.style(Color("#123b42"), 24)
+	)
 	var card_panel := PanelContainer.new()
 	card_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	card_panel.add_theme_stylebox_override("panel", _style(Color("#123b42"), 24))
+	card_panel.add_theme_stylebox_override(
+		"panel",
+		RaceHudStyle.style(Color("#123b42"), 24)
+	)
 	overlay.add_child(card_panel)
 	card_panel.add_child(card)
 
@@ -426,14 +376,14 @@ func _build_results_panel() -> Control:
 	_retry_button.text = "OTRA CARRERA"
 	_retry_button.custom_minimum_size = Vector2(190.0, 72.0)
 	_retry_button.pressed.connect(func() -> void: retry_requested.emit())
-	_apply_button_style(_retry_button, Color("#f2c958"))
+	RaceHudStyle.apply_button_style(_retry_button, Color("#f2c958"))
 	actions.add_child(_retry_button)
 
 	var menu := Button.new()
 	menu.text = "MENÚ"
 	menu.custom_minimum_size = Vector2(140.0, 72.0)
 	menu.pressed.connect(func() -> void: menu_requested.emit())
-	_apply_button_style(menu, Color("#ef7656"))
+	RaceHudStyle.apply_button_style(menu, Color("#ef7656"))
 	actions.add_child(menu)
 	return overlay
 
@@ -459,104 +409,9 @@ func _add_action_button(
 	return button
 
 
-func _build_shield_status(root: Control) -> void:
-	_shield_panel = PanelContainer.new()
-	_shield_panel.name = "ShieldStatus"
-	_shield_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_shield_panel.position = Vector2(-136.0, 166.0)
-	_shield_panel.size = Vector2(272.0, 50.0)
-	_shield_panel.visible = false
-	_shield_panel.add_theme_stylebox_override(
-		"panel",
-		_style(Color(0.03, 0.16, 0.18, 0.92), 12)
-	)
-	root.add_child(_shield_panel)
-	_race_elements.append(_shield_panel)
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	_shield_panel.add_child(row)
-
-	_shield_icon = TextureRect.new()
-	_shield_icon.custom_minimum_size = Vector2(34.0, 34.0)
-	_shield_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_shield_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	row.add_child(_shield_icon)
-
-	var details := VBoxContainer.new()
-	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	details.add_theme_constant_override("separation", 2)
-	row.add_child(details)
-
-	_shield_label = Label.new()
-	_shield_label.text = "BURBUJA 7.0 s"
-	_shield_label.add_theme_font_size_override("font_size", 13)
-	_shield_label.add_theme_color_override("font_color", Color("#e9fffa"))
-	details.add_child(_shield_label)
-
-	_shield_bar = ProgressBar.new()
-	_shield_bar.custom_minimum_size = Vector2(176.0, 9.0)
-	_shield_bar.show_percentage = false
-	_shield_bar.add_theme_stylebox_override(
-		"background",
-		_style(Color(0.01, 0.08, 0.1, 0.8), 6)
-	)
-	_shield_bar.add_theme_stylebox_override(
-		"fill",
-		_style(Color("#77d9df"), 6)
-	)
-	details.add_child(_shield_bar)
-
-
-func _create_chip(text: String, font_size: int) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.custom_minimum_size = Vector2(122.0, 58.0)
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", Color("#fff6d7"))
-	label.add_theme_stylebox_override("normal", _style(Color(0.03, 0.16, 0.18, 0.86), 14))
-	return label
-
-
-func _apply_button_style(button: Button, color: Color) -> void:
-	button.add_theme_font_size_override("font_size", 18)
-	button.add_theme_color_override("font_color", Color("#102d32"))
-	button.add_theme_color_override("font_focus_color", Color("#102d32"))
-	button.add_theme_stylebox_override("normal", _style(color, 16))
-	button.add_theme_stylebox_override("hover", _style(color.lightened(0.1), 16))
-	button.add_theme_stylebox_override("pressed", _style(color.darkened(0.13), 16))
-	button.add_theme_stylebox_override("focus", _style(Color("#ffffff"), 16, 4))
-	button.add_theme_stylebox_override("disabled", _style(Color(0.3, 0.36, 0.37, 0.62), 16))
-
-
-func _style(color: Color, radius: int, border_width: int = 0) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = color
-	style.corner_radius_top_left = radius
-	style.corner_radius_top_right = radius
-	style.corner_radius_bottom_left = radius
-	style.corner_radius_bottom_right = radius
-	if border_width > 0:
-		style.border_width_left = border_width
-		style.border_width_top = border_width
-		style.border_width_right = border_width
-		style.border_width_bottom = border_width
-		style.border_color = Color.WHITE
-	style.content_margin_left = 14.0
-	style.content_margin_right = 14.0
-	return style
-
 
 func _handle_item_changed(item: ItemDefinition) -> void:
-	_item_label.text = (
-		item.display_name.to_upper()
-		if item != null
-		else "SIN OBJETO"
-	)
-	_item_icon.texture = item.icon if item != null else null
-	_item_icon.visible = item != null
+	_status_view.show_item(item)
 	if _item_button != null:
 		_item_button.set_item_icon(
 			item.icon if item != null else null,
@@ -569,23 +424,16 @@ func _handle_shield_state_changed(
 	remaining: float,
 	total: float
 ) -> void:
-	var is_active := (
-		item != null
-		and remaining > 0.0
-		and total > 0.0
-		and not _is_intro_visible
+	_status_view.show_shield(
+		item,
+		remaining,
+		total,
+		_is_intro_visible
 	)
-	_shield_panel.visible = is_active
-	if not is_active:
-		return
-	_shield_icon.texture = item.icon
-	_shield_label.text = "BURBUJA · %.1f s" % remaining
-	_shield_bar.max_value = total
-	_shield_bar.value = remaining
 
 
 func _handle_boost_changed(charge_ratio: float) -> void:
-	_drift_bar.value = charge_ratio
+	_status_view.show_boost(charge_ratio)
 
 
 func _toggle_pause() -> void:
@@ -637,17 +485,13 @@ func _set_touch_controls_visible(is_visible: bool) -> void:
 
 
 func _set_race_elements_visible(is_visible: bool) -> void:
-	for element in _race_elements:
-		element.visible = is_visible
-	if (
-		is_visible
-		and _shield_panel != null
-		and (
-			_player_kart == null
-			or _player_kart.get_shield_remaining() <= 0.0
+	_status_view.set_race_elements_visible(
+		is_visible,
+		(
+			_player_kart != null
+			and _player_kart.get_shield_remaining() > 0.0
 		)
-	):
-		_shield_panel.visible = false
+	)
 
 
 func _update_auto_acceleration() -> void:
@@ -675,10 +519,3 @@ func _release_auto_acceleration() -> void:
 		return
 	_is_auto_accelerating = false
 	Input.action_release(&"accelerate")
-
-
-func _format_time(time: float) -> String:
-	var minutes := floori(time / 60.0)
-	var seconds := floori(fmod(time, 60.0))
-	var milliseconds := floori(fmod(time * 1000.0, 1000.0))
-	return "%02d:%02d.%03d" % [minutes, seconds, milliseconds]
