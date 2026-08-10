@@ -1,0 +1,57 @@
+[gd_scene format=3 uid="uid://0cw3gm7ph46x"]
+
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_4llsa"]
+[ext_resource type="Resource" path="res://levels/themes/coastal_theme.tres" id="2_pllua"]
+
+[sub_resource type="Curve3D" id="Curve3D_bgu47"]
+closed = true
+_data = {
+"points": PackedVector3Array(-17.945248, -0.008333336, -1.8907381, 17.945248, 0.008333336, 1.8907381, -7.9827347, 0.25, 57.502243, -24.131699, -0.06666666, 0.82086563, 24.131699, 0.06666666, -0.82086563, 42.342796, 0.4, 59.13205, -18.506777, -0.08333333, 9.175506, 18.506777, 0.08333333, -9.175506, 136.80746, 0.65, 52.57705, -0.70661926, -0.07500001, 24.870035, 0.70661926, 0.07500001, -24.870035, 153.38345, 0.9, 4.0790176, 14.157105, 0.01666666, 20.532267, -14.157105, -0.01666666, -20.532267, 141.04718, 1.1, -96.64316, 31.003325, 0.10833334, 1.8827375, -31.003325, -0.10833334, -1.8827375, 68.44082, 0.8, -119.11458, 22.118753, 0.083333336, -8.487714, -22.118753, -0.083333336, 8.487714, -44.972767, 0.45, -107.93958, -15.152501, -0.016666671, -6.7654786, 15.152501, 0.016666671, 6.7654786, -64.2717, 0.3, -68.18829, -19.69184, -0.09166667, -5.528971, 19.69184, 0.09166667, 5.528971, 45.942245, 0.55, -67.34671, 19.587118, -0.008333336, -8.181634, -19.587118, 0.008333336, 8.181634, 53.87934, 0.85, -35.014465, 19.868006, 0.083333336, -13.800347, -19.868006, -0.083333336, 13.800347, -71.58046, 0.6, -18.256905, -10.599621, 0.058333337, -12.626525, 10.599621, -0.058333337, 12.626525, -65.32869, 0.35, 47.78762),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 12
+
+[node name="TrackLevel" type="Node3D" unique_id=1468651586]
+script = ExtResource("1_4llsa")
+track_id = &"bahia_turbo"
+display_name = "Bahia Turbo"
+start_banner_text = "BAHIA TURBO"
+track_theme = ExtResource("2_pllua")
+environment_size = Vector2(285.05948, 265.74664)
+
+[node name="MainRoute" type="Path3D" parent="." unique_id=1965037911]
+curve = SubResource("Curve3D_bgu47")
+
+[node name="Shortcuts" type="Node3D" parent="." unique_id=26707340]
+
+[node name="Props" type="Node3D" parent="." unique_id=1294093065]
+
+[node name="ItemSpawns" type="Node3D" parent="." unique_id=365757900]
+
+[node name="ItemSpawn1" type="Marker3D" parent="ItemSpawns" unique_id=400183640]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 152.45816, 0.7989025, 30.208538)
+metadata/track_editor_anchor_progress = 0.18
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn2" type="Marker3D" parent="ItemSpawns" unique_id=1672373999]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 153.46301, 0.908615, 1.1873167)
+metadata/track_editor_anchor_progress = 0.21
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn3" type="Marker3D" parent="ItemSpawns" unique_id=236596279]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 153.65813, 0.9872307, -27.860216)
+metadata/track_editor_anchor_progress = 0.24
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn4" type="Marker3D" parent="ItemSpawns" unique_id=1096034412]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 152.00146, 1.0531945, -56.854866)
+metadata/track_editor_anchor_progress = 0.27
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0

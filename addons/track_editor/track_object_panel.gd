@@ -26,6 +26,8 @@ signal anchor_changed(
 )
 signal duplicate_requested(selection: RefCounted)
 signal delete_requested(selection: RefCounted)
+signal restore_recommended_requested(selection: RefCounted)
+signal calibrate_known_requested
 
 
 func configure(
@@ -133,6 +135,11 @@ func configure(
 	]
 	counts.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
 	add_child(counts)
+	add_child(make_button(
+		"CALIBRAR DECORACIÓN CONOCIDA",
+		func() -> void: calibrate_known_requested.emit(),
+		"Restaurar explícitamente el tamaño recomendado de los assets reconocidos"
+	))
 
 
 func _build_selected_inspector(
@@ -197,6 +204,19 @@ func _build_selected_inspector(
 	add_child(rotation)
 	var prop_scale: SpinBox = null
 	if selection.kind == Selection.Kind.PROP:
+		var asset_entry := _get_asset_entry(selected_node)
+		var recognition := Label.new()
+		recognition.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		recognition.text = (
+			"✓ ASSET CONOCIDO · %s" % asset_entry.display_name
+			if asset_entry != null
+			else "○ ASSET DESCONOCIDO · se conserva su tamaño actual"
+		)
+		recognition.add_theme_color_override(
+			"font_color",
+			EditorStyle.SUCCESS if asset_entry != null else EditorStyle.TEXT_MUTED
+		)
+		add_child(recognition)
 		prop_scale = SpinBox.new()
 		prop_scale.name = "PropScalePercent"
 		prop_scale.min_value = 50.0
@@ -212,6 +232,13 @@ func _build_selected_inspector(
 		prop_scale.custom_minimum_size.y = 44.0
 		add_field_label("Escala uniforme")
 		add_child(prop_scale)
+		var restore_button := make_button(
+			"RESTAURAR TAMAÑO RECOMENDADO",
+			func() -> void: restore_recommended_requested.emit(selection),
+			"Aplicar la escala base de este asset"
+		)
+		restore_button.disabled = asset_entry == null
+		add_child(restore_button)
 	add_child(make_button(
 		"APLICAR CAMBIOS",
 		func() -> void:
@@ -265,3 +292,18 @@ func _get_anchor_defaults(track: TrackLevel, node: Node3D) -> Dictionary:
 		"lateral": delta.dot(lateral_axis),
 		"height": delta.y,
 	}
+
+
+func _get_asset_entry(node: Node3D) -> TrackAssetEntry:
+	var library := load(ASSET_LIBRARY_PATH) as TrackAssetLibrary
+	if library == null or node == null:
+		return null
+	if node.has_meta(TrackEditorSession.META_ASSET_ID):
+		var asset_id := StringName(node.get_meta(
+			TrackEditorSession.META_ASSET_ID,
+			&""
+		))
+		var metadata_entry := library.get_entry(asset_id)
+		if metadata_entry != null:
+			return metadata_entry
+	return library.get_entry_for_scene_path(node.scene_file_path)

@@ -6,6 +6,7 @@ signal kart_hit(kart: Node3D, result: int)
 const GROUND_PROBE_UP := 2.5
 const GROUND_PROBE_DOWN := 5.0
 const GROUND_CLEARANCE := 0.08
+const VisualFactory := preload("res://scripts/items/item_visual_factory.gd")
 
 var owner_kart: Node3D
 var item_definition: ItemDefinition
@@ -110,8 +111,9 @@ func _build_collision() -> void:
 
 
 func _build_visual() -> void:
-	if item_definition.visual_scene == null:
-		return
-	var visual := item_definition.visual_scene.instantiate() as Node3D
-	if visual != null:
-		add_child(visual)
+	VisualFactory.attach_presentation(
+		self,
+		item_definition,
+		item_definition.trap_radius,
+		0.015
+	)

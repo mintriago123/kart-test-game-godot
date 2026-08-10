@@ -1,19 +1,20 @@
-[gd_resource type="Resource" script_class="TrackCatalog" format=3]
+[gd_resource type="Resource" script_class="TrackCatalog" format=3 uid="uid://dkmvav0d6yvrb"]
 
-[ext_resource type="Script" path="res://scripts/data/track_catalog.gd" id="1_catalog"]
-[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="2_definition"]
-[ext_resource type="PackedScene" path="res://levels/coastal_track.tscn" id="3_coastal"]
-[ext_resource type="Script" path="res://scripts/data/track_minimap_data.gd" id="3_qkri8"]
-[ext_resource type="PackedScene" path="res://levels/garden_track.tscn" id="4_garden"]
+[ext_resource type="Script" uid="uid://eoyi70lot677" path="res://scripts/data/track_catalog.gd" id="1_catalog"]
+[ext_resource type="Script" uid="uid://4rdkup4ywfp8" path="res://scripts/data/track_definition.gd" id="2_definition"]
+[ext_resource type="PackedScene" uid="uid://bmo5euyuwse28" path="res://levels/coastal_track.tscn" id="3_coastal"]
+[ext_resource type="Script" uid="uid://cblvdeuhqe2kn" path="res://scripts/data/track_minimap_data.gd" id="3_qkri8"]
+[ext_resource type="PackedScene" uid="uid://cida3p7ag2q6c" path="res://levels/garden_track.tscn" id="4_garden"]
+[ext_resource type="PackedScene" uid="uid://0cw3gm7ph46x" path="res://levels/tracks/bahia_turbo.tscn" id="6_xwiqk"]
 
 [sub_resource type="Resource" id="Resource_qkri8"]
 script = ExtResource("3_qkri8")
-route_points = PackedVector2Array(0, 60, 29.498684, 64.057915, 46.45607, 60.006855, 62.199547, 52.540787, 71.52871, 44.31325, 79.96541, 31.98228, 85.90956, 18.264334, 88.87053, 3.6236804, 88.49468, -8.827872, 85.35219, -23.440508, 80.157776, -34.75071, 72.27698, -44.38968, 58.83683, -55.51268, 41.61776, -65.55867, 25.202288, -71.45853, 10.45496, -73.92613, -6.99105, -73.802345, -24.159098, -70.72107, -40.4506, -64.48742, -57.531124, -54.226894, -70.75949, -42.90524, -79.83319, -31.068228, -86.055756, -17.492468, -88.96521, -2.8545413, -86.88606, 14.380924, -80.307915, 30.459728, -69.74045, 44.295765, -54.61499, 57.27168, -39.50109, 65.975204, -25.157522, 69.99088, -17.89293, 68.52507, -7.0612645, 62.348824)
-shortcut_points = PackedVector2Array(69.0156, 46.9844, 70.63906, 42.544273, 69.2239, 37.896923, 56.478416, 20.009342, 55.11735, 15.463095, 79.94982, -11.348875, 84.298355, -20.043966, 83.96089, -27.242199, -27.6953, -69.6484, -33.92406, -65.73021, -38.19422, -56.89996, -39.50734, -24.83151, -43.32138, -21.85408, -69.16034, -13.23167, -80.27007, -7.788068, -87.21733, -0.843177, -88.53119, 6.34375)
-shortcut_ranges = PackedInt32Array(0, 8, 8, 9)
-start_position = Vector2(0, 60)
-start_direction = Vector2(0.99067044, 0.13627917)
-length_meters = 511.49285364151
+route_points = PackedVector2Array(7.858078, 69.97268, 17.659775, 68.107735, 53.373592, 56.83216, 62.330936, 52.449066, 69.95713, 46.028015, 78.83438, 33.99962, 85.97019, 18.075743, 88.88616, 3.412809, 88.136566, -11.524333, 84.44147, -26.017748, 78.62393, -37.026337, 68.44439, -47.981483, 52.351498, -59.783813, 36.764023, -67.65284, 20.031876, -72.630516, 5.1469555, -74.20183, -12.286647, -73.18926, -26.889605, -69.90663, -43.012123, -63.204422, -57.842964, -54.00079, -71.03695, -42.61639, -80.04309, -30.71096, -86.19028, -17.086226, -88.81461, -4.9047184, -88.35792, 7.5270567, -84.38415, 21.892801, -77.39466, 35.077477, -65.8376, 48.14431, -52.121555, 58.945614, -38.830326, 65.8183, -24.493198, 70.101585, -9.574441, 71.2024)
+shortcut_points = PackedVector2Array(73.83367, 41.506413, 74.87382, 39.292164, 73.63746, 34.634552, 60.16447, 20.234058, 56.545574, 11.254262, 58.536522, 1.6128461, 61.790657, -5.0245447, 80.80217, -24.263536, 82.376175, -28.856144, 80.90564, -33.513294, -33.7711, -67.44201, -39.692684, -63.16185, -41.631332, -58.66678, -39.015705, -31.773113, -41.379223, -22.308735, -50.466633, -14.19045, -82.06136, -0.4449859, -86.9215, 5.0194807, -87.423325, 12.266504)
+shortcut_ranges = PackedInt32Array(0, 10, 10, 9)
+start_position = Vector2(7.858078, 69.97268)
+start_direction = Vector2(0.98237616, -0.18691428)
+length_meters = 509.4730670452118
 shortcut_count = 2
 
 [sub_resource type="Resource" id="TrackDefinition_coastal"]
@@ -27,13 +28,13 @@ scene = ExtResource("3_coastal")
 
 [sub_resource type="Resource" id="Resource_xwiqk"]
 script = ExtResource("3_qkri8")
-route_points = PackedVector2Array(0, 45, 14.891764, 45.081142, 24.70372, 43.602036, 36.39295, 39.457523, 47.19639, 33.392593, 54.14513, 26.36489, 57.389606, 19.684296, 59.74773, 10.053789, 60.615692, -2.3137975, 59.621788, -12.184753, 56.060696, -24.055332, 51.38797, -32.79599, 44.79221, -40.172718, 36.305122, -45.276463, 26.975534, -48.659153, 12.401755, -51.69824, 0.02482092, -52.57747, -12.338923, -51.578323, -24.289553, -48.288925, -35.383312, -42.738525, -45.513355, -35.581882, -52.504475, -28.54918, -56.47559, -22.267565, -59.70201, -12.89961, -61.124504, -0.5954489, -60.165123, 9.272285, -56.92397, 18.636618, -50.288837, 29.076237, -43.138443, 35.92282, -36.697514, 39.62366, -27.170704, 42.382904)
-shortcut_points = PackedVector2Array(30, 42, 33.53981, 38.830025, 33.681812, 31.602606, 19.935635, -2.2651641, 23.657446, -8.40804, 44.44793, -29.074867, 47.14116, -35.7793, 45.000004, -39.999996)
-shortcut_ranges = PackedInt32Array(0, 8)
+route_points = PackedVector2Array(0, 45, 29.532215, 49.891964, 46.918987, 48.584568, 68.60015, 42.956104, 75.00736, 39.127056, 79.36545, 33.146133, 80.89495, 25.848862, 80.470795, 15.894432, 72.94194, -10.428225, 57.99258, -36.295662, 49.472675, -45.375927, 43.11664, -49.283695, 26.014524, -52.22665, -6.4265847, -51.888966, -21.157372, -49.389698, -32.556187, -44.356342, -44.976223, -36.02854, -52.09487, -29.051615, -57.252373, -20.55087, -60.521652, -8.548237, -60.676, 6.3742085, -57.092007, 18.277515, -48.87147, 30.70493, -41.32325, 37.185062, -32.18076, 41.07732)
+shortcut_points = PackedVector2Array(33.73101, 49.98995, 40.61618, 47.57679, 47.52204, 37.47435, 63.89521, -11.79407, 65.58999, -21.53103, 64.74453, -26.34553, 33.34605, -51.7873, 25.97442, -50.82957, 19.1583, -47.74343, -11.18918, -25.82651, -52.25523, -7.634202, -58.53168, -3.56727, -61.11755, 0.531374)
+shortcut_ranges = PackedInt32Array(0, 6, 6, 7)
 start_position = Vector2(0, 45)
-start_direction = Vector2(0.99998516, 0.0054487316)
-length_meters = 355.13415336608887
-shortcut_count = 1
+start_direction = Vector2(0.98655635, 0.16342147)
+length_meters = 399.3606095314026
+shortcut_count = 2
 
 [sub_resource type="Resource" id="TrackDefinition_garden"]
 script = ExtResource("2_definition")
@@ -44,6 +45,22 @@ preview_color = Color(0.435294, 0.65098, 0.333333, 1)
 preview_map = SubResource("Resource_xwiqk")
 scene = ExtResource("4_garden")
 
+[sub_resource type="Resource" id="Resource_48042"]
+script = ExtResource("3_qkri8")
+route_points = PackedVector2Array(-7.9827347, 57.502243, 21.886402, 59.489845, 109.211235, 58.19083, 133.7238, 53.884777, 146.14539, 45.775837, 150.98811, 37.132385, 152.76122, 27.329561, 153.74557, -17.578169, 152.81786, -47.506783, 150.62894, -67.34646, 146.74097, -84.36145, 141.65761, -95.7217, 135.2382, -103.3317, 122.622246, -111.260445, 103.355774, -116.29838, 63.555386, -119.34979, 33.614426, -119.09987, -6.1769896, -115.87132, -35.671326, -110.77335, -51.935574, -104.57742, -63.42675, -95.07633, -68.90749, -86.77137, -70.91929, -79.59895, -69.35468, -72.409836, -63.547665, -67.89533, -43.75337, -65.979126, 18.573044, -68.76145, 41.010292, -68.272446, 55.045387, -63.40584, 60.806667, -58.662975, 64.608246, -52.277832, 65.1649, -47.352192, 63.617897, -42.64778, 58.390804, -37.379066, 51.63115, -34.217484, 31.933254, -31.145462, -50.16449, -24.966354, -67.05638, -20.652864, -76.74082, -13.079683, -80.87221, -1.4319859, -79.7289, 15.920455, -73.25314, 34.763145, -63.816208, 49.364403, -57.477577, 53.2782, -47.848454, 55.822536)
+shortcut_points = PackedVector2Array()
+shortcut_ranges = PackedInt32Array()
+start_position = Vector2(-7.9827347, 57.502243)
+start_direction = Vector2(0.99779326, 0.06639683)
+length_meters = 968.2365963459015
+
+[sub_resource type="Resource" id="Resource_hb87e"]
+script = ExtResource("2_definition")
+id = &"bahia_turbo"
+display_name = "Bahia Turbo"
+preview_map = SubResource("Resource_48042")
+scene = ExtResource("6_xwiqk")
+
 [resource]
 script = ExtResource("1_catalog")
-tracks = Array[ExtResource("2_definition")]([SubResource("TrackDefinition_coastal"), SubResource("TrackDefinition_garden")])
+tracks = Array[ExtResource("2_definition")]([SubResource("TrackDefinition_coastal"), SubResource("TrackDefinition_garden"), SubResource("Resource_hb87e")])
