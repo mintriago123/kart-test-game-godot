@@ -2,6 +2,10 @@ class_name TrackLevelValidator
 extends RefCounted
 
 const JunctionBuilder = preload("res://scripts/world/track_junction_builder.gd")
+const SHORTCUT_ROUTE_CLEARANCE := (
+	CoastalTrack.ROAD_WIDTH * 0.5
+	+ CoastalTrack.SHORTCUT_WIDTH * 0.5
+)
 
 
 static func inspect(track) -> Array[TrackValidationIssue]:
@@ -122,6 +126,8 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 					issue_code = &"shortcut_order"
 				elif "contravía" in shortcut_error:
 					issue_code = &"shortcut_direction"
+				elif "se superpone" in shortcut_error:
+					issue_code = &"shortcut_route_overlap"
 				_append_issue(
 					issues,
 					issue_code,
@@ -271,7 +277,72 @@ static func validate_shortcut(
 		errors.append(
 			"%s entra o sale a contravía." % shortcut.display_name
 		)
+	if has_shortcut_route_crossing(shortcut_points, validation_route):
+		errors.append(
+			"%s se superpone a MainRoute fuera de sus conexiones."
+			% shortcut.display_name
+		)
 	return errors
+
+
+static func has_shortcut_route_crossing(
+	shortcut_points: Array[Vector3],
+	validation_route: Array[Vector3]
+) -> bool:
+	if shortcut_points.size() < 3 or validation_route.size() < 3:
+		return false
+	var total_length := 0.0
+	for point_index in range(1, shortcut_points.size()):
+		total_length += shortcut_points[point_index - 1].distance_to(
+			shortcut_points[point_index]
+		)
+	var progress := 0.0
+	for point_index in range(1, shortcut_points.size()):
+		var shortcut_start := shortcut_points[point_index - 1]
+		var shortcut_finish := shortcut_points[point_index]
+		var segment_length := shortcut_start.distance_to(shortcut_finish)
+		var segment_middle := progress + segment_length * 0.5
+		progress += segment_length
+		if (
+			segment_middle < SHORTCUT_ROUTE_CLEARANCE
+			or total_length - segment_middle < SHORTCUT_ROUTE_CLEARANCE
+		):
+			continue
+		var shortcut_start_2d := Vector2(shortcut_start.x, shortcut_start.z)
+		var shortcut_finish_2d := Vector2(shortcut_finish.x, shortcut_finish.z)
+		for route_index in validation_route.size():
+			var route_start := validation_route[route_index]
+			var route_finish := validation_route[
+				(route_index + 1) % validation_route.size()
+			]
+			if Geometry2D.segment_intersects_segment(
+				shortcut_start_2d,
+				shortcut_finish_2d,
+				Vector2(route_start.x, route_start.z),
+				Vector2(route_finish.x, route_finish.z)
+			) != null:
+				return true
+	return false
+
+
+static func get_shortcut_middle_clearance(
+	shortcut_points: Array[Vector3],
+	validation_route: Array[Vector3]
+) -> float:
+	if shortcut_points.size() < 3 or validation_route.size() < 3:
+		return 0.0
+	var minimum_clearance := INF
+	var first_index := shortcut_points.size() / 4
+	var final_index := shortcut_points.size() * 3 / 4
+	for point_index in range(first_index, final_index + 1):
+		minimum_clearance = minf(
+			minimum_clearance,
+			_distance_to_route_points_2d(
+				shortcut_points[point_index],
+				validation_route
+			)
+		)
+	return minimum_clearance
 
 
 static func _append_issue(

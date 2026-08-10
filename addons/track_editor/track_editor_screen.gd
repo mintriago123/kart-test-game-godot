@@ -786,18 +786,9 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 	if exit_index <= entry_index + 1:
 		_show_error("La salida debe estar al menos dos puntos después de la entrada.")
 		return
-	session.snapshot_track_for_undo()
 	var curve := session.track.get_main_route().curve
-	var shortcut := TrackShortcut.new()
-	shortcut.name = "Shortcut%d" % (session.track.get_shortcuts().size() + 1)
-	shortcut.shortcut_id = session.track.get_shortcuts().size()
-	shortcut.display_name = "Atajo %d" % (shortcut.shortcut_id + 1)
-	shortcut.curve = Curve3D.new()
 	var start := curve.get_point_position(entry_index)
 	var finish := curve.get_point_position(exit_index)
-	var midpoint := start.lerp(finish, 0.5)
-	var direct := Vector2(finish.x - start.x, finish.z - start.z).normalized()
-	midpoint += Vector3(-direct.y, 0.0, direct.x) * 12.0
 	var entry_forward := (
 		curve.get_point_position((entry_index + 1) % curve.point_count)
 		- curve.get_point_position(
@@ -810,10 +801,23 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 			(exit_index - 1 + curve.point_count) % curve.point_count
 		)
 	).normalized()
-	var middle_tangent := (finish - start) / 7.0
-	shortcut.curve.add_point(start, Vector3.ZERO, entry_forward * 10.0)
-	shortcut.curve.add_point(midpoint, -middle_tangent, middle_tangent)
-	shortcut.curve.add_point(finish, -exit_forward * 10.0)
+	var shortcut_curve := _find_clear_shortcut_curve(
+		start,
+		finish,
+		entry_forward,
+		exit_forward
+	)
+	if shortcut_curve == null:
+		_show_error(
+			"No hay espacio seguro para ese atajo. Elige otra entrada o salida."
+		)
+		return
+	session.snapshot_track_for_undo()
+	var shortcut := TrackShortcut.new()
+	shortcut.name = "Shortcut%d" % (session.track.get_shortcuts().size() + 1)
+	shortcut.shortcut_id = session.track.get_shortcuts().size()
+	shortcut.display_name = "Atajo %d" % (shortcut.shortcut_id + 1)
+	shortcut.curve = shortcut_curve
 	var shortcuts := session.track.get_node_or_null("Shortcuts")
 	shortcuts.add_child(shortcut)
 	shortcut.owner = session.track
@@ -827,6 +831,79 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 		_show_success("Atajo creado y conectado.")
 	else:
 		_show_error("Atajo creado. Revisa su dirección y conexiones.")
+
+
+func _find_clear_shortcut_curve(
+	start: Vector3,
+	finish: Vector3,
+	entry_forward: Vector3,
+	exit_forward: Vector3
+) -> Curve3D:
+	var direct_2d := Vector2(finish.x - start.x, finish.z - start.z)
+	if direct_2d.length_squared() <= 0.001:
+		return null
+	var lateral_2d := Vector2(-direct_2d.y, direct_2d.x).normalized()
+	var lateral := Vector3(lateral_2d.x, 0.0, lateral_2d.y)
+	var route_points := session.track._sample_path(
+		session.track.get_main_route(),
+		true
+	)
+	var required_clearance := TrackLevelValidator.SHORTCUT_ROUTE_CLEARANCE + 2.0
+	var base_offset := required_clearance + 2.0
+	for offset_multiplier in [1.0, 1.45, 2.0, 2.8, 3.8]:
+		var best_curve: Curve3D = null
+		var best_clearance := -INF
+		for side in [-1.0, 1.0]:
+			var midpoint := start.lerp(finish, 0.5)
+			midpoint += lateral * base_offset * offset_multiplier * side
+			var candidate := _build_shortcut_curve(
+				start,
+				finish,
+				midpoint,
+				entry_forward,
+				exit_forward
+			)
+			var candidate_points: Array[Vector3] = []
+			candidate_points.assign(candidate.get_baked_points())
+			if TrackLevelValidator.has_shortcut_route_crossing(
+				candidate_points,
+				route_points
+			):
+				continue
+			var clearance := TrackLevelValidator.get_shortcut_middle_clearance(
+				candidate_points,
+				route_points
+			)
+			if clearance >= required_clearance and clearance > best_clearance:
+				best_curve = candidate
+				best_clearance = clearance
+		if best_curve != null:
+			return best_curve
+	return null
+
+
+func _build_shortcut_curve(
+	start: Vector3,
+	finish: Vector3,
+	midpoint: Vector3,
+	entry_forward: Vector3,
+	exit_forward: Vector3
+) -> Curve3D:
+	var shortcut_curve := Curve3D.new()
+	var chord_length := start.distance_to(finish)
+	var endpoint_tangent_length := clampf(chord_length * 0.22, 12.0, 24.0)
+	var middle_tangent := (finish - start) / 5.0
+	shortcut_curve.add_point(
+		start,
+		Vector3.ZERO,
+		entry_forward * endpoint_tangent_length
+	)
+	shortcut_curve.add_point(midpoint, -middle_tangent, middle_tangent)
+	shortcut_curve.add_point(
+		finish,
+		-exit_forward * endpoint_tangent_length
+	)
+	return shortcut_curve
 
 
 func _delete_shortcut(shortcut: TrackShortcut) -> void:

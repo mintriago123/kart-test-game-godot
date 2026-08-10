@@ -129,6 +129,11 @@ func _test_all_validation_contracts() -> void:
 			"path": NodePath("Shortcuts/PasoLaguna"),
 		},
 		{
+			"code": &"shortcut_route_overlap",
+			"message": "Paso Laguna se superpone a MainRoute fuera de sus conexiones.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
 			"code": &"props_missing",
 			"message": "Falta el nodo Props.",
 			"path": NodePath("Props"),
@@ -192,8 +197,8 @@ func _test_all_validation_contracts() -> void:
 		observed_codes[expected_code] = true
 		track.free()
 	_check(
-		observed_codes.size() == 19,
-		"Parameterized validation covers all 19 issue codes."
+		observed_codes.size() == 20,
+		"Parameterized validation covers all 20 issue codes."
 	)
 
 
@@ -256,6 +261,13 @@ func _create_validation_case_track(code: StringName) -> TrackLevel:
 			var sampled_points := track._sample_path(primary_shortcut, false)
 			var valid_forward := (sampled_points[2] - sampled_points[0]).normalized()
 			primary_shortcut.curve.set_point_out(0, -valid_forward * 80.0)
+		&"shortcut_route_overlap":
+			var midpoint_index := primary_shortcut.curve.point_count / 2
+			var midpoint := primary_shortcut.curve.get_point_position(midpoint_index)
+			primary_shortcut.curve.set_point_position(
+				midpoint_index,
+				route.curve.get_closest_point(midpoint)
+			)
 		&"props_missing":
 			track.get_node("Props").free()
 		&"items_missing":
@@ -371,20 +383,10 @@ func _get_shortcut_middle_clearance(
 	track: TrackLevel,
 	shortcut: TrackShortcut
 ) -> float:
-	var route_points := track._sample_path(track.get_main_route(), true)
-	var shortcut_points := track._sample_path(shortcut, false)
-	var minimum_clearance := INF
-	var first_index := shortcut_points.size() / 4
-	var final_index := shortcut_points.size() * 3 / 4
-	for point_index in range(first_index, final_index + 1):
-		minimum_clearance = minf(
-			minimum_clearance,
-			TrackLevelValidator._distance_to_route_points_2d(
-				shortcut_points[point_index],
-				route_points
-			)
-		)
-	return minimum_clearance
+	return TrackLevelValidator.get_shortcut_middle_clearance(
+		track._sample_path(shortcut, false),
+		track._sample_path(track.get_main_route(), true)
+	)
 
 
 func _test_guided_screen() -> void:
@@ -546,8 +548,8 @@ func _test_guided_screen() -> void:
 	)
 	_check(
 		created_clearance
-		< CoastalTrack.ROAD_WIDTH * 0.5 + CoastalTrack.SHORTCUT_WIDTH * 0.5,
-		"The default shortcut fixture reproduces its unsafe overlap with MainRoute."
+		>= TrackLevelValidator.SHORTCUT_ROUTE_CLEARANCE + 2.0,
+		"Automatic shortcut creation keeps its barriers clear of MainRoute."
 	)
 	var shortcut_midpoint := (
 		created_shortcut.transform
