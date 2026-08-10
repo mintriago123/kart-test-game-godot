@@ -47,7 +47,7 @@ func _test_shortcut_junction_geometry() -> void:
 		and entry.mouth_width >= 14.0
 		and entry.mouth_width <= 16.0
 		and exit.mouth_width >= 12.0
-		and exit.mouth_width <= 14.0
+		and exit.mouth_width <= 12.0
 		and entry.portal_width <= 16.0
 		and exit.portal_width <= 16.0,
 		"Automatic junctions use accessible asymmetric entry and exit mouths."
@@ -55,8 +55,8 @@ func _test_shortcut_junction_geometry() -> void:
 	_check(
 		entry.transition_length >= 12.0
 		and entry.transition_length <= 14.0
-		and exit.transition_length >= 12.0
-		and exit.transition_length <= 14.0
+		and exit.transition_length >= 8.0
+		and exit.transition_length <= 10.0
 		and entry.left_boundary.size() >= 3
 		and entry.left_boundary.size() == entry.right_boundary.size(),
 		"Automatic junctions produce paired curves with a longer entry taper."
