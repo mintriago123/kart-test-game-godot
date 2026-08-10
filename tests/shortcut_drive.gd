@@ -3,6 +3,7 @@ extends SceneTree
 const TRACK_CATALOG: TrackCatalog = preload("res://levels/track_catalog.tres")
 const MAX_PHYSICS_FRAMES_PER_SHORTCUT := 720
 const TARGET_DISTANCE := 5.0
+const RACE_CLASS_IDS := [&"50", &"100", &"150", &"200"]
 
 var _has_failed := false
 
@@ -19,26 +20,33 @@ func _run() -> void:
 		_finish(1)
 		return
 
-	for track_definition in TRACK_CATALOG.tracks:
-		await _test_track_shortcuts(packed_scene, track_definition)
+	for cc_id in RACE_CLASS_IDS:
+		for track_definition in TRACK_CATALOG.tracks:
+			await _test_track_shortcuts(packed_scene, track_definition, cc_id)
 
 	_finish(1 if _has_failed else 0)
 
 
 func _test_track_shortcuts(
 	packed_scene: PackedScene,
-	track_definition: TrackDefinition
+	track_definition: TrackDefinition,
+	cc_id: StringName
 ) -> void:
 	var main := packed_scene.instantiate()
 	root.add_child(main)
 	await process_frame
 	main.settings.is_persistence_enabled = false
+	main.settings.select_cc(cc_id)
 	main.start_game(track_definition.id, false)
 	await process_frame
 	await physics_frame
 	var world: RaceWorld = main.race_world
 	var player: Kart = world.player_kart
 	var track: CoastalTrack = world._track
+	var race_label := "%s / %s" % [
+		track_definition.display_name,
+		RaceClassDefinition.get_by_id(cc_id).display_name,
+	]
 	world.race_manager.set_process(false)
 	for racer in world.race_manager.racers:
 		racer.is_control_enabled = false
@@ -58,7 +66,7 @@ func _test_track_shortcuts(
 				player,
 				track,
 				shortcut_definition,
-				track_definition,
+				race_label,
 				float(approach.lateral_offset),
 				float(approach.heading_offset)
 			)
@@ -71,7 +79,7 @@ func _drive_shortcut(
 	player: Kart,
 	track: CoastalTrack,
 	shortcut_definition: Dictionary,
-	track_definition: TrackDefinition,
+	race_label: String,
 	lateral_offset: float,
 	heading_offset_degrees: float
 ) -> void:
@@ -107,8 +115,11 @@ func _drive_shortcut(
 		player.is_control_enabled = true
 		while (
 			target_index < drive_points.size() - 1
-			and player.global_position.distance_to(drive_points[target_index])
-			< TARGET_DISTANCE
+			and _has_reached_drive_point(
+				player.global_position,
+				drive_points,
+				target_index
+			)
 		):
 			target_index += 1
 		var lookahead_index := mini(target_index + 2, drive_points.size() - 1)
@@ -124,9 +135,23 @@ func _drive_shortcut(
 			1.0
 		)
 		var alignment := player_forward.dot(target_direction)
-		player.set_drive_input(
-			0.65 if alignment < 0.7 else 1.0,
+		var speed_ratio := (
+			Vector2(player.velocity.x, player.velocity.z).length()
+			/ maxf(player.stats.max_speed, 0.1)
+		)
+		var turn_brake := 0.0
+		if speed_ratio > 0.7 and absf(steer) > 0.38:
+			turn_brake = clampf((absf(steer) - 0.38) * 1.5, 0.0, 0.72)
+		var brake_input := maxf(
 			0.35 if alignment < 0.35 else 0.0,
+			turn_brake
+		)
+		var throttle_input := 0.65 if alignment < 0.7 else 1.0
+		if brake_input > 0.25:
+			throttle_input = minf(throttle_input, 0.3)
+		player.set_drive_input(
+			throttle_input,
+			brake_input,
 			steer,
 			false,
 			false
@@ -145,7 +170,7 @@ func _drive_shortcut(
 	print(
 		"INFO: %s / %s / %s target=%d/%d distance=%.2f speed=%.1f recoveries=%d"
 		% [
-			track_definition.display_name,
+			race_label,
 			shortcut_definition.name,
 			drive_label,
 			target_index,
@@ -159,20 +184,41 @@ func _drive_shortcut(
 		target_index == drive_points.size() - 1
 		and player.global_position.distance_to(drive_points.back()) < TARGET_DISTANCE,
 		"%s / %s / %s is traversable by the real player kart."
-		% [track_definition.display_name, shortcut_definition.name, drive_label]
+		% [race_label, shortcut_definition.name, drive_label]
 	)
 	_check(
 		player.recovery_count == initial_recovery_count,
 		"%s / %s / %s does not trigger player recovery."
-		% [track_definition.display_name, shortcut_definition.name, drive_label]
+		% [race_label, shortcut_definition.name, drive_label]
 	)
 	_check(
 		shortcut_surface_was_enabled
 		and (player.collision_mask & Kart.SHORTCUT_SURFACE_LAYER) == 0,
 		"%s / %s / %s enables its floor only during traversal."
-		% [track_definition.display_name, shortcut_definition.name, drive_label]
+		% [race_label, shortcut_definition.name, drive_label]
 	)
 	player.set_drive_input(0.0, 1.0, 0.0, false, false)
+
+
+func _has_reached_drive_point(
+	position: Vector3,
+	drive_points: Array[Vector3],
+	target_index: int
+) -> bool:
+	var target := drive_points[target_index]
+	if position.distance_to(target) < TARGET_DISTANCE:
+		return true
+	var previous := drive_points[target_index - 1]
+	var segment := target - previous
+	var segment_length := segment.length()
+	if segment_length <= 0.01:
+		return true
+	var direction := segment / segment_length
+	var distance_along := (position - previous).dot(direction)
+	if distance_along < segment_length:
+		return false
+	var closest_point := previous + direction * distance_along
+	return position.distance_to(closest_point) < TARGET_DISTANCE
 
 
 func _build_drive_points(
