@@ -5,6 +5,50 @@ extends RefCounted
 const CATALOG_PATH := "res://levels/track_catalog.tres"
 const NEW_TRACKS_DIRECTORY := "res://levels/tracks"
 const RECOVERY_PATH := "user://coastal_karts_track_recovery.tscn"
+const ENVIRONMENT_MARGIN := 60.0
+const TEMPLATE_SPECS := {
+	&"small": {
+		"radius": 42.0,
+		"positions": [
+			Vector3(0.0, 0.25, 31.08),
+			Vector3(34.44, 0.35, 18.48),
+			Vector3(38.64, 0.50, -15.12),
+			Vector3(10.50, 0.60, -36.12),
+			Vector3(-31.50, 0.35, -21.84),
+			Vector3(-35.28, 0.25, 15.12),
+		],
+	},
+	&"medium": {
+		"radius": 62.0,
+		"positions": [
+			Vector3(0.0, 0.25, 44.64),
+			Vector3(38.44, 0.25, 34.10),
+			Vector3(62.0, 0.50, 0.0),
+			Vector3(43.40, 0.75, -38.44),
+			Vector3(0.0, 0.25, -48.36),
+			Vector3(-43.40, 0.50, -38.44),
+			Vector3(-62.0, 0.75, 0.0),
+			Vector3(-38.44, 0.25, 34.10),
+		],
+	},
+	&"large": {
+		"radius": 84.0,
+		"positions": [
+			Vector3(-8.40, 0.25, 63.00),
+			Vector3(31.92, 0.40, 69.72),
+			Vector3(72.24, 0.65, 42.00),
+			Vector3(84.00, 0.90, 5.04),
+			Vector3(63.84, 1.10, -38.64),
+			Vector3(24.36, 0.80, -68.88),
+			Vector3(-15.12, 0.45, -73.92),
+			Vector3(-52.92, 0.30, -55.44),
+			Vector3(-79.80, 0.55, -20.16),
+			Vector3(-72.24, 0.85, 21.84),
+			Vector3(-45.36, 0.60, 50.40),
+			Vector3(-21.00, 0.35, 42.00),
+		],
+	},
+}
 
 var _session_ref: WeakRef
 var _session: RefCounted:
@@ -53,6 +97,9 @@ func create_track(template_size: StringName, track_name: String) -> void:
 	var main_route := Path3D.new()
 	main_route.name = "MainRoute"
 	main_route.curve = _create_template_curve(template_size)
+	new_track.environment_size = _get_template_metrics_from_curve(
+		main_route.curve
+	).environment_size
 	new_track.add_child(main_route)
 	main_route.owner = new_track
 
@@ -216,21 +263,13 @@ func _make_unique_id(track_name: String) -> StringName:
 
 
 func _create_template_curve(template_size: StringName) -> Curve3D:
-	var scale_factor := {
-		&"small": 42.0,
-		&"medium": 62.0,
-		&"large": 84.0,
-	}.get(template_size, 62.0) as float
-	var positions: Array[Vector3] = [
-		Vector3(0.0, 0.25, scale_factor * 0.72),
-		Vector3(scale_factor * 0.62, 0.25, scale_factor * 0.55),
-		Vector3(scale_factor, 0.5, 0.0),
-		Vector3(scale_factor * 0.7, 0.75, -scale_factor * 0.62),
-		Vector3(0.0, 0.25, -scale_factor * 0.78),
-		Vector3(-scale_factor * 0.7, 0.5, -scale_factor * 0.62),
-		Vector3(-scale_factor, 0.75, 0.0),
-		Vector3(-scale_factor * 0.62, 0.25, scale_factor * 0.55),
-	]
+	var spec: Dictionary = TEMPLATE_SPECS.get(
+		template_size,
+		TEMPLATE_SPECS[&"medium"]
+	)
+	var positions: Array[Vector3] = []
+	for raw_position in spec.positions as Array:
+		positions.append(raw_position as Vector3)
 	var curve := Curve3D.new()
 	for position in positions:
 		curve.add_point(position)
@@ -244,3 +283,43 @@ func _create_template_curve(template_size: StringName) -> Curve3D:
 		curve.set_point_in(point_index, -tangent)
 		curve.set_point_out(point_index, tangent)
 	return curve
+
+
+func get_template_metrics(template_size: StringName) -> Dictionary:
+	var spec: Dictionary = TEMPLATE_SPECS.get(
+		template_size,
+		TEMPLATE_SPECS[&"medium"]
+	)
+	var metrics := _get_template_metrics_from_curve(
+		_create_template_curve(template_size)
+	)
+	metrics.radius = float(spec.radius)
+	return metrics
+
+
+func _get_template_metrics_from_curve(curve: Curve3D) -> Dictionary:
+	var bounds := _get_curve_bounds(curve)
+	return {
+		"dimensions": bounds.size,
+		"environment_size": (
+			bounds.size + Vector2.ONE * ENVIRONMENT_MARGIN * 2.0
+		),
+		"length": curve.get_baked_length(),
+		"point_count": curve.point_count,
+	}
+
+
+func _get_curve_bounds(curve: Curve3D) -> Rect2:
+	if curve == null or curve.point_count == 0:
+		return Rect2()
+	var minimum := Vector2(INF, INF)
+	var maximum := Vector2(-INF, -INF)
+	var points := curve.get_baked_points()
+	for point_index in curve.point_count:
+		points.append(curve.get_point_position(point_index))
+	for point in points:
+		minimum.x = minf(minimum.x, point.x)
+		minimum.y = minf(minimum.y, point.z)
+		maximum.x = maxf(maximum.x, point.x)
+		maximum.y = maxf(maximum.y, point.z)
+	return Rect2(minimum, maximum - minimum)
