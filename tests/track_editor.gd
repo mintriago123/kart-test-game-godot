@@ -602,6 +602,13 @@ func _test_guided_screen() -> void:
 		and is_equal_approx(fitted_shortcut.exit_progress, original_exit_progress),
 		"Unsafe midpoint edits are adjusted without moving shortcut anchors."
 	)
+	_check(
+		map_view.get_shortcut_safety_state(fitted_shortcut) in [
+			&"comfortable",
+			&"tight",
+		],
+		"The 2D map exposes a non-red safety corridor for the fitted shortcut."
+	)
 	var created_validation_errors := screen.session.track.validate_track()
 	_check(
 		created_validation_errors.is_empty(),
