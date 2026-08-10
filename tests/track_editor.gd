@@ -367,6 +367,26 @@ func _make_test_button(
 	return button
 
 
+func _get_shortcut_middle_clearance(
+	track: TrackLevel,
+	shortcut: TrackShortcut
+) -> float:
+	var route_points := track._sample_path(track.get_main_route(), true)
+	var shortcut_points := track._sample_path(shortcut, false)
+	var minimum_clearance := INF
+	var first_index := shortcut_points.size() / 4
+	var final_index := shortcut_points.size() * 3 / 4
+	for point_index in range(first_index, final_index + 1):
+		minimum_clearance = minf(
+			minimum_clearance,
+			TrackLevelValidator._distance_to_route_points_2d(
+				shortcut_points[point_index],
+				route_points
+			)
+		)
+	return minimum_clearance
+
+
 func _test_guided_screen() -> void:
 	var screen := TrackEditorScreen.new()
 	root.add_child(screen)
@@ -520,6 +540,15 @@ func _test_guided_screen() -> void:
 		"The shortcut step creates a physical shortcut without editing nodes."
 	)
 	var created_shortcut := screen.session.track.get_shortcuts()[0]
+	var created_clearance := _get_shortcut_middle_clearance(
+		screen.session.track,
+		created_shortcut
+	)
+	_check(
+		created_clearance
+		< CoastalTrack.ROAD_WIDTH * 0.5 + CoastalTrack.SHORTCUT_WIDTH * 0.5,
+		"The default shortcut fixture reproduces its unsafe overlap with MainRoute."
+	)
 	var shortcut_midpoint := (
 		created_shortcut.transform
 		* created_shortcut.curve.get_point_position(1)
