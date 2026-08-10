@@ -29,6 +29,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_item_profiles()
+	await _test_visual_presentation()
 	_test_reflection_and_retention()
 	await _test_continuous_collision_rates()
 	await _test_barrier_layers()
@@ -59,6 +60,108 @@ func _test_item_profiles() -> void:
 		and is_equal_approx(coconut.projectile_owner_immunity, 0.25),
 		"Coco turbo uses its configured arcade physics profile."
 	)
+	var pineapple := ItemDefinition.homing_pineapple()
+	var peel := ItemDefinition.slippery_peel()
+	_check(
+		is_equal_approx(coconut.world_visual_diameter, 0.96)
+		and coconut.show_ground_shadow
+		and coconut.show_motion_trail
+		and is_equal_approx(pineapple.world_visual_diameter, 1.0)
+		and pineapple.show_ground_shadow
+		and pineapple.show_motion_trail
+		and is_equal_approx(peel.world_visual_diameter, 1.3)
+		and peel.show_ground_shadow
+		and not peel.show_motion_trail,
+		"Coco, pineapple, and peel expose their calibrated presentation flags."
+	)
+
+
+func _test_visual_presentation() -> void:
+	var fixture := Node3D.new()
+	root.add_child(fixture)
+	var definitions := [
+		ItemDefinition.tropical_projectile(),
+		ItemDefinition.homing_pineapple(),
+	]
+	for definition in definitions:
+		var projectile := KartProjectile.new()
+		projectile.setup(null, definition, Vector3.FORWARD)
+		projectile.set_physics_process(false)
+		fixture.add_child(projectile)
+		var visual := projectile.get_node_or_null("ItemVisual") as Node3D
+		var bounds_result := Node3DBounds.get_node_aabb(visual)
+		var largest_dimension := _get_largest_dimension(
+			bounds_result.aabb if bool(bounds_result.valid) else AABB()
+		)
+		var collision := _find_collision_shape(projectile)
+		_check(
+			bool(bounds_result.valid)
+			and absf(largest_dimension - definition.world_visual_diameter)
+			<= definition.world_visual_diameter * 0.1
+			and collision != null
+			and is_equal_approx(
+				(collision.shape as SphereShape3D).radius,
+				definition.projectile_radius
+			),
+			"%s stays within 10%% of %.2f m without changing collision radius (%.3f m)."
+			% [
+				definition.display_name,
+				definition.world_visual_diameter,
+				largest_dimension,
+			]
+		)
+		var shadow := projectile.get_node_or_null("GroundShadow") as MeshInstance3D
+		var trail := projectile.get_node_or_null("MotionTrail") as GPUParticles3D
+		_check(
+			shadow != null
+			and shadow.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			and trail != null
+			and not trail.local_coords,
+			"%s has a non-colliding ground shadow and world-space trail."
+			% definition.display_name
+		)
+
+	var peel_definition := ItemDefinition.slippery_peel()
+	var trap := ItemTrap.new()
+	trap.setup(null, peel_definition)
+	trap.set_physics_process(false)
+	fixture.add_child(trap)
+	var peel_visual := trap.get_node_or_null("ItemVisual") as Node3D
+	var peel_bounds_result := Node3DBounds.get_node_aabb(peel_visual)
+	var peel_largest_dimension := _get_largest_dimension(
+		peel_bounds_result.aabb if bool(peel_bounds_result.valid) else AABB()
+	)
+	var trap_collision := _find_collision_shape(trap)
+	_check(
+		bool(peel_bounds_result.valid)
+		and absf(peel_largest_dimension - 1.3) <= 0.13
+		and trap_collision != null
+		and is_equal_approx(
+			(trap_collision.shape as SphereShape3D).radius,
+			0.65
+		),
+		"Cáscara resbalosa measures 1.30 m and preserves its 0.65 m radius (%.3f m)."
+		% peel_largest_dimension
+	)
+	var peel_shadow := trap.get_node_or_null("GroundShadow") as MeshInstance3D
+	_check(
+		peel_shadow != null
+		and peel_shadow.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		and trap.get_node_or_null("MotionTrail") == null,
+		"Cáscara resbalosa has only its non-colliding ground shadow."
+	)
+	await _free_fixture(fixture)
+
+
+func _get_largest_dimension(bounds: AABB) -> float:
+	return maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
+
+
+func _find_collision_shape(parent: Node) -> CollisionShape3D:
+	for child in parent.get_children():
+		if child is CollisionShape3D:
+			return child as CollisionShape3D
+	return null
 
 
 func _test_reflection_and_retention() -> void:

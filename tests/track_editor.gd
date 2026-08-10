@@ -731,6 +731,74 @@ func _test_asset_scale_contracts() -> void:
 	)
 	prop_panel.free()
 
+	var known_entry := entries[0]
+	var known_prop := known_entry.scene.instantiate() as Node3D
+	known_prop.name = "KnownProp"
+	known_prop.scale = Vector3.ONE * 0.75
+	props.add_child(known_prop)
+	known_prop.owner = track
+	var known_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.PROP,
+		track.get_path_to(known_prop)
+	)
+	var unknown_prop := Node3D.new()
+	unknown_prop.name = "UnknownProp"
+	unknown_prop.scale = Vector3(1.2, 0.8, 1.6)
+	props.add_child(unknown_prop)
+	unknown_prop.owner = track
+	var unknown_scale := unknown_prop.scale
+	_check(
+		session.get_prop_asset_entry(known_prop) == known_entry
+		and session.get_prop_asset_entry(unknown_prop) == null
+		and known_prop.scale.is_equal_approx(Vector3.ONE * 0.75),
+		"Legacy decoration resolves by scene path without implicit calibration."
+	)
+	session.snapshot_track_for_undo()
+	_check(
+		session.restore_prop_recommended_scale(known_selection)
+		and known_prop.scale.is_equal_approx(known_entry.resolve_base_scale().scale)
+		and StringName(known_prop.get_meta(
+			TrackEditorSession.META_ASSET_ID,
+			&""
+		)) == known_entry.id,
+		"Recommended-size restoration calibrates one recognized prop explicitly."
+	)
+	session.undo_route()
+	_check(
+		known_prop.scale.is_equal_approx(Vector3.ONE * 0.75)
+		and not known_prop.has_meta(TrackEditorSession.META_ASSET_ID),
+		"Undo restores the prop state before individual calibration."
+	)
+	session.redo_route()
+	var known_duplicate_selection := session.duplicate_entity(known_selection)
+	var known_duplicate := session.get_selected_node(known_duplicate_selection)
+	_check(
+		known_duplicate != null
+		and known_duplicate.get_meta(
+			TrackEditorSession.META_ASSET_ID,
+			&""
+		) == known_entry.id,
+		"Duplicating known decoration preserves its asset identifier."
+	)
+	known_prop.scale = Vector3.ONE * 0.5
+	var known_scale_before_bulk := known_prop.scale
+	session.snapshot_track_for_undo()
+	var calibration_result := session.calibrate_known_props()
+	_check(
+		int(calibration_result.affected) == 2
+		and int(calibration_result.omitted) >= 3
+		and known_prop.scale.is_equal_approx(known_entry.resolve_base_scale().scale)
+		and unknown_prop.scale.is_equal_approx(unknown_scale),
+		"Bulk calibration affects known decoration and leaves unknown props intact."
+	)
+	session.undo_route()
+	_check(
+		known_prop.scale.is_equal_approx(known_scale_before_bulk)
+		and unknown_prop.scale.is_equal_approx(unknown_scale),
+		"Bulk calibration is restored as one undo operation."
+	)
+	session.redo_route()
+
 	var draft_path := "user://coastal_karts_prop_scale_test.tscn"
 	session.scene_path = draft_path
 	_check(session.save() == OK, "Scaled props can be saved in an editor draft.")
@@ -753,6 +821,19 @@ func _test_asset_scale_contracts() -> void:
 			TrackEditorSession.META_PROP_SCALE_MULTIPLIER
 		),
 		"Saving and reopening preserves prop scale and metadata."
+	)
+	var reloaded_known_prop := (
+		reloaded_session.track.get_node_or_null("Props/KnownProp") as Node3D
+		if reload_error == OK
+		else null
+	)
+	_check(
+		reloaded_known_prop != null
+		and reloaded_known_prop.get_meta(
+			TrackEditorSession.META_ASSET_ID,
+			&""
+		) == known_entry.id,
+		"Saving and reopening preserves recognized decoration metadata."
 	)
 	if reloaded_session.track != null:
 		reloaded_session.track.free()
@@ -880,6 +961,37 @@ func _test_guided_screen() -> void:
 	)
 	screen._new_size.select(1)
 	screen._update_new_template_details()
+	var original_window_size := screen.get_window().size
+	screen.get_window().size = Vector2i(1280, 720)
+	screen._popup_new_dialog()
+	await process_frame
+	await process_frame
+	var new_dialog_content := screen.find_child(
+		"NewTrackDialogContent",
+		true,
+		false
+	) as VBoxContainer
+	var visible_window_size := screen.get_window().size
+	_check(
+		new_dialog_content != null
+		and new_dialog_content.get_combined_minimum_size().y < 300.0
+		and screen._new_dialog.size.x <= visible_window_size.x
+		and screen._new_dialog.size.y <= visible_window_size.y,
+		(
+			"New-track dialog keeps compact content and clamps itself to the visible window "
+			+ "(content: %s, dialog: %s, window: %s)."
+		) % [
+			new_dialog_content.get_combined_minimum_size(),
+			screen._new_dialog.size,
+			visible_window_size,
+		]
+	)
+	_check(
+		screen._new_name.has_focus(),
+		"New-track dialog places keyboard focus on the track name."
+	)
+	screen._new_dialog.hide()
+	screen.get_window().size = original_window_size
 	screen._show_unsaved_dialog("load", "user://pending-track.tscn")
 	_check(
 		screen._pending_action == "load"
@@ -978,6 +1090,80 @@ func _test_guided_screen() -> void:
 		screen._current_step == 2
 		and screen.find_child("TrackShortcutPanel", true, false) != null,
 		"Selecting a shortcut opens its contextual workflow step."
+	)
+	var shortcut_control_positions := map_view._get_shortcut_control_positions(
+		created_shortcut
+	)
+	var all_shortcut_controls_are_selectable := shortcut_control_positions.size() == 7
+	for control_kind in shortcut_control_positions:
+		var control_hit := map_view._find_selection_at(
+			map_view._world_to_screen(shortcut_control_positions[control_kind])
+		)
+		all_shortcut_controls_are_selectable = (
+			all_shortcut_controls_are_selectable
+			and control_hit.kind == int(control_kind)
+			and control_hit.node_path == screen.session.track.get_path_to(
+				created_shortcut
+			)
+		)
+	_check(
+		all_shortcut_controls_are_selectable,
+		"Entry, exit, midpoint, and four tangent handles are directly selectable."
+	)
+	var rejected_non_finite := screen.session.fit_shortcut_shape(
+		shortcut_hit,
+		{"midpoint_lateral": NAN}
+	)
+	var rejected_order := screen.session.fit_shortcut_shape(
+		shortcut_hit,
+		{
+			"entry_progress": created_shortcut.exit_progress,
+			"exit_progress": created_shortcut.entry_progress,
+		}
+	)
+	_check(
+		rejected_non_finite.status == &"rejected"
+		and rejected_order.status == &"rejected",
+		"Unified shortcut fitting rejects non-finite values and finish-line crossing."
+	)
+	var entry_direction_before := created_shortcut.curve.get_point_out(0).normalized()
+	var entry_length_before := created_shortcut.entry_handle_length
+	var tangent_result := screen.session.fit_shortcut_shape(
+		TrackEditorSelection.node(
+			TrackEditorSelection.Kind.SHORTCUT_ENTRY_TANGENT,
+			screen.session.track.get_path_to(created_shortcut)
+		),
+		{"entry_handle": entry_length_before + 0.25}
+	)
+	_check(
+		tangent_result.status in [&"accepted", &"adjusted"]
+		and created_shortcut.curve.get_point_out(0).normalized().dot(
+			entry_direction_before
+		) > 0.999
+		and created_shortcut.entry_handle_length >= entry_length_before,
+		"Tangent editing changes only length and preserves its direction."
+	)
+	var drag_counts := {"started": 0}
+	map_view.edit_started.connect(
+		func() -> void: drag_counts.started = int(drag_counts.started) + 1
+	)
+	var drag_press := InputEventMouseButton.new()
+	drag_press.button_index = MOUSE_BUTTON_LEFT
+	drag_press.pressed = true
+	drag_press.position = map_view._world_to_screen(shortcut_midpoint)
+	map_view._gui_input(drag_press)
+	for drag_offset in [Vector2(2.0, 0.0), Vector2(4.0, 0.0)]:
+		var drag_motion := InputEventMouseMotion.new()
+		drag_motion.position = drag_press.position + drag_offset
+		map_view._gui_input(drag_motion)
+	var drag_release := InputEventMouseButton.new()
+	drag_release.button_index = MOUSE_BUTTON_LEFT
+	drag_release.pressed = false
+	drag_release.position = drag_press.position + Vector2(4.0, 0.0)
+	map_view._gui_input(drag_release)
+	_check(
+		int(drag_counts.started) == 1,
+		"A complete shortcut drag opens exactly one undo operation."
 	)
 	var original_entry_progress := created_shortcut.entry_progress
 	var original_exit_progress := created_shortcut.exit_progress
@@ -1228,6 +1414,65 @@ func _test_editor_visual_contract(screen: TrackEditorScreen) -> void:
 		and screen._header_actions_scroll.horizontal_scroll_mode
 		== ScrollContainer.SCROLL_MODE_AUTO,
 		"Editor compact mode preserves usable navigation, inspector, and actions."
+	)
+	var responsive_profiles := [
+		{
+			"size": Vector2(1920.0, 1200.0),
+			"compact": false,
+		},
+		{
+			"size": Vector2(1920.0, 1080.0),
+			"compact": false,
+		},
+		{
+			"size": Vector2(1536.0, 960.0),
+			"compact": true,
+		},
+		{
+			"size": Vector2(1280.0, 800.0),
+			"compact": true,
+		},
+		{
+			"size": Vector2(1280.0, 720.0),
+			"compact": true,
+		},
+	]
+	var responsive_profiles_are_supported := true
+	for profile in responsive_profiles:
+		var profile_size: Vector2 = profile.size
+		screen.size = profile_size
+		screen._apply_responsive_layout()
+		responsive_profiles_are_supported = (
+			responsive_profiles_are_supported
+			and screen._editor_root.custom_minimum_size.y >= profile_size.y
+			and screen._is_compact == bool(profile.compact)
+		)
+	_check(
+		responsive_profiles_are_supported
+		and screen.size_flags_vertical == Control.SIZE_EXPAND_FILL
+		and screen._content_status_split is VSplitContainer
+		and screen._navigation_split is HSplitContainer
+		and screen._inspector_split is HSplitContainer,
+		(
+			"Editor keeps 1920x1080 at 100% wide and treats 1920x1200 "
+			+ "at 125% as a compact 1536x960 workspace."
+		)
+	)
+	screen._handle_panel_menu_action(TrackEditorScreen.PANEL_WORKFLOW_ID)
+	var workflow_can_be_hidden := not screen._navigation_panel.visible
+	screen._handle_panel_menu_action(TrackEditorScreen.PANEL_INSPECTOR_ID)
+	var inspector_can_be_hidden := not screen._inspector_panel.visible
+	screen._handle_panel_menu_action(TrackEditorScreen.PANEL_STATUS_ID)
+	var status_can_be_hidden := not screen._status_panel.visible
+	screen._handle_panel_menu_action(TrackEditorScreen.PANEL_RESET_LAYOUT_ID)
+	_check(
+		workflow_can_be_hidden
+		and inspector_can_be_hidden
+		and status_can_be_hidden
+		and screen._navigation_panel.visible
+		and screen._inspector_panel.visible
+		and screen._status_panel.visible,
+		"Panel menu offers a keyboard alternative to all draggable dividers."
 	)
 	screen._set_compact_mode(false)
 	_check(
