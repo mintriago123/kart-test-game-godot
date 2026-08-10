@@ -580,6 +580,29 @@ static func build_open_offset_chain(
 	return chain
 
 
+static func is_open_chain_safe(chain: PackedVector3Array) -> bool:
+	if chain.size() < 2:
+		return false
+	for point in chain:
+		if not point.is_finite():
+			return false
+	for first_index in range(chain.size() - 1):
+		if (
+			chain[first_index].distance_to(chain[first_index + 1])
+			<= MINIMUM_CHAIN_SEGMENT_LENGTH
+		):
+			return false
+		for second_index in range(first_index + 2, chain.size() - 1):
+			if Geometry2D.segment_intersects_segment(
+				Vector2(chain[first_index].x, chain[first_index].z),
+				Vector2(chain[first_index + 1].x, chain[first_index + 1].z),
+				Vector2(chain[second_index].x, chain[second_index].z),
+				Vector2(chain[second_index + 1].x, chain[second_index + 1].z)
+			) != null:
+				return false
+	return true
+
+
 static func _append_round_join(
 	chain: PackedVector3Array,
 	center: Vector3,

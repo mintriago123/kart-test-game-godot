@@ -89,6 +89,182 @@ func update_shortcut_midpoint(
 	return true
 
 
+func fit_shortcut_midpoint(
+	selection: RefCounted,
+	longitudinal: float,
+	lateral: float,
+	height: float
+) -> Dictionary:
+	var shortcut := get_node(selection) as TrackShortcut
+	if shortcut == null or not shortcut.route_anchor_enabled:
+		return _fit_result(
+			&"rejected",
+			"No se pudo editar el atajo seleccionado.",
+			shortcut
+		)
+	var original := _capture_shortcut_shape(shortcut)
+	_apply_shortcut_shape(
+		shortcut,
+		longitudinal,
+		lateral,
+		height,
+		original,
+		1.0
+	)
+	var requested_safety := TrackLevelValidator.get_shortcut_safety(
+		_session.track,
+		shortcut
+	)
+	if bool(requested_safety.safe):
+		return _fit_result(&"accepted", "Forma segura.", shortcut)
+
+	var best_candidate: Dictionary = {}
+	var best_score := INF
+	var lateral_candidates := PackedFloat32Array([
+		lateral,
+		lateral * 0.85,
+		lateral * 0.7,
+		lateral * 1.15,
+		lateral * 1.3,
+		float(original.lateral),
+	])
+	var longitudinal_candidates := PackedFloat32Array([
+		longitudinal,
+		longitudinal - 2.0,
+		longitudinal + 2.0,
+		longitudinal - 4.0,
+		longitudinal + 4.0,
+		float(original.longitudinal),
+	])
+	for candidate_lateral in lateral_candidates:
+		for candidate_longitudinal in longitudinal_candidates:
+			for handle_multiplier in [1.0, 1.2, 1.4]:
+				_apply_shortcut_shape(
+					shortcut,
+					candidate_longitudinal,
+					candidate_lateral,
+					height,
+					original,
+					handle_multiplier
+				)
+				var safety := TrackLevelValidator.get_shortcut_safety(
+					_session.track,
+					shortcut
+				)
+				if not bool(safety.safe):
+					continue
+				var score := (
+					absf(candidate_longitudinal - longitudinal)
+					+ absf(candidate_lateral - lateral)
+					+ absf(handle_multiplier - 1.0) * 4.0
+					+ maxf(
+						0.0,
+						absf(candidate_longitudinal - float(original.longitudinal))
+						- 12.0
+					) * 3.0
+					+ maxf(
+						0.0,
+						absf(candidate_lateral - float(original.lateral))
+						- 12.0
+					) * 3.0
+				)
+				if score < best_score:
+					best_score = score
+					best_candidate = {
+						"longitudinal": candidate_longitudinal,
+						"lateral": candidate_lateral,
+						"handle_multiplier": handle_multiplier,
+					}
+	if best_candidate.is_empty():
+		_restore_shortcut_shape(shortcut, original)
+		return _fit_result(
+			&"rejected",
+			String(requested_safety.message),
+			shortcut
+		)
+	_apply_shortcut_shape(
+		shortcut,
+		float(best_candidate.longitudinal),
+		float(best_candidate.lateral),
+		height,
+		original,
+		float(best_candidate.handle_multiplier)
+	)
+	return _fit_result(
+		&"adjusted",
+		"Forma ajustada para mantener una salida segura.",
+		shortcut
+	)
+
+
+func _capture_shortcut_shape(shortcut: TrackShortcut) -> Dictionary:
+	return {
+		"longitudinal": shortcut.midpoint_longitudinal_offset,
+		"lateral": shortcut.midpoint_lateral_offset,
+		"height": shortcut.midpoint_height_offset,
+		"entry_handle": shortcut.entry_handle_length,
+		"exit_handle": shortcut.exit_handle_length,
+		"midpoint_in_handle": shortcut.midpoint_in_handle_length,
+		"midpoint_out_handle": shortcut.midpoint_out_handle_length,
+	}
+
+
+func _restore_shortcut_shape(
+	shortcut: TrackShortcut,
+	shape: Dictionary
+) -> void:
+	shortcut.entry_handle_length = float(shape.entry_handle)
+	shortcut.exit_handle_length = float(shape.exit_handle)
+	shortcut.midpoint_in_handle_length = float(shape.midpoint_in_handle)
+	shortcut.midpoint_out_handle_length = float(shape.midpoint_out_handle)
+	shortcut.midpoint_longitudinal_offset = float(shape.longitudinal)
+	shortcut.midpoint_lateral_offset = float(shape.lateral)
+	shortcut.midpoint_height_offset = float(shape.height)
+	_session.recalculate_route_dependents()
+
+
+func _apply_shortcut_shape(
+	shortcut: TrackShortcut,
+	longitudinal: float,
+	lateral: float,
+	height: float,
+	base_shape: Dictionary,
+	handle_multiplier: float
+) -> void:
+	shortcut.midpoint_longitudinal_offset = longitudinal
+	shortcut.midpoint_lateral_offset = lateral
+	shortcut.midpoint_height_offset = height
+	shortcut.entry_handle_length = (
+		float(base_shape.entry_handle) * handle_multiplier
+	)
+	shortcut.exit_handle_length = (
+		float(base_shape.exit_handle) * handle_multiplier
+	)
+	shortcut.midpoint_in_handle_length = (
+		float(base_shape.midpoint_in_handle) * handle_multiplier
+	)
+	shortcut.midpoint_out_handle_length = (
+		float(base_shape.midpoint_out_handle) * handle_multiplier
+	)
+	_session.recalculate_route_dependents()
+
+
+func _fit_result(
+	status: StringName,
+	message: String,
+	shortcut: TrackShortcut
+) -> Dictionary:
+	return {
+		"status": status,
+		"message": message,
+		"longitudinal": (
+			shortcut.midpoint_longitudinal_offset if shortcut != null else 0.0
+		),
+		"lateral": shortcut.midpoint_lateral_offset if shortcut != null else 0.0,
+		"height": shortcut.midpoint_height_offset if shortcut != null else 0.0,
+	}
+
+
 func duplicate(selection: RefCounted) -> RefCounted:
 	if selection == null or selection.kind not in [
 		Selection.Kind.ITEM,

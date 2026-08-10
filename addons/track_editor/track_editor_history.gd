@@ -32,6 +32,13 @@ func snapshot_track() -> void:
 	_session.history_changed.emit(can_undo(), can_redo())
 
 
+func discard_latest_snapshot() -> void:
+	if _undo_states.is_empty():
+		return
+	_undo_states.pop_back()
+	_session.history_changed.emit(can_undo(), can_redo())
+
+
 func undo() -> void:
 	if not can_undo():
 		return

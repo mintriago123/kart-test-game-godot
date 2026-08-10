@@ -804,14 +804,21 @@ func _handle_shortcut_midpoint_changed(
 	height: float
 ) -> void:
 	session.snapshot_track_for_undo()
-	if session.update_shortcut_midpoint(
+	var result := session.fit_shortcut_midpoint(
 		selected,
 		longitudinal,
 		lateral,
 		height
-	):
+	)
+	if result.status == &"accepted" or result.status == &"adjusted":
 		session.mark_dirty()
-		_complete_entity_edit("Atajo actualizado.")
+		_complete_entity_edit(String(result.message))
+	else:
+		session.discard_latest_snapshot()
+		_rebuild_preview()
+		_refresh_validation()
+		_show_step(2)
+		_show_error(String(result.message))
 
 
 func _handle_add_point() -> void:

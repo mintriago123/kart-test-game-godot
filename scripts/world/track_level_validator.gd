@@ -438,6 +438,84 @@ static func get_shortcut_minimum_turn_radius(
 	return minimum_radius
 
 
+static func get_shortcut_safety(
+	track,
+	shortcut: TrackShortcut
+) -> Dictionary:
+	var result := {
+		"safe": false,
+		"code": &"shortcut_geometry_unsafe",
+		"message": "La forma del atajo no es segura.",
+		"turn_radius": 0.0,
+		"clearance": -1.0,
+	}
+	if track == null or shortcut == null or shortcut.curve == null:
+		return result
+	var main_route: Path3D = track.get_main_route()
+	if main_route == null or main_route.curve == null:
+		return result
+	var shortcut_points: Array[Vector3] = track._sample_path(shortcut, false)
+	var validation_route: Array[Vector3] = track._apply_start_offset(
+		track._sample_path(main_route, true)
+	)
+	if shortcut_points.size() < 3 or validation_route.size() < 3:
+		return result
+	result.turn_radius = get_shortcut_minimum_turn_radius(
+		shortcut_points,
+		validation_route
+	)
+	result.clearance = get_shortcut_corridor_clearance(
+		shortcut_points,
+		validation_route
+	)
+	if float(result.turn_radius) < SHORTCUT_MINIMUM_TURN_RADIUS:
+		result.code = &"shortcut_turn_too_tight"
+		result.message = "%s tiene una curva demasiado cerrada." % shortcut.display_name
+		return result
+	if (
+		float(result.clearance) < SHORTCUT_ROUTE_CLEARANCE
+		or has_shortcut_route_crossing(shortcut_points, validation_route)
+	):
+		result.code = &"shortcut_corridor_too_narrow"
+		result.message = "%s no conserva separación suficiente de la carretera." % shortcut.display_name
+		return result
+	var junction_builder := JunctionBuilder.new(
+		validation_route,
+		CoastalTrack.ROAD_WIDTH,
+		CoastalTrack.SHORTCUT_WIDTH
+	)
+	var entry_junction := junction_builder.build(shortcut_points, true)
+	var exit_junction := junction_builder.build(shortcut_points, false)
+	if not entry_junction.is_valid or not exit_junction.is_valid:
+		result.code = &"shortcut_junction_unsafe"
+		result.message = "%s no permite una entrada y salida seguras." % shortcut.display_name
+		return result
+	var first_index: int = entry_junction.shortcut_transition_index
+	var final_index: int = exit_junction.shortcut_transition_index
+	if first_index < 0 or final_index < first_index:
+		return result
+	var center_section: Array[Vector3] = []
+	for point_index in range(first_index, final_index + 1):
+		center_section.append(shortcut_points[point_index])
+	var barrier_offset := (
+		CoastalTrack.SHORTCUT_WIDTH * 0.5
+		+ TrackBarrierBuilder.SHORTCUT_BARRIER_SHOULDER
+	)
+	for lateral_offset in [-barrier_offset, barrier_offset]:
+		var barrier_chain := TrackBarrierBuilder.build_open_offset_chain(
+			center_section,
+			lateral_offset
+		)
+		if not TrackBarrierBuilder.is_open_chain_safe(barrier_chain):
+			result.code = &"shortcut_barrier_self_intersection"
+			result.message = "%s doblaría una barrera sobre sí misma." % shortcut.display_name
+			return result
+	result.safe = true
+	result.code = &""
+	result.message = "Forma segura."
+	return result
+
+
 static func _append_issue(
 	issues: Array[TrackValidationIssue],
 	code: StringName,

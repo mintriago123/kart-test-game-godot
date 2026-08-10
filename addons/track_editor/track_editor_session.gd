@@ -73,6 +73,10 @@ func snapshot_track_for_undo() -> void:
 	_history.snapshot_track()
 
 
+func discard_latest_snapshot() -> void:
+	_history.discard_latest_snapshot()
+
+
 func undo_route() -> void:
 	_history.undo()
 
@@ -173,6 +177,20 @@ func update_shortcut_midpoint(
 	height: float
 ) -> bool:
 	return _entities.update_shortcut_midpoint(
+		selection,
+		longitudinal,
+		lateral,
+		height
+	)
+
+
+func fit_shortcut_midpoint(
+	selection: RefCounted,
+	longitudinal: float,
+	lateral: float,
+	height: float
+) -> Dictionary:
+	return _entities.fit_shortcut_midpoint(
 		selection,
 		longitudinal,
 		lateral,
