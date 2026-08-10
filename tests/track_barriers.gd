@@ -397,6 +397,45 @@ func _test_explicit_portals() -> void:
 		track._barrier_material,
 		track._get_shortcut_barrier_join_clearance()
 	)
+	var detected_joins_match_the_main_barrier := true
+	for shortcut_definition in track.shortcut_definitions:
+		var shortcut_points: Array[Vector3] = shortcut_definition.points
+		for is_entry in [true, false]:
+			for corridor_offset in [
+				-CoastalTrack.SHORTCUT_WIDTH * 0.5 + CoastalTrack.BARRIER_PATH_INSET,
+				CoastalTrack.SHORTCUT_WIDTH * 0.5 - CoastalTrack.BARRIER_PATH_INSET,
+			]:
+				var portal := builder.find_shortcut_portal(
+					shortcut_points,
+					is_entry,
+					corridor_offset,
+					track._get_shortcut_barrier_join_clearance()
+				)
+				if portal.is_empty():
+					detected_joins_match_the_main_barrier = false
+					continue
+				var route_location := builder.get_closest_route_location(portal.point)
+				var route_right := Vector3.UP.cross(
+					route_location.forward as Vector3
+				).normalized()
+				var lateral_distance := absf(
+					(
+						(portal.point as Vector3)
+						- (route_location.point as Vector3)
+					).dot(route_right)
+				)
+				detected_joins_match_the_main_barrier = (
+					detected_joins_match_the_main_barrier
+					and absf(
+						lateral_distance
+						- track._get_shortcut_barrier_join_clearance()
+					) <= 0.05
+					and (portal.direction as Vector3).length_squared() > 0.0001
+				)
+	_check(
+		detected_joins_match_the_main_barrier,
+		"Shortcut barrier joins land exactly on the detected main barrier edge."
+	)
 	_check(
 		track._barrier_material.cull_mode == BaseMaterial3D.CULL_BACK,
 		"Barrier material avoids double-sided self-shadowing."
