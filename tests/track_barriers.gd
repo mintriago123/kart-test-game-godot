@@ -583,6 +583,48 @@ func _test_explicit_portals() -> void:
 		junction_nodes_match_collision,
 		"Curved junction visuals and collisions share stable names and world layers."
 	)
+	var shortcut_surfaces_are_trimmed := true
+	for shortcut_definition in track.shortcut_definitions:
+		var shortcut_id := int(shortcut_definition.id)
+		var shortcut_points: Array[Vector3] = shortcut_definition.points
+		var shortcut_junctions: Dictionary = track._shortcut_junctions.get(
+			shortcut_id,
+			{}
+		)
+		var trimmed_points := track._get_trimmed_shortcut_points(
+			shortcut_points,
+			shortcut_junctions.get("entry"),
+			shortcut_junctions.get("exit")
+		)
+		var visual := track.get_node_or_null(
+			"Shortcut%d" % shortcut_id
+		) as MeshInstance3D
+		var body := track.get_node_or_null(
+			"Shortcut%dCollision" % shortcut_id
+		) as StaticBody3D
+		var visual_vertices := PackedVector3Array()
+		if visual != null and visual.mesh != null:
+			visual_vertices = (
+				visual.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+				as PackedVector3Array
+			)
+		var collision_faces := PackedVector3Array()
+		if body != null and body.get_child_count() == 1:
+			var collision := body.get_child(0) as CollisionShape3D
+			if collision != null and collision.shape is ConcavePolygonShape3D:
+				collision_faces = (
+					collision.shape as ConcavePolygonShape3D
+				).get_faces()
+		shortcut_surfaces_are_trimmed = (
+			shortcut_surfaces_are_trimmed
+			and trimmed_points.size() < shortcut_points.size()
+			and visual_vertices.size() == (trimmed_points.size() - 1) * 6
+			and collision_faces.size() == (shortcut_points.size() - 1) * 6
+		)
+	_check(
+		shortcut_surfaces_are_trimmed,
+		"Shortcut asphalt stops at its curved junctions instead of covering MainRoad."
+	)
 	var left_offset := -CoastalTrack.ROAD_WIDTH * 0.5 + CoastalTrack.BARRIER_PATH_INSET
 	var right_offset := CoastalTrack.ROAD_WIDTH * 0.5 - CoastalTrack.BARRIER_PATH_INSET
 	var left_portals := builder.build_main_barrier_portals(left_offset)

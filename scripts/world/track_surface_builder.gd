@@ -46,7 +46,8 @@ static func create_shortcut_drivable_surface(
 	width: float,
 	material: StandardMaterial3D,
 	node_name: String,
-	collision_layer: int
+	collision_layer: int,
+	collision_path_points: Array[Vector3] = []
 ) -> void:
 	var visual_mesh := create_ribbon_mesh(
 		path_points,
@@ -61,7 +62,12 @@ static func create_shortcut_drivable_surface(
 	path_visual.material_override = material
 	parent.add_child(path_visual)
 
-	var collision_mesh := create_shortcut_collision_mesh(path_points, width)
+	var collision_points := (
+		collision_path_points
+		if not collision_path_points.is_empty()
+		else path_points
+	)
+	var collision_mesh := create_shortcut_collision_mesh(collision_points, width)
 	var path_body := StaticBody3D.new()
 	path_body.name = node_name + "Collision"
 	path_body.collision_layer = collision_layer

@@ -221,13 +221,19 @@ func _build_shortcuts() -> void:
 		var junctions: Dictionary = _shortcut_junctions.get(shortcut_id, {})
 		var entry_junction = junctions.get("entry")
 		var exit_junction = junctions.get("exit")
+		var trimmed_shortcut_points := _get_trimmed_shortcut_points(
+			shortcut_points,
+			entry_junction,
+			exit_junction
+		)
 		TrackSurfaceBuilder.create_shortcut_drivable_surface(
 			self,
-			shortcut_points,
+			trimmed_shortcut_points,
 			SHORTCUT_WIDTH,
 			_shortcut_material,
 			"Shortcut%d" % shortcut_id,
-			SHORTCUT_COLLISION_LAYER
+			SHORTCUT_COLLISION_LAYER,
+			shortcut_points
 		)
 		for junction_data in [
 			[entry_junction, "Entry"],
@@ -264,34 +270,6 @@ func _build_shortcuts() -> void:
 				_edge_material,
 				junction_name + "CurbRight"
 			)
-		var trimmed_shortcut_points: Array[Vector3] = []
-		var curb_start := SHORTCUT_CURB_TRIM_SEGMENTS
-		var curb_finish := shortcut_points.size() - SHORTCUT_CURB_TRIM_SEGMENTS
-		if entry_junction != null and entry_junction.is_valid:
-			curb_start = entry_junction.shortcut_transition_index
-			trimmed_shortcut_points.append(
-				entry_junction.shortcut_transition_center
-			)
-		if exit_junction != null and exit_junction.is_valid:
-			curb_finish = exit_junction.shortcut_transition_index + 1
-		for point_index in range(curb_start, curb_finish):
-			if (
-				trimmed_shortcut_points.is_empty()
-				or trimmed_shortcut_points[-1].distance_to(
-					shortcut_points[point_index]
-				) > 0.001
-			):
-				trimmed_shortcut_points.append(shortcut_points[point_index])
-		if exit_junction != null and exit_junction.is_valid:
-			if (
-				trimmed_shortcut_points.is_empty()
-				or trimmed_shortcut_points[-1].distance_to(
-					exit_junction.shortcut_transition_center
-				) > 0.001
-			):
-				trimmed_shortcut_points.append(
-					exit_junction.shortcut_transition_center
-				)
 		TrackSurfaceBuilder.create_curb(
 			self,
 			trimmed_shortcut_points,
@@ -337,6 +315,36 @@ func _build_shortcuts() -> void:
 			false
 		)
 		_create_shortcut_sign(shortcut_name, shortcut_points[2], shortcut_points[3])
+
+
+func _get_trimmed_shortcut_points(
+	shortcut_points: Array[Vector3],
+	entry_junction,
+	exit_junction
+) -> Array[Vector3]:
+	var trimmed_points: Array[Vector3] = []
+	var trim_start := SHORTCUT_CURB_TRIM_SEGMENTS
+	var trim_finish := shortcut_points.size() - SHORTCUT_CURB_TRIM_SEGMENTS
+	if entry_junction != null and entry_junction.is_valid:
+		trim_start = entry_junction.shortcut_transition_index
+		trimmed_points.append(entry_junction.shortcut_transition_center)
+	if exit_junction != null and exit_junction.is_valid:
+		trim_finish = exit_junction.shortcut_transition_index + 1
+	for point_index in range(trim_start, trim_finish):
+		if (
+			trimmed_points.is_empty()
+			or trimmed_points[-1].distance_to(shortcut_points[point_index]) > 0.001
+		):
+			trimmed_points.append(shortcut_points[point_index])
+	if exit_junction != null and exit_junction.is_valid:
+		if (
+			trimmed_points.is_empty()
+			or trimmed_points[-1].distance_to(
+				exit_junction.shortcut_transition_center
+			) > 0.001
+		):
+			trimmed_points.append(exit_junction.shortcut_transition_center)
+	return trimmed_points
 
 
 func _create_barrier_builder() -> TrackBarrierBuilder:
