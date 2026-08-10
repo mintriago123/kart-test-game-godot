@@ -127,6 +127,7 @@ func _build_selected_inspector(
 	var selected_node := track.get_node_or_null(selection.node_path) as Node3D
 	if selected_node == null:
 		return
+	var anchor_defaults := _get_anchor_defaults(track, selected_node)
 	add_field_label("SELECCIÓN · %s" % selected_node.name)
 	var progress := SpinBox.new()
 	progress.min_value = 0.0
@@ -135,7 +136,7 @@ func _build_selected_inspector(
 	progress.suffix = " %"
 	progress.value = float(selected_node.get_meta(
 		&"track_editor_anchor_progress",
-		0.0
+		anchor_defaults.progress
 	)) * 100.0
 	progress.custom_minimum_size.y = 44.0
 	add_field_label("Progreso sobre la vuelta")
@@ -147,7 +148,7 @@ func _build_selected_inspector(
 	lateral.suffix = " m"
 	lateral.value = float(selected_node.get_meta(
 		&"track_editor_anchor_lateral",
-		0.0
+		anchor_defaults.lateral
 	))
 	lateral.custom_minimum_size.y = 44.0
 	lateral.editable = selection.kind == Selection.Kind.PROP
@@ -160,7 +161,7 @@ func _build_selected_inspector(
 	height.suffix = " m"
 	height.value = float(selected_node.get_meta(
 		&"track_editor_anchor_height",
-		0.0
+		anchor_defaults.height
 	))
 	height.custom_minimum_size.y = 44.0
 	height.editable = selection.kind == Selection.Kind.PROP
@@ -200,3 +201,34 @@ func _build_selected_inspector(
 		func() -> void: delete_requested.emit(selection),
 		"Eliminar este objeto (Supr)"
 	))
+
+
+func _get_anchor_defaults(track: TrackLevel, node: Node3D) -> Dictionary:
+	var route := track.get_main_route()
+	if route == null or route.curve == null or route.curve.get_baked_length() <= 0.001:
+		return {"progress": 0.0, "lateral": 0.0, "height": 0.0}
+	var node_transform: Transform3D = track._get_transform_relative_to_track(node)
+	var route_transform: Transform3D = track._get_transform_relative_to_track(route)
+	var route_position := route_transform.affine_inverse() * node_transform.origin
+	var offset := route.curve.get_closest_offset(route_position)
+	var progress := offset / route.curve.get_baked_length()
+	var sample := route_transform * route.curve.sample_baked(offset, true)
+	var epsilon := minf(maxf(route.curve.get_baked_length() * 0.002, 0.05), 0.5)
+	var previous := route_transform * route.curve.sample_baked(
+		fposmod(offset - epsilon, route.curve.get_baked_length()),
+		true
+	)
+	var next := route_transform * route.curve.sample_baked(
+		fposmod(offset + epsilon, route.curve.get_baked_length()),
+		true
+	)
+	var forward := next - previous
+	forward.y = 0.0
+	forward = forward.normalized() if forward.length_squared() > 0.0001 else Vector3.FORWARD
+	var lateral_axis := Vector3(-forward.z, 0.0, forward.x)
+	var delta := node_transform.origin - sample
+	return {
+		"progress": progress,
+		"lateral": delta.dot(lateral_axis),
+		"height": delta.y,
+	}

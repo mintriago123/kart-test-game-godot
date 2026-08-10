@@ -634,6 +634,38 @@ func _test_template_and_history() -> void:
 		item_root.get_child_count() == 5,
 		"Undo restores a directly deleted entity."
 	)
+	var route_curve_for_prop := track.get_main_route().curve
+	var previous_prop_point := route_curve_for_prop.get_point_position(
+		route_curve_for_prop.point_count - 1
+	)
+	var next_prop_point := route_curve_for_prop.get_point_position(1)
+	var prop_forward := next_prop_point - previous_prop_point
+	prop_forward.y = 0.0
+	prop_forward = prop_forward.normalized()
+	var prop_lateral := Vector3(-prop_forward.z, 0.0, prop_forward.x)
+	var legacy_prop := Node3D.new()
+	legacy_prop.name = "LegacyProp"
+	legacy_prop.position = route_curve_for_prop.get_point_position(0) + prop_lateral * 10.0
+	track.get_node("Props").add_child(legacy_prop)
+	legacy_prop.owner = track
+	var legacy_position := legacy_prop.position
+	var legacy_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.PROP,
+		track.get_path_to(legacy_prop)
+	)
+	session.snapshot_track_for_undo()
+	_check(
+		session.move_entity(legacy_selection, legacy_position)
+		and legacy_prop.has_meta(TrackEditorSession.META_ANCHOR_PROGRESS)
+		and legacy_prop.position.distance_to(legacy_position) < 0.5,
+		"Editing a legacy prop creates an anchor without moving it unexpectedly."
+	)
+	session.undo_route()
+	_check(
+		not legacy_prop.has_meta(TrackEditorSession.META_ANCHOR_PROGRESS)
+		and legacy_prop.position.is_equal_approx(legacy_position),
+		"Undo restores the unanchored legacy prop state."
+	)
 
 	track.start_point_index = 2
 	track.rebuild_preview()
