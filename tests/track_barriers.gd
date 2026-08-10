@@ -46,7 +46,8 @@ func _test_shortcut_junction_geometry() -> void:
 		and exit.is_valid
 		and entry.mouth_width >= 14.0
 		and entry.mouth_width <= 16.0
-		and is_equal_approx(exit.mouth_width, 12.0)
+		and exit.mouth_width >= 12.0
+		and exit.mouth_width <= 14.0
 		and entry.portal_width <= 16.0
 		and exit.portal_width <= 16.0,
 		"Automatic junctions use accessible asymmetric entry and exit mouths."

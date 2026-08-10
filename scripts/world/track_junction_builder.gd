@@ -8,13 +8,15 @@ const PORTAL_MIN_WIDTH := 6.0
 const PORTAL_MAX_WIDTH := 16.0
 const ENTRY_MOUTH_MIN_WIDTH := 14.0
 const ENTRY_MOUTH_MAX_WIDTH := 16.0
-const EXIT_MOUTH_WIDTH := 12.0
+const EXIT_MOUTH_MIN_WIDTH := 12.0
+const EXIT_MOUTH_MAX_WIDTH := 14.0
 const ENTRY_TRANSITION_MIN_LENGTH := 12.0
 const ENTRY_TRANSITION_MAX_LENGTH := 14.0
-const EXIT_TRANSITION_MIN_LENGTH := 8.0
-const EXIT_TRANSITION_MAX_LENGTH := 10.0
+const EXIT_TRANSITION_MIN_LENGTH := 12.0
+const EXIT_TRANSITION_MAX_LENGTH := 14.0
 const SAMPLE_SPACING := 0.75
 const MINIMUM_ANGLE_DEGREES := 20.0
+const MINIMUM_SAFE_CORRIDOR_WIDTH := 6.0
 
 var _route_points: Array[Vector3]
 var _road_width: float
@@ -78,7 +80,7 @@ func build(
 	geometry.mouth_width = (
 		lerpf(ENTRY_MOUTH_MIN_WIDTH, ENTRY_MOUTH_MAX_WIDTH, shallow_weight)
 		if is_entry
-		else EXIT_MOUTH_WIDTH
+		else lerpf(EXIT_MOUTH_MIN_WIDTH, EXIT_MOUTH_MAX_WIDTH, shallow_weight)
 	)
 	geometry.portal_width = clampf(
 		geometry.mouth_width / maxf(angle_sine, 0.15),
@@ -158,20 +160,27 @@ func build(
 	geometry.left_boundary = _keep_boundary_outside_shortcut(
 		geometry.left_boundary,
 		shortcut_points,
-		-_shortcut_width * 0.5
+		-_shortcut_width * 0.5,
+		mini(geometry.shortcut_join_index, geometry.shortcut_transition_index),
+		maxi(geometry.shortcut_join_index, geometry.shortcut_transition_index)
 	)
 	geometry.right_boundary = _keep_boundary_outside_shortcut(
 		geometry.right_boundary,
 		shortcut_points,
-		_shortcut_width * 0.5
+		_shortcut_width * 0.5,
+		mini(geometry.shortcut_join_index, geometry.shortcut_transition_index),
+		maxi(geometry.shortcut_join_index, geometry.shortcut_transition_index)
 	)
 	if (
 		not _boundaries_are_finite(geometry)
 		or _boundaries_cross(geometry.left_boundary, geometry.right_boundary)
+		or not _boundary_is_safe(geometry.left_boundary)
+		or not _boundary_is_safe(geometry.right_boundary)
+		or not _corridor_is_wide_enough(geometry)
 	):
 		geometry.left_boundary.clear()
 		geometry.right_boundary.clear()
-		geometry.fallback_reason = "Las curvas de la unión se cruzan."
+		geometry.fallback_reason = "La transición no conserva un corredor seguro."
 		return geometry
 	geometry.is_valid = true
 	return geometry
@@ -375,15 +384,19 @@ func _make_wrapped_intervals(start: float, finish: float) -> Array[Vector2]:
 func _keep_boundary_outside_shortcut(
 	boundary: PackedVector3Array,
 	shortcut_points: Array[Vector3],
-	target_lateral: float
+	target_lateral: float,
+	first_segment_index: int,
+	final_segment_index: int
 ) -> PackedVector3Array:
 	var expanded := boundary.duplicate()
+	var safe_first := clampi(first_segment_index, 0, shortcut_points.size() - 2)
+	var safe_final := clampi(final_segment_index, safe_first + 1, shortcut_points.size() - 1)
 	for boundary_index in range(1, expanded.size()):
 		var point := expanded[boundary_index]
 		var closest_distance := INF
 		var closest_point := Vector3.ZERO
 		var closest_forward := Vector3.FORWARD
-		for segment_index in shortcut_points.size() - 1:
+		for segment_index in range(safe_first, safe_final):
 			var segment_start := shortcut_points[segment_index]
 			var segment_finish := shortcut_points[segment_index + 1]
 			var segment_2d := Vector2(
@@ -425,6 +438,38 @@ func _keep_boundary_outside_shortcut(
 				transition_weight
 			)
 	return expanded
+
+
+func _boundary_is_safe(boundary: PackedVector3Array) -> bool:
+	if boundary.size() < 3:
+		return false
+	for segment_index in boundary.size() - 1:
+		var segment := boundary[segment_index + 1] - boundary[segment_index]
+		segment.y = 0.0
+		if segment.length_squared() <= 0.0001:
+			return false
+		for other_index in range(segment_index + 2, boundary.size() - 1):
+			if Geometry2D.segment_intersects_segment(
+				Vector2(boundary[segment_index].x, boundary[segment_index].z),
+				Vector2(boundary[segment_index + 1].x, boundary[segment_index + 1].z),
+				Vector2(boundary[other_index].x, boundary[other_index].z),
+				Vector2(boundary[other_index + 1].x, boundary[other_index + 1].z)
+			) != null:
+				return false
+	return true
+
+
+func _corridor_is_wide_enough(geometry: JunctionGeometry) -> bool:
+	if geometry.left_boundary.size() != geometry.right_boundary.size():
+		return false
+	for point_index in geometry.left_boundary.size():
+		var separation := Vector2(
+			geometry.left_boundary[point_index].x - geometry.right_boundary[point_index].x,
+			geometry.left_boundary[point_index].z - geometry.right_boundary[point_index].z
+		).length()
+		if separation < minf(_shortcut_width, MINIMUM_SAFE_CORRIDOR_WIDTH) - 0.01:
+			return false
+	return true
 
 
 func _boundaries_are_finite(geometry: JunctionGeometry) -> bool:
