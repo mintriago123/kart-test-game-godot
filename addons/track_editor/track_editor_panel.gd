@@ -2,6 +2,8 @@
 class_name TrackEditorPanel
 extends VBoxContainer
 
+const EditorStyle := preload("res://addons/track_editor/track_editor_style.gd")
+
 var _button_factory: Callable
 
 
@@ -13,8 +15,8 @@ func configure_panel(title: String, button_factory: Callable) -> void:
 func add_section_title(text: String) -> void:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", 18)
-	label.add_theme_color_override("font_color", Color("#f6c344"))
+	label.add_theme_font_size_override("font_size", EditorStyle.SECTION_FONT_SIZE)
+	label.add_theme_color_override("font_color", EditorStyle.FOCUS)
 	add_child(label)
 
 
@@ -22,14 +24,14 @@ func add_help(text: String) -> void:
 	var label := Label.new()
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_color_override("font_color", Color("#c4ced1"))
+	label.add_theme_color_override("font_color", EditorStyle.TEXT_SECONDARY)
 	add_child(label)
 
 
 func add_field_label(text: String) -> void:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_color_override("font_color", Color("#aab5b9"))
+	label.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
 	add_child(label)
 
 

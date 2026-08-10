@@ -27,7 +27,7 @@ func configure(
 	add_field_label("Identificador")
 	var id_label := Label.new()
 	id_label.text = str(track.track_id)
-	id_label.add_theme_color_override("font_color", Color("#aab5b9"))
+	id_label.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
 	add_child(id_label)
 
 	add_field_label("Vueltas")

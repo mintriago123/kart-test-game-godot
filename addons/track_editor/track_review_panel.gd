@@ -25,14 +25,14 @@ func configure(
 	if issues.is_empty():
 		var ready := Label.new()
 		ready.text = "✓ PISTA LISTA PARA PROBAR"
-		ready.add_theme_color_override("font_color", Color("#42c7b9"))
+		ready.add_theme_color_override("font_color", EditorStyle.SUCCESS)
 		ready.add_theme_font_size_override("font_size", 17)
 		add_child(ready)
 	else:
 		if blocking_issue_count == 0:
 			var warning_ready := Label.new()
 			warning_ready.text = "✓ PISTA LISTA CON ADVERTENCIAS"
-			warning_ready.add_theme_color_override("font_color", Color("#f6c344"))
+			warning_ready.add_theme_color_override("font_color", EditorStyle.FOCUS)
 			warning_ready.add_theme_font_size_override("font_size", 17)
 			add_child(warning_ready)
 		for issue in issues:
@@ -46,7 +46,7 @@ func configure(
 			issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			issue_button.add_theme_color_override(
 				"font_color",
-				Color("#f6c344") if is_warning else Color("#ffd3c8")
+				EditorStyle.FOCUS if is_warning else EditorStyle.ERROR
 			)
 			add_child(issue_button)
 	add_child(

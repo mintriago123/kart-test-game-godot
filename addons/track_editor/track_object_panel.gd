@@ -116,7 +116,7 @@ func configure(
 		props.get_child_count() if props != null else 0,
 		items.get_child_count() if items != null else 0,
 	]
-	counts.add_theme_color_override("font_color", Color("#aab5b9"))
+	counts.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
 	add_child(counts)
 
 

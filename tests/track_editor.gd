@@ -394,6 +394,7 @@ func _test_guided_screen() -> void:
 	root.add_child(screen)
 	await process_frame
 	await process_frame
+	_test_editor_visual_contract(screen)
 	_check(screen.session.track != null, "Guided editor opens the first catalog track.")
 	var map_view := screen.find_child("TrackMap", true, false) as TrackMapView
 	var preview_container := (
@@ -761,10 +762,54 @@ func _test_guided_screen() -> void:
 	)
 	screen.queue_free()
 	await process_frame
-	await process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_scene_path))
 
 
+func _test_editor_visual_contract(screen: TrackEditorScreen) -> void:
+	var editor_style = preload("res://addons/track_editor/track_editor_style.gd")
+	var theme := screen.theme
+	var text_types := ["Label", "Button", "LineEdit", "TextEdit"]
+	var text_contract_is_legible := true
+	for type_name in text_types:
+		text_contract_is_legible = (
+			text_contract_is_legible
+			and theme.get_font_size("font_size", type_name) >= 16
+			and editor_style.contrast_ratio(
+				theme.get_color("font_color", type_name),
+				editor_style.background_for_type(type_name)
+			) >= 4.5
+		)
+	_check(
+		text_contract_is_legible,
+		"Editor body text is at least 16 px and reaches WCAG AA contrast."
+	)
+	_check(
+		editor_style.contrast_ratio(
+			theme.get_color("font_focus_color", "Button"),
+			editor_style.BUTTON_BACKGROUND
+		) >= 4.5
+		and editor_style.contrast_ratio(
+			editor_style.FOCUS,
+			editor_style.BUTTON_BACKGROUND
+		) >= 3.0,
+		"Editor focus text and outlines remain distinguishable."
+	)
+	screen._set_compact_mode(true)
+	_check(
+		screen._navigation_panel.custom_minimum_size.x == 180.0
+		and screen._inspector_panel.custom_minimum_size.x == 280.0
+		and screen._track_picker.custom_minimum_size.x == 160.0
+		and screen._header_actions_scroll.horizontal_scroll_mode
+		== ScrollContainer.SCROLL_MODE_AUTO,
+		"Editor compact mode preserves usable navigation, inspector, and actions."
+	)
+	screen._set_compact_mode(false)
+	_check(
+		screen._navigation_panel.custom_minimum_size.x == 210.0
+		and screen._inspector_panel.custom_minimum_size.x == 320.0
+		and screen._track_picker.custom_minimum_size.x == 220.0,
+		"Editor wide mode restores the existing workshop proportions."
+	)
 func _test_template_and_history() -> void:
 	var session := TrackEditorSession.new()
 	session.create_track(&"medium", "Pista de prueba")

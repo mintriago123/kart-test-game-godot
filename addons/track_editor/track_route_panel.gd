@@ -31,7 +31,7 @@ func configure(
 		if selected_point >= 0
 		else "Selecciona un punto en el mapa"
 	)
-	selected_label.add_theme_color_override("font_color", Color("#f6c344"))
+	selected_label.add_theme_color_override("font_color", EditorStyle.FOCUS)
 	add_child(selected_label)
 	if selected_point >= 0:
 		var current_position := route.curve.get_point_position(selected_point)

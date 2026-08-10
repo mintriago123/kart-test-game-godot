@@ -13,6 +13,7 @@ const RoutePanel := preload("res://addons/track_editor/track_route_panel.gd")
 const ShortcutPanel := preload("res://addons/track_editor/track_shortcut_panel.gd")
 const ObjectPanel := preload("res://addons/track_editor/track_object_panel.gd")
 const ReviewPanel := preload("res://addons/track_editor/track_review_panel.gd")
+const EditorStyle := preload("res://addons/track_editor/track_editor_style.gd")
 const Selection := preload(
 	"res://addons/track_editor/track_editor_selection.gd"
 )
@@ -40,6 +41,13 @@ var _view_toggle: Button
 var _undo_button: Button
 var _redo_button: Button
 var _track_picker: OptionButton
+var _navigation_panel: PanelContainer
+var _inspector_panel: PanelContainer
+var _header_actions_scroll: ScrollContainer
+var _new_button: Button
+var _open_button: Button
+var _save_button: Button
+var _guide_button: Button
 var _new_dialog: ConfirmationDialog
 var _new_name: LineEdit
 var _new_size: OptionButton
@@ -55,12 +63,15 @@ var _is_showing_preview := false
 var _selection: RefCounted = Selection.none()
 var _pending_test_token := ""
 var _test_result_path := ""
+var _is_compact := false
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = _create_workshop_theme()
 	_build_interface()
+	resized.connect(_apply_responsive_layout)
+	_apply_responsive_layout()
 	_connect_session()
 	_reload_track_picker()
 	if _track_picker.item_count > 0:
@@ -129,10 +140,19 @@ func _shortcut_input(event: InputEvent) -> void:
 
 
 func _build_interface() -> void:
+	var viewport_scroll := ScrollContainer.new()
+	viewport_scroll.name = "EditorViewportScroll"
+	viewport_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	viewport_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	viewport_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(viewport_scroll)
+
 	var root := VBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.custom_minimum_size.x = 960.0
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 0)
-	add_child(root)
+	viewport_scroll.add_child(root)
 
 	root.add_child(_build_header())
 
@@ -156,8 +176,8 @@ func _build_interface() -> void:
 	_status_label.text = "● Abre una pista o crea una nueva."
 	_status_label.custom_minimum_size.y = 40.0
 	_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_status_label.add_theme_color_override("font_color", Color("#aab5b9"))
-	_status_label.add_theme_color_override("font_shadow_color", Color("#151b1f"))
+	_status_label.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
+	_status_label.add_theme_color_override("font_shadow_color", EditorStyle.CANVAS_BACKGROUND)
 	_status_label.add_theme_constant_override("shadow_offset_x", 1)
 	_status_label.add_theme_constant_override("shadow_offset_y", 1)
 	root.add_child(_status_label)
@@ -177,39 +197,56 @@ func _build_header() -> Control:
 	_title_label = Label.new()
 	_title_label.text = "PISTAS  /  SIN PISTA"
 	_title_label.custom_minimum_size.x = 280.0
-	_title_label.add_theme_font_size_override("font_size", 20)
-	_title_label.add_theme_color_override("font_color", Color("#f6c344"))
+	_title_label.add_theme_font_size_override("font_size", EditorStyle.TITLE_FONT_SIZE)
+	_title_label.add_theme_color_override("font_color", EditorStyle.FOCUS)
 	header.add_child(_title_label)
 
-	var new_button := _button("＋ NUEVA", _handle_new_pressed)
-	header.add_child(new_button)
-	header.add_child(_button("ABRIR", _handle_open_pressed))
+	_header_actions_scroll = ScrollContainer.new()
+	_header_actions_scroll.name = "HeaderActionsScroll"
+	_header_actions_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_header_actions_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_header_actions_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	header.add_child(_header_actions_scroll)
+	var header_actions := HBoxContainer.new()
+	header_actions.add_theme_constant_override("separation", 8)
+	_header_actions_scroll.add_child(header_actions)
+
+	_new_button = _button("＋ NUEVA", _handle_new_pressed, "Crear una pista nueva")
+	_new_button.name = "NewTrackButton"
+	header_actions.add_child(_new_button)
+	_open_button = _button("ABRIR", _handle_open_pressed, "Abrir una pista o borrador")
+	_open_button.name = "OpenTrackButton"
+	header_actions.add_child(_open_button)
 
 	_track_picker = OptionButton.new()
 	_track_picker.name = "TrackPicker"
 	_track_picker.custom_minimum_size = Vector2(220.0, 44.0)
 	_track_picker.item_selected.connect(func(_index: int) -> void: _request_load_selected())
-	header.add_child(_track_picker)
+	header_actions.add_child(_track_picker)
 
-	header.add_child(_button("GUARDAR", _handle_save_pressed))
+	_save_button = _button("GUARDAR", _handle_save_pressed, "Guardar borrador")
+	_save_button.name = "SaveTrackButton"
+	header_actions.add_child(_save_button)
 
 	_undo_button = _button("↶", session.undo_route, "Deshacer cambio de carretera")
 	_undo_button.custom_minimum_size.x = 48.0
-	header.add_child(_undo_button)
+	header_actions.add_child(_undo_button)
 	_redo_button = _button("↷", session.redo_route, "Rehacer cambio de carretera")
 	_redo_button.custom_minimum_size.x = 48.0
-	header.add_child(_redo_button)
+	header_actions.add_child(_redo_button)
 
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(spacer)
+	header_actions.add_child(spacer)
 
-	header.add_child(_button("? GUÍA", _show_guide))
+	_guide_button = _button("? GUÍA", _show_guide, "Abrir guía del editor")
+	_guide_button.name = "EditorGuideButton"
+	header_actions.add_child(_guide_button)
 
 	_dirty_label = Label.new()
 	_dirty_label.text = "GUARDADO"
-	_dirty_label.add_theme_color_override("font_color", Color("#42c7b9"))
-	header.add_child(_dirty_label)
+	_dirty_label.add_theme_color_override("font_color", EditorStyle.SUCCESS)
+	header_actions.add_child(_dirty_label)
 
 	header.add_child(_button("▶ PROBAR", _handle_test_pressed))
 	header.add_child(_button("PUBLICAR", _handle_publish_pressed, "", true))
@@ -217,15 +254,16 @@ func _build_header() -> Control:
 
 
 func _build_navigation() -> Control:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size.x = 210.0
+	_navigation_panel = PanelContainer.new()
+	_navigation_panel.name = "WorkflowNavigation"
+	_navigation_panel.custom_minimum_size.x = 210.0
 	var navigation := VBoxContainer.new()
 	navigation.add_theme_constant_override("separation", 8)
-	panel.add_child(navigation)
+	_navigation_panel.add_child(navigation)
 
 	var label := Label.new()
 	label.text = "RUTA DE TRABAJO"
-	label.add_theme_color_override("font_color", Color("#7f8c92"))
+	label.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
 	navigation.add_child(label)
 
 	var group := ButtonGroup.new()
@@ -251,9 +289,9 @@ func _build_navigation() -> Control:
 		+ "No necesitas usar el árbol de nodos ni el Inspector."
 	)
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	help.add_theme_color_override("font_color", Color("#aab5b9"))
+	help.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
 	navigation.add_child(help)
-	return panel
+	return _navigation_panel
 
 
 func _build_workspace() -> VBoxContainer:
@@ -264,7 +302,7 @@ func _build_workspace() -> VBoxContainer:
 	view_bar.custom_minimum_size.y = 48.0
 	var map_label := Label.new()
 	map_label.text = "  MESA DE TRAZADO"
-	map_label.add_theme_color_override("font_color", Color("#f4f1e8"))
+	map_label.add_theme_color_override("font_color", EditorStyle.TEXT_PRIMARY)
 	view_bar.add_child(map_label)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -342,17 +380,35 @@ func _build_workspace() -> VBoxContainer:
 
 
 func _build_inspector() -> Control:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size.x = 320.0
+	_inspector_panel = PanelContainer.new()
+	_inspector_panel.name = "TrackInspector"
+	_inspector_panel.custom_minimum_size.x = 320.0
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	panel.add_child(scroll)
+	_inspector_panel.add_child(scroll)
 	_properties = VBoxContainer.new()
 	_properties.custom_minimum_size.x = 292.0
 	_properties.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_properties.add_theme_constant_override("separation", 10)
 	scroll.add_child(_properties)
-	return panel
+	return _inspector_panel
+
+
+func _apply_responsive_layout() -> void:
+	_set_compact_mode(size.x < 1440.0)
+
+
+func _set_compact_mode(is_compact: bool) -> void:
+	_is_compact = is_compact
+	if _navigation_panel == null or _inspector_panel == null:
+		return
+	_navigation_panel.custom_minimum_size.x = 180.0 if is_compact else 210.0
+	_inspector_panel.custom_minimum_size.x = 280.0 if is_compact else 320.0
+	_properties.custom_minimum_size.x = 252.0 if is_compact else 292.0
+	_title_label.custom_minimum_size.x = 220.0 if is_compact else 280.0
+	_track_picker.custom_minimum_size.x = 160.0 if is_compact else 220.0
+	_new_button.text = "＋" if is_compact else "＋ NUEVA"
+	_guide_button.text = "?" if is_compact else "? GUÍA"
 
 
 func _connect_session() -> void:
@@ -431,7 +487,7 @@ func _handle_dirty_changed(is_dirty: bool) -> void:
 	_dirty_label.text = "● SIN GUARDAR" if is_dirty else "✓ GUARDADO"
 	_dirty_label.add_theme_color_override(
 		"font_color",
-		Color("#f6c344") if is_dirty else Color("#42c7b9")
+		EditorStyle.FOCUS if is_dirty else EditorStyle.SUCCESS
 	)
 
 
@@ -1104,19 +1160,19 @@ func _toggle_view() -> void:
 
 func _show_success(message: String) -> void:
 	_status_label.text = "✓  " + message
-	_status_label.add_theme_color_override("font_color", Color("#42c7b9"))
+	_status_label.add_theme_color_override("font_color", EditorStyle.SUCCESS)
 
 
 func _show_error(message: String) -> void:
 	_status_label.text = "⚠  " + message
-	_status_label.add_theme_color_override("font_color", Color("#ffd3c8"))
+	_status_label.add_theme_color_override("font_color", EditorStyle.ERROR)
 
 
 func _add_help(text: String) -> void:
 	var label := Label.new()
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_color_override("font_color", Color("#c4ced1"))
+	label.add_theme_color_override("font_color", EditorStyle.TEXT_SECONDARY)
 	_properties.add_child(label)
 
 
@@ -1133,8 +1189,8 @@ func _button(
 	button.tooltip_text = tooltip
 	button.pressed.connect(callback)
 	if is_primary:
-		button.add_theme_color_override("font_color", Color("#151b1f"))
-		button.add_theme_stylebox_override("normal", _style_box(Color("#f6c344"), Color("#f6c344")))
+		button.add_theme_color_override("font_color", EditorStyle.CANVAS_BACKGROUND)
+		button.add_theme_stylebox_override("normal", _style_box(EditorStyle.FOCUS, EditorStyle.FOCUS))
 		button.add_theme_stylebox_override("hover", _style_box(Color("#ffd66e"), Color("#ffffff")))
 		button.add_theme_stylebox_override("pressed", _style_box(Color("#d9a72d"), Color("#ffffff")))
 		button.add_theme_stylebox_override("focus", _style_box(Color("#f6c344"), Color("#ffffff"), 3))
@@ -1243,25 +1299,7 @@ func _continue_pending_action() -> void:
 
 
 func _create_workshop_theme() -> Theme:
-	var workshop_theme := Theme.new()
-	workshop_theme.set_color("font_color", "Label", Color("#f4f1e8"))
-	workshop_theme.set_color("font_color", "Button", Color("#f4f1e8"))
-	workshop_theme.set_color("font_hover_color", "Button", Color("#ffffff"))
-	workshop_theme.set_color("font_pressed_color", "Button", Color("#ffffff"))
-	workshop_theme.set_color("font_focus_color", "Button", Color("#ffffff"))
-	workshop_theme.set_color("font_disabled_color", "Button", Color("#738087"))
-	workshop_theme.set_stylebox("normal", "PanelContainer", _style_box(Color("#20282d"), Color("#354148")))
-	workshop_theme.set_stylebox("normal", "Button", _style_box(Color("#2a343a"), Color("#46545b")))
-	workshop_theme.set_stylebox("hover", "Button", _style_box(Color("#364249"), Color("#f6c344"), 2))
-	workshop_theme.set_stylebox("pressed", "Button", _style_box(Color("#1c2428"), Color("#f6c344"), 2))
-	workshop_theme.set_stylebox("focus", "Button", _style_box(Color("#2a343a"), Color("#f6c344"), 3))
-	workshop_theme.set_stylebox("disabled", "Button", _style_box(Color("#242c30"), Color("#354148")))
-	workshop_theme.set_stylebox("normal", "LineEdit", _style_box(Color("#151b1f"), Color("#46545b")))
-	workshop_theme.set_stylebox("focus", "LineEdit", _style_box(Color("#151b1f"), Color("#f6c344"), 2))
-	workshop_theme.set_color("font_color", "LineEdit", Color("#f4f1e8"))
-	workshop_theme.set_constant("separation", "VBoxContainer", 8)
-	workshop_theme.set_constant("separation", "HBoxContainer", 8)
-	return workshop_theme
+	return EditorStyle.create_theme()
 
 
 func _style_box(
