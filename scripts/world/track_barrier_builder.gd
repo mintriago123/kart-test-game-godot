@@ -3,11 +3,13 @@ extends RefCounted
 
 const BARRIER_HEIGHT := 1.0
 const BARRIER_PATH_INSET := 0.12
+const SHORTCUT_BARRIER_SHOULDER := 0.65
 const BARRIER_MITER_LIMIT := 2.0
 const BARRIER_THICKNESS := 0.24
 const BARRIER_VERTICES_PER_POINT := 6
+const BARRIER_CAP_SEGMENTS := 8
 const PORTAL_MIN_WIDTH := 6.0
-const PORTAL_MAX_WIDTH := 14.0
+const PORTAL_MAX_WIDTH := 16.0
 
 var _parent: Node3D
 var _route_points: Array[Vector3]
@@ -61,11 +63,11 @@ func create_shortcut_barriers(
 ) -> void:
 	for side_data in [
 		[
-			-_shortcut_width * 0.5 + BARRIER_PATH_INSET,
+			-_shortcut_width * 0.5 - SHORTCUT_BARRIER_SHOULDER,
 			name_prefix + "BarrierLeft",
 		],
 		[
-			_shortcut_width * 0.5 - BARRIER_PATH_INSET,
+			_shortcut_width * 0.5 + SHORTCUT_BARRIER_SHOULDER,
 			name_prefix + "BarrierRight",
 		],
 	]:
@@ -97,7 +99,7 @@ func create_shortcut_barriers(
 		if entry_junction != null and entry_junction.is_valid:
 			for junction_point in entry_junction.get_barrier_boundary(
 				lateral_offset,
-				BARRIER_PATH_INSET
+				-SHORTCUT_BARRIER_SHOULDER
 			):
 				barrier_chain.append(junction_point + Vector3.UP * 0.08)
 		else:
@@ -117,7 +119,7 @@ func create_shortcut_barriers(
 		if exit_junction != null and exit_junction.is_valid:
 			var exit_boundary: PackedVector3Array = exit_junction.get_barrier_boundary(
 				lateral_offset,
-				BARRIER_PATH_INSET
+				-SHORTCUT_BARRIER_SHOULDER
 			)
 			for boundary_index in range(exit_boundary.size() - 1, -1, -1):
 				var exit_curve_point: Vector3 = (
@@ -220,6 +222,15 @@ func build_main_barrier_portals(lateral_offset: float) -> Array[Vector2]:
 			merged_interval.y = maxf(merged_interval.y, interval.y)
 			merged[-1] = merged_interval
 	return merged
+
+
+func get_main_barrier_chain_caps(chains: Array) -> Array[Vector2i]:
+	var chain_caps: Array[Vector2i] = []
+	for _chain_value in chains:
+		# Every endpoint produced by split_barrier_ring borders a drive portal.
+		# Leaving it open avoids a perpendicular collision face in the mouth.
+		chain_caps.append(Vector2i.ZERO)
+	return chain_caps
 
 
 func append_portal_interval(
@@ -543,12 +554,14 @@ static func create_indexed_barrier_mesh(
 	chains: Array,
 	is_closed: bool,
 	cap_start := true,
-	cap_end := true
+	cap_end := true,
+	chain_caps: Array[Vector2i] = []
 ) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var indices := PackedInt32Array()
-	for chain_value in chains:
+	for chain_index in chains.size():
+		var chain_value = chains[chain_index]
 		var chain := chain_value as PackedVector3Array
 		if chain.size() < 2:
 			continue
@@ -620,10 +633,11 @@ static func create_indexed_barrier_mesh(
 				next_base + 4
 			)
 		if not is_closed:
-			var final_base := (
-				base_vertex
-				+ (chain.size() - 1) * BARRIER_VERTICES_PER_POINT
-			)
+			var resolved_cap_start: bool = cap_start
+			var resolved_cap_end: bool = cap_end
+			if chain_index >= 0 and chain_index < chain_caps.size():
+				resolved_cap_start = chain_caps[chain_index].x != 0
+				resolved_cap_end = chain_caps[chain_index].y != 0
 			var start_tangent := chain[1] - chain[0]
 			start_tangent.y = 0.0
 			if start_tangent.length_squared() <= 0.0001:
@@ -636,45 +650,23 @@ static func create_indexed_barrier_mesh(
 				end_tangent = Vector3.FORWARD
 			else:
 				end_tangent = end_tangent.normalized()
-			if cap_start:
-				var start_cap_base := vertices.size()
-				_append_barrier_cap_vertices(
+			if resolved_cap_start:
+				_append_rounded_barrier_cap(
 					vertices,
 					normals,
-					[
-						vertices[base_vertex],
-						vertices[base_vertex + 2],
-						vertices[base_vertex + 3],
-						vertices[base_vertex + 1],
-					],
-					-start_tangent
-				)
-				_append_quad_indices(
 					indices,
-					start_cap_base,
-					start_cap_base + 1,
-					start_cap_base + 2,
-					start_cap_base + 3
+					chain[0],
+					start_tangent,
+					true
 				)
-			if cap_end:
-				var end_cap_base := vertices.size()
-				_append_barrier_cap_vertices(
+			if resolved_cap_end:
+				_append_rounded_barrier_cap(
 					vertices,
 					normals,
-					[
-						vertices[final_base],
-						vertices[final_base + 1],
-						vertices[final_base + 3],
-						vertices[final_base + 2],
-					],
-					end_tangent
-				)
-				_append_quad_indices(
 					indices,
-					end_cap_base,
-					end_cap_base + 1,
-					end_cap_base + 2,
-					end_cap_base + 3
+					chain[-1],
+					end_tangent,
+					false
 				)
 	var mesh := ArrayMesh.new()
 	if vertices.is_empty() or indices.is_empty():
@@ -723,7 +715,13 @@ func _create_main_barrier_side(
 			barrier_ring,
 			portal_intervals
 		)
-		barrier_mesh = create_indexed_barrier_mesh(open_chains, false)
+		barrier_mesh = create_indexed_barrier_mesh(
+			open_chains,
+			false,
+			true,
+			true,
+			get_main_barrier_chain_caps(open_chains)
+		)
 	_commit_barrier_mesh(barrier_mesh, barrier_name, collision_layer)
 
 
@@ -838,15 +836,68 @@ static func _is_progress_inside_portal(
 	return false
 
 
-static func _append_barrier_cap_vertices(
+static func _append_rounded_barrier_cap(
 	vertices: PackedVector3Array,
 	normals: PackedVector3Array,
-	cap_vertices: Array[Vector3],
+	indices: PackedInt32Array,
+	center: Vector3,
+	tangent: Vector3,
+	is_start: bool
+) -> void:
+	var flattened_tangent := Vector3(tangent.x, 0.0, tangent.z).normalized()
+	var side := Vector3.UP.cross(flattened_tangent).normalized()
+	var outward := -flattened_tangent if is_start else flattened_tangent
+	var radius := BARRIER_THICKNESS * 0.5
+	for segment_index in BARRIER_CAP_SEGMENTS:
+		var angle_a := PI * float(segment_index) / float(BARRIER_CAP_SEGMENTS)
+		var angle_b := PI * float(segment_index + 1) / float(BARRIER_CAP_SEGMENTS)
+		var radial_a := side * cos(angle_a) + outward * sin(angle_a)
+		var radial_b := side * cos(angle_b) + outward * sin(angle_b)
+		var bottom_a := center + radial_a * radius
+		var bottom_b := center + radial_b * radius
+		var top_a := bottom_a + Vector3.UP * BARRIER_HEIGHT
+		var top_b := bottom_b + Vector3.UP * BARRIER_HEIGHT
+		var wall_normal := (radial_a + radial_b).normalized()
+		_append_oriented_triangle(
+			vertices, normals, indices,
+			bottom_a, top_a, top_b,
+			wall_normal
+		)
+		_append_oriented_triangle(
+			vertices, normals, indices,
+			bottom_a, top_b, bottom_b,
+			wall_normal
+		)
+		_append_oriented_triangle(
+			vertices, normals, indices,
+			center + Vector3.UP * BARRIER_HEIGHT,
+			top_a,
+			top_b,
+			Vector3.UP
+		)
+
+
+static func _append_oriented_triangle(
+	vertices: PackedVector3Array,
+	normals: PackedVector3Array,
+	indices: PackedInt32Array,
+	first: Vector3,
+	second: Vector3,
+	third: Vector3,
 	normal: Vector3
 ) -> void:
-	for cap_vertex in cap_vertices:
-		vertices.append(cap_vertex)
-		normals.append(normal)
+	if (second - first).cross(third - first).dot(normal) < 0.0:
+		var swap := second
+		second = third
+		third = swap
+	var base_index := vertices.size()
+	vertices.append_array(PackedVector3Array([first, second, third]))
+	normals.append_array(PackedVector3Array([normal, normal, normal]))
+	indices.append_array(PackedInt32Array([
+		base_index,
+		base_index + 1,
+		base_index + 2,
+	]))
 
 
 static func _append_quad_indices(

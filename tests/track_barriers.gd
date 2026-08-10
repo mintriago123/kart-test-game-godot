@@ -43,20 +43,26 @@ func _test_shortcut_junction_geometry() -> void:
 	_check(
 		entry.is_valid
 		and exit.is_valid
-		and is_equal_approx(entry.mouth_width, 14.0)
-		and is_equal_approx(exit.mouth_width, 11.5)
-		and entry.portal_width <= 14.0
-		and exit.portal_width <= 14.0,
-		"Automatic junctions use accessible asymmetric 14 m and 11.5 m mouths."
+		and entry.mouth_width >= 14.0
+		and entry.mouth_width <= 16.0
+		and is_equal_approx(exit.mouth_width, 12.0)
+		and entry.portal_width <= 16.0
+		and exit.portal_width <= 16.0,
+		"Automatic junctions use accessible asymmetric entry and exit mouths."
 	)
 	_check(
-		entry.transition_length >= 6.0
-		and entry.transition_length <= 10.0
-		and exit.transition_length >= 6.0
+		entry.transition_length >= 12.0
+		and entry.transition_length <= 14.0
+		and exit.transition_length >= 8.0
 		and exit.transition_length <= 10.0
 		and entry.left_boundary.size() >= 3
 		and entry.left_boundary.size() == entry.right_boundary.size(),
-		"Automatic junctions produce paired curves within the 6–10 m transition contract."
+		"Automatic junctions produce paired curves with a longer entry taper."
+	)
+	_check(
+		_path_moves_toward_finish(entry.left_boundary)
+		and _path_moves_toward_finish(entry.right_boundary),
+		"The entry funnel never doubles back into a hook-shaped barrier."
 	)
 	var shallow_points: Array[Vector3] = [
 		Vector3(-20.0, 0.0, -20.0),
@@ -69,6 +75,8 @@ func _test_shortcut_junction_geometry() -> void:
 		"Unsafe shallow junctions preserve an explicit fallback reason."
 	)
 	var supported_angles_are_valid := true
+	var entry_widths := PackedFloat32Array()
+	var entry_lengths := PackedFloat32Array()
 	for angle_degrees in [20.0, 45.0, 90.0]:
 		var outward_distance := 20.0
 		var longitudinal_distance := (
@@ -89,9 +97,22 @@ func _test_shortcut_junction_geometry() -> void:
 			and angled_entry.is_valid
 			and angled_exit.is_valid
 		)
+		entry_widths.append(angled_entry.mouth_width)
+		entry_lengths.append(angled_entry.transition_length)
 	_check(
 		supported_angles_are_valid,
 		"Automatic junctions accept 20°, 45°, and 90° entries and exits."
+	)
+	_check(
+		entry_widths[0] > entry_widths[1]
+		and entry_widths[1] > entry_widths[2]
+		and is_equal_approx(entry_widths[0], 16.0)
+		and is_equal_approx(entry_widths[2], 14.0)
+		and entry_lengths[0] > entry_lengths[1]
+		and entry_lengths[1] > entry_lengths[2]
+		and is_equal_approx(entry_lengths[0], 14.0)
+		and is_equal_approx(entry_lengths[2], 12.0),
+		"Shallow entries widen and lengthen progressively from 90° to 20°."
 	)
 	var opposite_side_points: Array[Vector3] = [
 		Vector3(-80.0, 0.02, -20.0),
@@ -100,13 +121,25 @@ func _test_shortcut_junction_geometry() -> void:
 		Vector3(80.0, 0.02, -20.0),
 	]
 	var opposite_entry := builder.build(opposite_side_points, true)
+	var wrapping_route: Array[Vector3] = [
+		Vector3(0.0, 0.0, -20.0),
+		Vector3(100.0, 0.0, -20.0),
+		Vector3(100.0, 0.0, 20.0),
+		Vector3(-100.0, 0.0, 20.0),
+		Vector3(-100.0, 0.0, -20.0),
+	]
 	var wrapping_points: Array[Vector3] = [
-		Vector3(-99.9, 0.02, -20.0),
-		Vector3(-99.9, 0.02, -40.0),
-		Vector3(0.0, 0.02, -40.0),
+		Vector3(0.1, 0.02, -20.0),
+		Vector3(0.1, 0.02, -40.0),
+		Vector3(60.0, 0.02, -40.0),
 		Vector3(80.0, 0.02, -20.0),
 	]
-	var wrapping_entry := builder.build(wrapping_points, true)
+	var wrapping_builder := JunctionBuilder.new(
+		wrapping_route,
+		CoastalTrack.ROAD_WIDTH,
+		CoastalTrack.SHORTCUT_WIDTH
+	)
+	var wrapping_entry := wrapping_builder.build(wrapping_points, true)
 	_check(
 		opposite_entry.is_valid
 		and opposite_entry.side == -entry.side,
@@ -115,7 +148,8 @@ func _test_shortcut_junction_geometry() -> void:
 	_check(
 		wrapping_entry.is_valid
 		and wrapping_entry.portal_intervals.size() == 2,
-		"Automatic junction portals wrap safely across route progress."
+		"Automatic junction portals wrap safely across route progress: %s"
+		% wrapping_entry.fallback_reason
 	)
 
 
@@ -447,23 +481,34 @@ func _test_barrier_edge_cases() -> void:
 	var open_indices := (
 		open_arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
 	)
-	var caps_have_expected_normals := true
-	for vertex_index in range(12, 16):
-		caps_have_expected_normals = (
-			caps_have_expected_normals
-			and open_normals[vertex_index].dot(Vector3.LEFT) > 0.9999
-		)
-	for vertex_index in range(16, 20):
-		caps_have_expected_normals = (
-			caps_have_expected_normals
-			and open_normals[vertex_index].dot(Vector3.RIGHT) > 0.9999
+	var rounded_caps_extend_outward := false
+	for vertex in open_vertices:
+		rounded_caps_extend_outward = (
+			rounded_caps_extend_outward
+			or vertex.x < -0.001
+			or vertex.x > 5.001
 		)
 	_check(
-		open_vertices.size() == 20
-		and open_normals.size() == 20
-		and open_indices.size() == 30
-		and caps_have_expected_normals,
-		"Minimal open barriers include indexed caps with outward normals."
+		open_vertices.size() > 20
+		and open_normals.size() == open_vertices.size()
+		and open_indices.size() > 30
+		and rounded_caps_extend_outward
+		and _vectors_are_finite(open_vertices)
+		and _vectors_are_finite(open_normals),
+		"Minimal open barriers use finite rounded caps beyond exposed endpoints."
+	)
+	var connected_mesh := TrackBarrierBuilder.create_indexed_barrier_mesh(
+		[open_chain],
+		false,
+		true,
+		true,
+		[Vector2i(0, 0)]
+	)
+	var connected_arrays := connected_mesh.surface_get_arrays(0)
+	_check(
+		(connected_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() == 12
+		and (connected_arrays[Mesh.ARRAY_INDEX] as PackedInt32Array).size() == 18,
+		"A connected portal suppresses the perpendicular barrier caps."
 	)
 
 	var closed_triangle := PackedVector3Array([
@@ -498,7 +543,8 @@ func _test_explicit_portals() -> void:
 		CoastalTrack.ROAD_WIDTH,
 		CoastalTrack.SHORTCUT_WIDTH,
 		track._barrier_material,
-		track._get_shortcut_barrier_join_clearance()
+		track._get_shortcut_barrier_join_clearance(),
+		track._shortcut_junctions
 	)
 	var detected_joins_match_the_main_barrier := true
 	for shortcut_definition in track.shortcut_definitions:
@@ -643,7 +689,7 @@ func _test_explicit_portals() -> void:
 		)
 	_check(
 		portal_widths_are_bounded,
-		"Shortcut portal openings stay within the 6–14 meter bounds."
+		"Shortcut portal openings stay within the 6–16 meter bounds."
 	)
 
 	var barrier_ring := TrackBarrierBuilder.build_miter_barrier_ring(
@@ -654,20 +700,25 @@ func _test_explicit_portals() -> void:
 		barrier_ring,
 		right_portals
 	)
+	var chain_caps := builder.get_main_barrier_chain_caps(open_chains)
 	var open_mesh := TrackBarrierBuilder.create_indexed_barrier_mesh(
 		open_chains,
-		false
+		false,
+		true,
+		true,
+		chain_caps
 	)
 	var open_arrays := open_mesh.surface_get_arrays(0)
 	var open_indices := open_arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
 	var expected_index_count := 0
 	for chain_value in open_chains:
 		var chain := chain_value as PackedVector3Array
-		expected_index_count += (chain.size() - 1) * 18 + 12
+		expected_index_count += (chain.size() - 1) * 18
 	_check(
 		not open_chains.is_empty()
 		and open_indices.size() == expected_index_count,
-		"Every explicit portal has indexed end caps in visual and collision geometry."
+		"Valid shortcut portals contain no perpendicular barrier caps: %s"
+		% str(chain_caps)
 	)
 
 	var wrapping_intervals: Array[Vector2] = []
@@ -752,6 +803,19 @@ func _create_circle_points(point_count: int, radius: float) -> Array[Vector3]:
 		var angle := TAU * float(point_index) / point_count
 		points.append(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
 	return points
+
+
+func _path_moves_toward_finish(points: PackedVector3Array) -> bool:
+	if points.size() < 2:
+		return false
+	var direct := points[-1] - points[0]
+	direct.y = 0.0
+	for point_index in points.size() - 1:
+		var segment := points[point_index + 1] - points[point_index]
+		segment.y = 0.0
+		if segment.dot(direct) <= 0.0:
+			return false
+	return true
 
 
 func _vectors_are_finite(vectors: PackedVector3Array) -> bool:

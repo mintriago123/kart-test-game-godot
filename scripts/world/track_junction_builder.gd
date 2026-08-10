@@ -5,11 +5,14 @@ const JunctionGeometry = preload("res://scripts/world/track_junction_geometry.gd
 
 const BARRIER_PATH_INSET := 0.12
 const PORTAL_MIN_WIDTH := 6.0
-const PORTAL_MAX_WIDTH := 14.0
-const ENTRY_MOUTH_PADDING := 4.0
-const EXIT_MOUTH_PADDING := 1.5
-const TRANSITION_MIN_LENGTH := 6.0
-const TRANSITION_MAX_LENGTH := 10.0
+const PORTAL_MAX_WIDTH := 16.0
+const ENTRY_MOUTH_MIN_WIDTH := 14.0
+const ENTRY_MOUTH_MAX_WIDTH := 16.0
+const EXIT_MOUTH_WIDTH := 12.0
+const ENTRY_TRANSITION_MIN_LENGTH := 12.0
+const ENTRY_TRANSITION_MAX_LENGTH := 14.0
+const EXIT_TRANSITION_MIN_LENGTH := 8.0
+const EXIT_TRANSITION_MAX_LENGTH := 10.0
 const SAMPLE_SPACING := 0.75
 const MINIMUM_ANGLE_DEGREES := 20.0
 
@@ -65,21 +68,27 @@ func build(
 			"La unión tiene un ángulo menor a %d°." % int(MINIMUM_ANGLE_DEGREES)
 		)
 		return geometry
-	geometry.mouth_width = clampf(
-		_shortcut_width + (ENTRY_MOUTH_PADDING if is_entry else EXIT_MOUTH_PADDING),
-		PORTAL_MIN_WIDTH,
-		PORTAL_MAX_WIDTH
+	var angle_sine := absf(sin(deg_to_rad(geometry.angle_degrees)))
+	var minimum_angle_sine := sin(deg_to_rad(MINIMUM_ANGLE_DEGREES))
+	var shallow_weight := clampf(
+		(1.0 - angle_sine) / (1.0 - minimum_angle_sine),
+		0.0,
+		1.0
 	)
-	var angle_sine := sin(deg_to_rad(geometry.angle_degrees))
+	geometry.mouth_width = (
+		lerpf(ENTRY_MOUTH_MIN_WIDTH, ENTRY_MOUTH_MAX_WIDTH, shallow_weight)
+		if is_entry
+		else EXIT_MOUTH_WIDTH
+	)
 	geometry.portal_width = clampf(
 		geometry.mouth_width / maxf(angle_sine, 0.15),
 		geometry.mouth_width,
 		PORTAL_MAX_WIDTH
 	)
-	geometry.transition_length = clampf(
-		_shortcut_width * 0.8 / maxf(angle_sine, 0.35),
-		TRANSITION_MIN_LENGTH,
-		TRANSITION_MAX_LENGTH
+	geometry.transition_length = lerpf(
+		ENTRY_TRANSITION_MIN_LENGTH if is_entry else EXIT_TRANSITION_MIN_LENGTH,
+		ENTRY_TRANSITION_MAX_LENGTH if is_entry else EXIT_TRANSITION_MAX_LENGTH,
+		shallow_weight
 	)
 	var center_progress := float(route_location.progress)
 	var half_progress := geometry.portal_width * 0.5 / _route_length
@@ -122,16 +131,26 @@ func build(
 	)
 	var left_mouth: Dictionary = mouth_a if direct_pairing else mouth_b
 	var right_mouth: Dictionary = mouth_b if direct_pairing else mouth_a
+	var left_start_direction := _direction_toward(
+		left_mouth.direction,
+		left_mouth.point,
+		shortcut_left
+	)
+	var right_start_direction := _direction_toward(
+		right_mouth.direction,
+		right_mouth.point,
+		shortcut_right
+	)
 	geometry.left_boundary = _sample_bezier(
 		left_mouth.point,
-		left_mouth.direction,
+		left_start_direction,
 		shortcut_left,
 		join_inward,
 		geometry.transition_length
 	)
 	geometry.right_boundary = _sample_bezier(
 		right_mouth.point,
-		right_mouth.direction,
+		right_start_direction,
 		shortcut_right,
 		join_inward,
 		geometry.transition_length
@@ -315,7 +334,7 @@ func _sample_bezier(
 	finish_direction: Vector3,
 	transition_length: float
 ) -> PackedVector3Array:
-	var handle_length := minf(transition_length / 3.0, start.distance_to(finish) * 0.45)
+	var handle_length := transition_length / 3.0
 	var control_a := start + start_direction.normalized() * handle_length
 	var control_b := finish - finish_direction.normalized() * handle_length
 	var sample_count := maxi(2, ceili(transition_length / SAMPLE_SPACING))
@@ -330,6 +349,14 @@ func _sample_bezier(
 			+ finish * weight * weight * weight
 		)
 	return points
+
+
+func _direction_toward(
+	direction: Vector3,
+	start: Vector3,
+	finish: Vector3
+) -> Vector3:
+	return -direction if direction.dot(finish - start) < 0.0 else direction
 
 
 func _make_wrapped_intervals(start: float, finish: float) -> Array[Vector2]:
@@ -387,7 +414,16 @@ func _keep_boundary_outside_shortcut(
 			(target_lateral < 0.0 and lateral > target_lateral)
 			or (target_lateral > 0.0 and lateral < target_lateral)
 		):
-			expanded[boundary_index] = point + right * (target_lateral - lateral)
+			var corrected := point + right * (target_lateral - lateral)
+			var transition_weight := smoothstep(
+				0.15,
+				0.85,
+				float(boundary_index) / float(expanded.size() - 1)
+			)
+			expanded[boundary_index] = point.lerp(
+				corrected,
+				transition_weight
+			)
 	return expanded
 
 

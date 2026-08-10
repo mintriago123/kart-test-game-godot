@@ -121,8 +121,13 @@ bordillo y barrera que todavía pueda generarse; solo se omiten sus componentes
 inválidos.
 
 Las barreras cerradas usan un anillo indexado con uniones miter limitadas y
-bevel en ángulos agudos. Los únicos huecos corresponden a portales de atajos
-válidos, calculados sobre el lado real y cerrados con tapas.
+bevel en ángulos agudos. Los portales de atajos se abren sobre el lado real y
+se conectan al embudo sin tapas perpendiculares; solo los extremos realmente
+expuestos reciben un remate redondeado.
+
+Las entradas usan una boca adaptativa de 14–16 m y una transición de 12–14 m.
+Las salidas conservan una boca de 12 m y una transición de 8–10 m. Las barreras
+del atajo recorren un hombro exterior para mantener libre el corredor del kart.
 
 Las pruebas automatizadas son:
 
