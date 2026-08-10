@@ -14,6 +14,7 @@ func _run() -> void:
 	_test_surface_edge_cases()
 	_test_shortcut_junction_geometry()
 	_test_closed_barrier_geometry()
+	_test_open_barrier_geometry()
 	_test_barrier_edge_cases()
 	await _test_explicit_portals()
 	quit(1 if _has_failed else 0)
@@ -399,6 +400,40 @@ func _test_closed_barrier_geometry() -> void:
 			% (shape_index + 1)
 		)
 		track.free()
+
+
+func _test_open_barrier_geometry() -> void:
+	var tight_shortcut: Array[Vector3] = [
+		Vector3(0.0, 0.0, 0.0),
+		Vector3(-8.0, 0.0, 1.0),
+		Vector3(-14.0, 0.0, 5.0),
+		Vector3(-17.0, 0.0, 11.0),
+		Vector3(-15.0, 0.0, 17.0),
+		Vector3(-9.0, 0.0, 21.0),
+		Vector3(-1.0, 0.0, 22.0),
+	]
+	var chains: Array[PackedVector3Array] = []
+	for lateral_offset in [-4.4, 4.4]:
+		chains.append(
+			TrackBarrierBuilder.build_open_offset_chain(
+				tight_shortcut,
+				lateral_offset
+			)
+		)
+	var chains_are_safe := true
+	for chain in chains:
+		chains_are_safe = (
+			chains_are_safe
+			and chain.size() >= tight_shortcut.size()
+			and not _open_chain_self_intersects(chain)
+			and _open_chain_moves_forward(chain, tight_shortcut)
+		)
+		for point in chain:
+			chains_are_safe = chains_are_safe and point.is_finite()
+	_check(
+		chains_are_safe,
+		"Tight shortcut offsets remain finite, rounded, and free of folded wedges."
+	)
 
 
 func _test_barrier_edge_cases() -> void:
@@ -816,6 +851,38 @@ func _path_moves_toward_finish(points: PackedVector3Array) -> bool:
 		if segment.dot(direct) <= 0.0:
 			return false
 	return true
+
+
+func _open_chain_self_intersects(points: PackedVector3Array) -> bool:
+	for first_index in range(points.size() - 1):
+		for second_index in range(first_index + 2, points.size() - 1):
+			if second_index == first_index + 1:
+				continue
+			if Geometry2D.segment_intersects_segment(
+				Vector2(points[first_index].x, points[first_index].z),
+				Vector2(points[first_index + 1].x, points[first_index + 1].z),
+				Vector2(points[second_index].x, points[second_index].z),
+				Vector2(points[second_index + 1].x, points[second_index + 1].z)
+			) != null:
+				return true
+	return false
+
+
+func _open_chain_moves_forward(
+	points: PackedVector3Array,
+	centerline: Array[Vector3]
+) -> bool:
+	if points.size() < 2 or centerline.size() < 2:
+		return false
+	var center_forward := centerline[-1] - centerline[0]
+	center_forward.y = 0.0
+	var backward_distance := 0.0
+	for point_index in range(points.size() - 1):
+		var segment := points[point_index + 1] - points[point_index]
+		segment.y = 0.0
+		if segment.dot(center_forward) < 0.0:
+			backward_distance += segment.length()
+	return backward_distance <= 0.5
 
 
 func _vectors_are_finite(vectors: PackedVector3Array) -> bool:
