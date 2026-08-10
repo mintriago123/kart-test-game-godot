@@ -44,7 +44,9 @@ func _test_shortcut_junction_geometry() -> void:
 		entry.is_valid
 		and exit.is_valid
 		and is_equal_approx(entry.mouth_width, 13.0)
-		and is_equal_approx(exit.mouth_width, 11.5),
+		and is_equal_approx(exit.mouth_width, 11.5)
+		and entry.portal_width <= 14.0
+		and exit.portal_width <= 14.0,
 		"Automatic junctions use the agreed asymmetric 13 m and 11.5 m mouths."
 	)
 	_check(

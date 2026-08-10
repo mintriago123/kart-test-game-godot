@@ -71,13 +71,18 @@ func build(
 		PORTAL_MAX_WIDTH
 	)
 	var angle_sine := sin(deg_to_rad(geometry.angle_degrees))
+	geometry.portal_width = clampf(
+		geometry.mouth_width / maxf(angle_sine, 0.15),
+		geometry.mouth_width,
+		PORTAL_MAX_WIDTH
+	)
 	geometry.transition_length = clampf(
 		_shortcut_width * 0.8 / maxf(angle_sine, 0.35),
 		TRANSITION_MIN_LENGTH,
 		TRANSITION_MAX_LENGTH
 	)
 	var center_progress := float(route_location.progress)
-	var half_progress := geometry.mouth_width * 0.5 / _route_length
+	var half_progress := geometry.portal_width * 0.5 / _route_length
 	geometry.portal_intervals = _make_wrapped_intervals(
 		center_progress - half_progress,
 		center_progress + half_progress
@@ -90,6 +95,7 @@ func build(
 		wrapf(center_progress + half_progress, 0.0, 1.0),
 		geometry.side
 	)
+	mouth_b.direction = -(mouth_b.direction as Vector3)
 	var join_sample := _sample_shortcut_inward(
 		shortcut_points,
 		crossing.point,
@@ -129,6 +135,16 @@ func build(
 		shortcut_right,
 		join_inward,
 		geometry.transition_length
+	)
+	geometry.left_boundary = _keep_boundary_outside_shortcut(
+		geometry.left_boundary,
+		shortcut_points,
+		-_shortcut_width * 0.5
+	)
+	geometry.right_boundary = _keep_boundary_outside_shortcut(
+		geometry.right_boundary,
+		shortcut_points,
+		_shortcut_width * 0.5
 	)
 	if (
 		not _boundaries_are_finite(geometry)
@@ -327,6 +343,52 @@ func _make_wrapped_intervals(start: float, finish: float) -> Array[Vector2]:
 	else:
 		intervals.append(Vector2(start, finish))
 	return intervals
+
+
+func _keep_boundary_outside_shortcut(
+	boundary: PackedVector3Array,
+	shortcut_points: Array[Vector3],
+	target_lateral: float
+) -> PackedVector3Array:
+	var expanded := boundary.duplicate()
+	for boundary_index in range(1, expanded.size()):
+		var point := expanded[boundary_index]
+		var closest_distance := INF
+		var closest_point := Vector3.ZERO
+		var closest_forward := Vector3.FORWARD
+		for segment_index in shortcut_points.size() - 1:
+			var segment_start := shortcut_points[segment_index]
+			var segment_finish := shortcut_points[segment_index + 1]
+			var segment_2d := Vector2(
+				segment_finish.x - segment_start.x,
+				segment_finish.z - segment_start.z
+			)
+			var segment_length_squared := segment_2d.length_squared()
+			if segment_length_squared <= 0.0001:
+				continue
+			var weight := clampf(
+				(
+					Vector2(point.x - segment_start.x, point.z - segment_start.z)
+				).dot(segment_2d) / segment_length_squared,
+				0.0,
+				1.0
+			)
+			var candidate := segment_start.lerp(segment_finish, weight)
+			var distance := Vector2(point.x, point.z).distance_squared_to(
+				Vector2(candidate.x, candidate.z)
+			)
+			if distance < closest_distance:
+				closest_distance = distance
+				closest_point = candidate
+				closest_forward = segment_finish - segment_start
+		var right := Vector3.UP.cross(closest_forward.normalized()).normalized()
+		var lateral := (point - closest_point).dot(right)
+		if (
+			(target_lateral < 0.0 and lateral > target_lateral)
+			or (target_lateral > 0.0 and lateral < target_lateral)
+		):
+			expanded[boundary_index] = point + right * (target_lateral - lateral)
+	return expanded
 
 
 func _boundaries_are_finite(geometry: JunctionGeometry) -> bool:

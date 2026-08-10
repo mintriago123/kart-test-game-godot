@@ -6,6 +6,7 @@ var fallback_reason := ""
 var is_entry := true
 var side := 0.0
 var mouth_width := 0.0
+var portal_width := 0.0
 var transition_length := 0.0
 var angle_degrees := 0.0
 var world_position := Vector3.ZERO
