@@ -287,6 +287,36 @@ func _test_guided_screen() -> void:
 		and screen.find_child("EditorStatus", true, false) != null,
 		"Guided editor preserves the control names used by the plugin and tests."
 	)
+	var route_curve := screen.session.track.get_main_route().curve
+	var original_first_point := route_curve.get_point_position(0)
+	var first_point_screen := map_view._world_to_screen(original_first_point)
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = first_point_screen
+	map_view._gui_input(press)
+	_check(
+		map_view.selected_point == 0,
+		"A route point can be selected directly from its visible map handle."
+	)
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = first_point_screen
+	map_view._gui_input(release)
+	var move_right := InputEventKey.new()
+	move_right.keycode = KEY_RIGHT
+	move_right.pressed = true
+	map_view._gui_input(move_right)
+	_check(
+		route_curve.get_point_position(0).is_equal_approx(
+			original_first_point + Vector3.RIGHT
+		),
+		"The selected route point supports precise keyboard movement."
+	)
+	screen.session.undo_route()
+	await process_frame
+	map_view = screen.find_child("TrackMap", true, false) as TrackMapView
 	var step_texts := PackedStringArray()
 	for step_button in screen._step_buttons:
 		step_texts.append(step_button.text)
