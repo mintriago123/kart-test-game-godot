@@ -116,6 +116,7 @@ func fit_shortcut_midpoint(
 		shortcut
 	)
 	if bool(requested_safety.safe):
+		shortcut.set_meta(&"editor_safety_checked", true)
 		return _fit_result(&"accepted", "Forma segura.", shortcut)
 
 	var best_candidate: Dictionary = {}
@@ -190,6 +191,7 @@ func fit_shortcut_midpoint(
 		original,
 		float(best_candidate.handle_multiplier)
 	)
+	shortcut.set_meta(&"editor_safety_checked", true)
 	return _fit_result(
 		&"adjusted",
 		"Forma ajustada para mantener una salida segura.",

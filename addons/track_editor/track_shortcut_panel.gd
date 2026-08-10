@@ -80,6 +80,20 @@ func _build_midpoint_inspector(
 	if shortcut == null:
 		return
 	add_field_label("SELECCIÓN · %s" % shortcut.display_name)
+	var safety := TrackLevelValidator.get_shortcut_safety(track, shortcut)
+	var safety_label := "SEGURIDAD · "
+	if bool(safety.safe):
+		var is_comfortable := (
+			float(safety.turn_radius)
+			>= TrackLevelValidator.SHORTCUT_MINIMUM_TURN_RADIUS * 1.25
+			and float(safety.clearance)
+			>= TrackLevelValidator.SHORTCUT_ROUTE_CLEARANCE * 1.25
+		)
+		safety_label += "CÓMODA" if is_comfortable else "AJUSTADA"
+	else:
+		safety_label += "REQUIERE CORRECCIÓN"
+	add_field_label(safety_label)
+	add_help(String(safety.message))
 	var values: Array[SpinBox] = []
 	for value_data in [
 		{"label": "Desplazamiento longitudinal", "value": shortcut.midpoint_longitudinal_offset},

@@ -21,6 +21,9 @@ const ROAD_COLOR := Color("#eef1e8")
 const ROAD_EDGE_COLOR := Color("#59666d")
 const ACCENT_COLOR := Color("#f6c344")
 const SHORTCUT_COLOR := Color("#42c7b9")
+const SAFE_CORRIDOR_COLOR := Color("#55d68b80")
+const TIGHT_CORRIDOR_COLOR := Color("#f6c34480")
+const UNSAFE_CORRIDOR_COLOR := Color("#ef765680")
 const ERROR_COLOR := Color("#ef7656")
 const WARNING_COLOR := Color("#f6c344")
 const MAP_PADDING := 54.0
@@ -384,10 +387,46 @@ func _draw_shortcuts() -> void:
 		for point in shortcut.curve.get_baked_points():
 			shortcut_points.append(_world_to_screen(point))
 		if shortcut_points.size() >= 2:
+			var corridor_width := maxf(
+				_world_distance_to_screen(CoastalTrack.SHORTCUT_WIDTH),
+				10.0
+			)
+			draw_polyline(
+				shortcut_points,
+				_get_shortcut_safety_color(shortcut),
+				corridor_width,
+				true
+			)
 			_draw_shortcut_junctions(shortcut)
 			draw_polyline(shortcut_points, SHORTCUT_COLOR, 8.0, true)
 			_draw_handle(shortcut_points[0], SHORTCUT_COLOR, false)
 			_draw_handle(shortcut_points[-1], SHORTCUT_COLOR, false)
+
+
+func get_shortcut_safety_state(shortcut: TrackShortcut) -> StringName:
+	if track == null or shortcut == null:
+		return &"unsafe"
+	var safety := TrackLevelValidator.get_shortcut_safety(track, shortcut)
+	if not bool(safety.safe):
+		return &"unsafe"
+	if (
+		float(safety.turn_radius)
+		>= TrackLevelValidator.SHORTCUT_MINIMUM_TURN_RADIUS * 1.25
+		and float(safety.clearance)
+		>= TrackLevelValidator.SHORTCUT_ROUTE_CLEARANCE * 1.25
+	):
+		return &"comfortable"
+	return &"tight"
+
+
+func _get_shortcut_safety_color(shortcut: TrackShortcut) -> Color:
+	match get_shortcut_safety_state(shortcut):
+		&"comfortable":
+			return SAFE_CORRIDOR_COLOR
+		&"tight":
+			return TIGHT_CORRIDOR_COLOR
+		_:
+			return UNSAFE_CORRIDOR_COLOR
 			var middle_index := shortcut.curve.point_count / 2
 			var midpoint := _world_to_screen(
 				shortcut.transform * shortcut.curve.get_point_position(middle_index)

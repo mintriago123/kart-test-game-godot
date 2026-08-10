@@ -137,6 +137,23 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 					shortcut_position
 				)
 			if shortcut_errors.is_empty():
+				if (
+					shortcut.route_anchor_enabled
+					and shortcut.has_meta(&"editor_safety_checked")
+				):
+					var safety := get_shortcut_safety(track, shortcut)
+					if not bool(safety.safe) and safety.code in [
+						&"shortcut_turn_too_tight",
+						&"shortcut_corridor_too_narrow",
+						&"shortcut_barrier_self_intersection",
+					]:
+						_append_warning_issue(
+							issues,
+							safety.code,
+							String(safety.message),
+							shortcut_path,
+							shortcut_position
+						)
 				_append_junction_warning(
 					issues,
 					track,
@@ -472,13 +489,6 @@ static func get_shortcut_safety(
 		result.code = &"shortcut_turn_too_tight"
 		result.message = "%s tiene una curva demasiado cerrada." % shortcut.display_name
 		return result
-	if (
-		float(result.clearance) < SHORTCUT_ROUTE_CLEARANCE
-		or has_shortcut_route_crossing(shortcut_points, validation_route)
-	):
-		result.code = &"shortcut_corridor_too_narrow"
-		result.message = "%s no conserva separación suficiente de la carretera." % shortcut.display_name
-		return result
 	var junction_builder := JunctionBuilder.new(
 		validation_route,
 		CoastalTrack.ROAD_WIDTH,
@@ -489,6 +499,13 @@ static func get_shortcut_safety(
 	if not entry_junction.is_valid or not exit_junction.is_valid:
 		result.code = &"shortcut_junction_unsafe"
 		result.message = "%s no permite una entrada y salida seguras." % shortcut.display_name
+		return result
+	if (
+		float(result.clearance) < SHORTCUT_ROUTE_CLEARANCE
+		or has_shortcut_route_crossing(shortcut_points, validation_route)
+	):
+		result.code = &"shortcut_corridor_too_narrow"
+		result.message = "%s no conserva separación suficiente de la carretera." % shortcut.display_name
 		return result
 	var first_index: int = entry_junction.shortcut_transition_index
 	var final_index: int = exit_junction.shortcut_transition_index
@@ -531,6 +548,27 @@ static func _append_issue(
 			code,
 			message,
 			TrackValidationIssue.Severity.ERROR,
+			target_path,
+			world_position
+		)
+	)
+
+
+static func _append_warning_issue(
+	issues: Array[TrackValidationIssue],
+	code: StringName,
+	message: String,
+	target_path: NodePath,
+	world_position := Vector3.ZERO
+) -> void:
+	for issue in issues:
+		if issue.code == code and issue.target_path == target_path:
+			return
+	issues.append(
+		TrackValidationIssue.create(
+			code,
+			message,
+			TrackValidationIssue.Severity.WARNING,
 			target_path,
 			world_position
 		)
