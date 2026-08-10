@@ -1,5 +1,7 @@
 extends SceneTree
 
+const JunctionBuilder = preload("res://scripts/world/track_junction_builder.gd")
+
 var _has_failed := false
 
 
@@ -10,10 +12,60 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_surface_geometry()
 	_test_surface_edge_cases()
+	_test_shortcut_junction_geometry()
 	_test_closed_barrier_geometry()
 	_test_barrier_edge_cases()
 	await _test_explicit_portals()
 	quit(1 if _has_failed else 0)
+
+
+func _test_shortcut_junction_geometry() -> void:
+	var route_points: Array[Vector3] = [
+		Vector3(-35.0, 0.0, -20.0),
+		Vector3(35.0, 0.0, -20.0),
+		Vector3(35.0, 0.0, 20.0),
+		Vector3(-35.0, 0.0, 20.0),
+	]
+	var shortcut_points: Array[Vector3] = [
+		Vector3(-20.0, 0.02, -20.0),
+		Vector3(-10.0, 0.02, -26.0),
+		Vector3(0.0, 0.02, -32.0),
+		Vector3(10.0, 0.02, -26.0),
+		Vector3(20.0, 0.02, -20.0),
+	]
+	var builder := JunctionBuilder.new(
+		route_points,
+		CoastalTrack.ROAD_WIDTH,
+		CoastalTrack.SHORTCUT_WIDTH
+	)
+	var entry := builder.build(shortcut_points, true)
+	var exit := builder.build(shortcut_points, false)
+	_check(
+		entry.is_valid
+		and exit.is_valid
+		and is_equal_approx(entry.mouth_width, 13.0)
+		and is_equal_approx(exit.mouth_width, 11.5),
+		"Automatic junctions use the agreed asymmetric 13 m and 11.5 m mouths."
+	)
+	_check(
+		entry.transition_length >= 6.0
+		and entry.transition_length <= 10.0
+		and exit.transition_length >= 6.0
+		and exit.transition_length <= 10.0
+		and entry.left_boundary.size() >= 3
+		and entry.left_boundary.size() == entry.right_boundary.size(),
+		"Automatic junctions produce paired curves within the 6–10 m transition contract."
+	)
+	var shallow_points: Array[Vector3] = [
+		Vector3(-20.0, 0.0, -20.0),
+		Vector3(10.0, 0.0, -23.0),
+		Vector3(28.0, 0.0, -25.0),
+	]
+	var fallback := builder.build(shallow_points, true)
+	_check(
+		not fallback.is_valid and not fallback.fallback_reason.is_empty(),
+		"Unsafe shallow junctions preserve an explicit fallback reason."
+	)
 
 
 func _test_surface_geometry() -> void:
