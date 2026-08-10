@@ -13,14 +13,16 @@ signal add_asset_requested(
 	point_index: int,
 	side_sign: float,
 	distance: float,
-	rotation_degrees_y: float
+	rotation_degrees_y: float,
+	scale_multiplier: float
 )
 signal anchor_changed(
 	selection: RefCounted,
 	progress: float,
 	lateral: float,
 	height: float,
-	rotation_degrees_y: float
+	rotation_degrees_y: float,
+	scale_multiplier: float
 )
 signal duplicate_requested(selection: RefCounted)
 signal delete_requested(selection: RefCounted)
@@ -94,6 +96,18 @@ func configure(
 	asset_rotation.suffix = "°"
 	asset_rotation.custom_minimum_size.y = 44.0
 	add_child(asset_rotation)
+	add_field_label("Escala uniforme")
+	var asset_scale := SpinBox.new()
+	asset_scale.name = "NewPropScalePercent"
+	asset_scale.min_value = 50.0
+	asset_scale.max_value = 300.0
+	asset_scale.step = 10.0
+	asset_scale.value = 100.0
+	asset_scale.suffix = " %"
+	asset_scale.tooltip_text = "Tamaño uniforme de la decoración nueva"
+	asset_scale.focus_mode = Control.FOCUS_ALL
+	asset_scale.custom_minimum_size.y = 44.0
+	add_child(asset_scale)
 	var add_asset := make_button(
 		"＋ COLOCAR DECORACIÓN",
 		func() -> void:
@@ -103,7 +117,8 @@ func configure(
 					route_point.selected,
 					-1.0 if side_picker.selected == 0 else 1.0,
 					asset_distance.value,
-					asset_rotation.value
+					asset_rotation.value,
+					asset_scale.value / 100.0
 				)
 	)
 	add_asset.disabled = asset_entries.is_empty()
@@ -180,6 +195,23 @@ func _build_selected_inspector(
 	rotation.editable = selection.kind == Selection.Kind.PROP
 	add_field_label("Rotación")
 	add_child(rotation)
+	var prop_scale: SpinBox = null
+	if selection.kind == Selection.Kind.PROP:
+		prop_scale = SpinBox.new()
+		prop_scale.name = "PropScalePercent"
+		prop_scale.min_value = 50.0
+		prop_scale.max_value = 300.0
+		prop_scale.step = 10.0
+		prop_scale.value = float(selected_node.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER,
+			1.0
+		)) * 100.0
+		prop_scale.suffix = " %"
+		prop_scale.tooltip_text = "Tamaño uniforme de la decoración seleccionada"
+		prop_scale.focus_mode = Control.FOCUS_ALL
+		prop_scale.custom_minimum_size.y = 44.0
+		add_field_label("Escala uniforme")
+		add_child(prop_scale)
 	add_child(make_button(
 		"APLICAR CAMBIOS",
 		func() -> void:
@@ -188,7 +220,8 @@ func _build_selected_inspector(
 				progress.value / 100.0,
 				lateral.value,
 				height.value,
-				rotation.value
+				rotation.value,
+				prop_scale.value / 100.0 if prop_scale != null else NAN
 			)
 	))
 	add_child(make_button(

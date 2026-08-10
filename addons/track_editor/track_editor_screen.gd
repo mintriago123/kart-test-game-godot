@@ -51,6 +51,7 @@ var _guide_button: Button
 var _new_dialog: ConfirmationDialog
 var _new_name: LineEdit
 var _new_size: OptionButton
+var _new_template_details: Label
 var _open_dialog: FileDialog
 var _unsaved_dialog: ConfirmationDialog
 var _guide_dialog: AcceptDialog
@@ -595,7 +596,8 @@ func _handle_new_pressed() -> void:
 	if session.is_dirty:
 		_show_unsaved_dialog("new", "")
 	else:
-		_new_dialog.popup_centered(Vector2i(460, 280))
+		_update_new_template_details()
+		_new_dialog.popup_centered(Vector2i(480, 340))
 
 
 func _handle_open_pressed() -> void:
@@ -778,7 +780,8 @@ func _handle_object_anchor_changed(
 	progress: float,
 	lateral: float,
 	height: float,
-	rotation: float
+	rotation: float,
+	scale_multiplier: float
 ) -> void:
 	session.snapshot_track_for_undo()
 	var changed := (
@@ -789,7 +792,8 @@ func _handle_object_anchor_changed(
 			progress,
 			lateral,
 			height,
-			rotation
+			rotation,
+			scale_multiplier
 		)
 	)
 	if changed:
@@ -1064,18 +1068,21 @@ func _add_asset(
 	point_index: int,
 	side_sign: float,
 	distance: float,
-	rotation_degrees_y: float
+	rotation_degrees_y: float,
+	scale_multiplier: float = 1.0
 ) -> void:
 	var props := session.track.get_node_or_null("Props")
 	var route := session.track.get_main_route()
 	if props == null or route == null or entry == null or entry.scene == null:
 		_show_error("No se pudo colocar el asset.")
 		return
-	session.snapshot_track_for_undo()
 	var instance := entry.scene.instantiate() as Node3D
 	if instance == null:
 		_show_error("El asset seleccionado no es un modelo 3D.")
 		return
+	var scale_result := entry.resolve_base_scale()
+	var base_scale: Vector3 = scale_result.scale
+	session.snapshot_track_for_undo()
 	instance.name = entry.display_name.validate_node_name()
 	var previous_index := (
 		point_index - 1 + route.curve.point_count
@@ -1090,9 +1097,9 @@ func _add_asset(
 	var side := Vector3(-forward.z, 0.0, forward.x) * side_sign
 	instance.position = route.curve.get_point_position(point_index) + side * distance
 	instance.rotation_degrees.y = rotation_degrees_y
-	instance.scale = entry.default_scale
 	props.add_child(instance)
 	instance.owner = session.track
+	session.initialize_prop_scale(instance, base_scale, scale_multiplier)
 	session.anchor_prop(
 		instance,
 		session.get_route_progress_for_control_point(point_index),
@@ -1103,7 +1110,13 @@ func _add_asset(
 	session.mark_dirty()
 	_rebuild_preview()
 	_show_step(3)
-	_show_success("%s colocado junto a la carretera." % entry.display_name)
+	if bool(scale_result.used_fallback):
+		_show_warning(
+			"%s se colocó con su escala predeterminada; no se pudo medir el modelo."
+			% entry.display_name
+		)
+	else:
+		_show_success("%s colocado junto a la carretera." % entry.display_name)
 
 
 func _focus_issue(issue: TrackValidationIssue) -> void:
@@ -1175,6 +1188,11 @@ func _show_error(message: String) -> void:
 	_status_label.add_theme_color_override("font_color", EditorStyle.ERROR)
 
 
+func _show_warning(message: String) -> void:
+	_status_label.text = "⚠  " + message
+	_status_label.add_theme_color_override("font_color", EditorStyle.FOCUS)
+
+
 func _add_help(text: String) -> void:
 	var label := Label.new()
 	label.text = text
@@ -1228,7 +1246,42 @@ func _build_new_dialog() -> void:
 	_new_size.add_item("Grande · recorrido largo")
 	_new_size.select(1)
 	_new_size.custom_minimum_size.y = 44.0
+	_new_size.item_selected.connect(
+		func(_index: int) -> void: _update_new_template_details()
+	)
 	content.add_child(_new_size)
+	_new_template_details = Label.new()
+	_new_template_details.name = "NewTemplateDetails"
+	_new_template_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_new_template_details.add_theme_color_override(
+		"font_color",
+		EditorStyle.TEXT_SECONDARY
+	)
+	content.add_child(_new_template_details)
+	_update_new_template_details()
+
+
+func _update_new_template_details() -> void:
+	if _new_size == null or _new_template_details == null:
+		return
+	var size_ids := [&"small", &"medium", &"large"]
+	var selected_index := clampi(_new_size.selected, 0, size_ids.size() - 1)
+	var metrics := session.get_template_metrics(size_ids[selected_index])
+	var dimensions: Vector2 = metrics.dimensions
+	var environment_size: Vector2 = metrics.environment_size
+	_new_template_details.text = (
+		"Radio base: %d m  ·  %d puntos\n"
+		+ "Circuito: %d × %d m  ·  longitud estimada: %d m\n"
+		+ "Entorno: %d × %d m"
+	) % [
+		roundi(float(metrics.radius)),
+		int(metrics.point_count),
+		roundi(dimensions.x),
+		roundi(dimensions.y),
+		roundi(float(metrics.length)),
+		roundi(environment_size.x),
+		roundi(environment_size.y),
+	]
 
 
 func _build_unsaved_dialog() -> void:
@@ -1300,7 +1353,8 @@ func _continue_pending_action() -> void:
 		"load":
 			_load_path(_pending_path)
 		"new":
-			_new_dialog.popup_centered(Vector2i(460, 280))
+			_update_new_template_details()
+			_new_dialog.popup_centered(Vector2i(480, 340))
 	_pending_action = ""
 	_pending_path = ""
 

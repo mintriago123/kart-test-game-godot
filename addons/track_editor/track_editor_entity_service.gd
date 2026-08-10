@@ -5,6 +5,10 @@ extends RefCounted
 const Selection := preload(
 	"res://addons/track_editor/track_editor_selection.gd"
 )
+const META_PROP_BASE_SCALE := &"track_editor_prop_base_scale"
+const META_PROP_SCALE_MULTIPLIER := &"track_editor_prop_scale_multiplier"
+const MIN_PROP_SCALE_MULTIPLIER := 0.5
+const MAX_PROP_SCALE_MULTIPLIER := 3.0
 
 var _session_ref: WeakRef
 var _session: RefCounted:
@@ -58,11 +62,21 @@ func update_prop_anchor(
 	progress: float,
 	lateral: float,
 	height: float,
-	rotation_degrees_y: float
+	rotation_degrees_y: float,
+	scale_multiplier: float = NAN
 ) -> bool:
 	var prop := get_node(selection)
-	if prop == null:
+	if (
+		prop == null
+		or not is_finite(progress)
+		or not is_finite(lateral)
+		or not is_finite(height)
+		or not is_finite(rotation_degrees_y)
+		or (not is_nan(scale_multiplier) and not is_finite(scale_multiplier))
+	):
 		return false
+	if not is_nan(scale_multiplier):
+		_apply_prop_scale(prop, scale_multiplier)
 	_session.anchor_prop(
 		prop,
 		progress,
@@ -71,6 +85,69 @@ func update_prop_anchor(
 		rotation_degrees_y
 	)
 	return true
+
+
+func update_prop_scale(
+	selection: RefCounted,
+	scale_multiplier: float
+) -> bool:
+	var prop := get_node(selection)
+	if prop == null or not is_finite(scale_multiplier):
+		return false
+	_apply_prop_scale(prop, scale_multiplier)
+	return true
+
+
+func initialize_prop_scale(
+	prop: Node3D,
+	base_scale: Vector3,
+	scale_multiplier: float
+) -> bool:
+	if (
+		prop == null
+		or not _is_valid_scale(base_scale)
+		or not is_finite(scale_multiplier)
+	):
+		return false
+	var clamped_multiplier := clampf(
+		scale_multiplier,
+		MIN_PROP_SCALE_MULTIPLIER,
+		MAX_PROP_SCALE_MULTIPLIER
+	)
+	prop.set_meta(META_PROP_BASE_SCALE, base_scale)
+	prop.set_meta(META_PROP_SCALE_MULTIPLIER, clamped_multiplier)
+	prop.scale = base_scale * clamped_multiplier
+	return true
+
+
+func _apply_prop_scale(prop: Node3D, scale_multiplier: float) -> void:
+	var base_scale := prop.scale
+	if prop.has_meta(META_PROP_BASE_SCALE):
+		var saved_base_scale = prop.get_meta(META_PROP_BASE_SCALE)
+		if (
+			saved_base_scale is Vector3
+			and _is_valid_scale(saved_base_scale as Vector3)
+		):
+			base_scale = saved_base_scale as Vector3
+	var clamped_multiplier := clampf(
+		scale_multiplier,
+		MIN_PROP_SCALE_MULTIPLIER,
+		MAX_PROP_SCALE_MULTIPLIER
+	)
+	prop.set_meta(META_PROP_BASE_SCALE, base_scale)
+	prop.set_meta(META_PROP_SCALE_MULTIPLIER, clamped_multiplier)
+	prop.scale = base_scale * clamped_multiplier
+
+
+func _is_valid_scale(value: Vector3) -> bool:
+	return (
+		is_finite(value.x)
+		and is_finite(value.y)
+		and is_finite(value.z)
+		and absf(value.x) > 0.000001
+		and absf(value.y) > 0.000001
+		and absf(value.z) > 0.000001
+	)
 
 
 func update_shortcut_midpoint(

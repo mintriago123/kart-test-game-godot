@@ -26,6 +26,10 @@ const META_ANCHOR_PROGRESS := AnchorService.META_ANCHOR_PROGRESS
 const META_ANCHOR_LATERAL := AnchorService.META_ANCHOR_LATERAL
 const META_ANCHOR_HEIGHT := AnchorService.META_ANCHOR_HEIGHT
 const META_ANCHOR_ROTATION := AnchorService.META_ANCHOR_ROTATION
+const META_PROP_BASE_SCALE := EntityService.META_PROP_BASE_SCALE
+const META_PROP_SCALE_MULTIPLIER := EntityService.META_PROP_SCALE_MULTIPLIER
+const MIN_PROP_SCALE_MULTIPLIER := EntityService.MIN_PROP_SCALE_MULTIPLIER
+const MAX_PROP_SCALE_MULTIPLIER := EntityService.MAX_PROP_SCALE_MULTIPLIER
 const HISTORY_LIMIT := HistoryService.HISTORY_LIMIT
 
 var track: TrackLevel
@@ -55,6 +59,10 @@ func load_track(path: String) -> Error:
 
 func create_track(template_size: StringName, track_name: String) -> void:
 	_persistence.create_track(template_size, track_name)
+
+
+func get_template_metrics(template_size: StringName) -> Dictionary:
+	return _persistence.get_template_metrics(template_size)
 
 
 func save() -> Error:
@@ -159,14 +167,35 @@ func update_prop_anchor(
 	progress: float,
 	lateral: float,
 	height: float,
-	rotation_degrees_y: float
+	rotation_degrees_y: float,
+	scale_multiplier: float = NAN
 ) -> bool:
 	return _entities.update_prop_anchor(
 		selection,
 		progress,
 		lateral,
 		height,
-		rotation_degrees_y
+		rotation_degrees_y,
+		scale_multiplier
+	)
+
+
+func update_prop_scale(
+	selection: RefCounted,
+	scale_multiplier: float
+) -> bool:
+	return _entities.update_prop_scale(selection, scale_multiplier)
+
+
+func initialize_prop_scale(
+	prop: Node3D,
+	base_scale: Vector3,
+	scale_multiplier: float
+) -> bool:
+	return _entities.initialize_prop_scale(
+		prop,
+		base_scale,
+		scale_multiplier
 	)
 
 

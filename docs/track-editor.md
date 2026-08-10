@@ -19,12 +19,14 @@ El botón **? Guía** vuelve a mostrar estas instrucciones dentro del editor.
 
 Pulsa **Nueva**, escribe un nombre y elige una plantilla:
 
-- Pequeña para carreras rápidas.
-- Mediana como opción recomendada.
-- Grande para recorridos largos.
+- Pequeña para carreras rápidas: radio base de 42 m y 6 puntos.
+- Mediana como opción recomendada: radio base de 62 m y 8 puntos.
+- Grande para recorridos largos: radio base de 84 m y 12 puntos.
 
-Las plantillas incluyen una carretera cerrada y cuatro cajas de objetos. Las
-pistas nuevas se guardan en `levels/tracks/<identificador>.tscn`.
+El diálogo muestra las dimensiones, la longitud estimada y el tamaño del
+entorno antes de crear la pista. Cada plantilla incluye una silueta cerrada
+distinta y cuatro cajas de objetos. Las pistas nuevas se guardan en
+`levels/tracks/<identificador>.tscn`.
 
 ## Editar la carretera
 
@@ -50,6 +52,9 @@ La rueda acerca o aleja el mapa. El botón central, o `Espacio` mientras se
 arrastra, desplaza la mesa de trazado. **Encuadrar** restaura la vista completa.
 El menú **Capas** controla sentido, objetos, atajos, errores y las vistas
 técnicas opcionales de pendiente, curvatura y barreras.
+La franja inferior muestra dimensiones, longitud, puntos y zoom. La regla de 5,
+10, 20 o 50 metros y la cuadrícula se adaptan al zoom manteniendo distancias
+reales del mundo.
 
 ## Atajos
 
@@ -69,7 +74,7 @@ Las cajas se ajustan a un punto de la carretera. Para decorar:
 
 1. Selecciona un modelo de la biblioteca.
 2. Elige el punto y el lado de la carretera.
-3. Define distancia y rotación.
+3. Define distancia, rotación y una escala uniforme entre 50 % y 300 %.
 4. Pulsa **Colocar decoración** y revisa el resultado en **Vista 3D**.
 
 La decoración no genera colisiones. Las barreras continuas siguen controlando
@@ -77,6 +82,11 @@ la física del kart. Los props creados desde el editor conservan lado, distancia
 altura y rotación al cambiar la ruta; los props oficiales o colocados manualmente
 sin ancla permanecen en sus coordenadas originales hasta su primera edición.
 Entonces reciben un ancla compatible dentro de una operación deshacer/rehacer.
+Los assets nuevos parten de una escala arcade calibrada por su altura visible.
+Al seleccionar una decoración puedes aplicar progreso, distancia, altura,
+rotación y escala como una sola operación. La decoración anterior conserva su
+tamaño hasta la primera edición explícita de escala; en ese momento adopta su
+transformación actual como base y preserva sus proporciones.
 Cajas y decoración se duplican con `Ctrl+D` y se eliminan con `Supr`.
 
 ## Abrir pistas antiguas

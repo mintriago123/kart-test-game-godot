@@ -185,12 +185,24 @@ func _restore_anchor_metadata(node: Node3D, snapshot: Node3D) -> void:
 			float(snapshot.get_meta(_session.META_ANCHOR_HEIGHT, 0.0)),
 			float(snapshot.get_meta(_session.META_ANCHOR_ROTATION, 0.0))
 		)
-		return
+	else:
+		for metadata_key in [
+			_session.META_ANCHOR_PROGRESS,
+			_session.META_ANCHOR_LATERAL,
+			_session.META_ANCHOR_HEIGHT,
+			_session.META_ANCHOR_ROTATION,
+		]:
+			if node.has_meta(metadata_key):
+				node.remove_meta(metadata_key)
+	_restore_prop_scale_metadata(node, snapshot)
+
+
+func _restore_prop_scale_metadata(node: Node3D, snapshot: Node3D) -> void:
 	for metadata_key in [
-		_session.META_ANCHOR_PROGRESS,
-		_session.META_ANCHOR_LATERAL,
-		_session.META_ANCHOR_HEIGHT,
-		_session.META_ANCHOR_ROTATION,
+		_session.META_PROP_BASE_SCALE,
+		_session.META_PROP_SCALE_MULTIPLIER,
 	]:
-		if node.has_meta(metadata_key):
+		if snapshot.has_meta(metadata_key):
+			node.set_meta(metadata_key, snapshot.get_meta(metadata_key))
+		elif node.has_meta(metadata_key):
 			node.remove_meta(metadata_key)
