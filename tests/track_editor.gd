@@ -14,6 +14,8 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_validation_contract()
 	_test_all_validation_contracts()
+	await _test_template_size_differences()
+	await _test_asset_scale_contracts()
 	await _test_junction_warning_contract()
 	await _test_guided_screen()
 	await _test_template_and_history()
@@ -379,6 +381,371 @@ func _make_test_button(
 	return button
 
 
+func _test_template_size_differences() -> void:
+	var templates: Array[Dictionary] = [
+		{"id": &"small", "points": 6},
+		{"id": &"medium", "points": 8},
+		{"id": &"large", "points": 12},
+	]
+	var previous_length := 0.0
+	var previous_dimensions := Vector2.ZERO
+	var previous_environment_size := Vector2.ZERO
+	for template_data in templates:
+		var session := TrackEditorSession.new()
+		var template_id: StringName = template_data.id
+		session.create_track(template_id, "Plantilla %s" % template_id)
+		var track: TrackLevel = session.track
+		var curve := track.get_main_route().curve
+		var metrics := session.get_template_metrics(template_id)
+		var dimensions: Vector2 = metrics.dimensions
+		_check(
+			curve.closed and curve.point_count == int(template_data.points),
+			"%s template creates its closed %d-point silhouette."
+			% [String(template_id).capitalize(), int(template_data.points)]
+		)
+		var handles_are_smooth := true
+		for point_index in curve.point_count:
+			handles_are_smooth = (
+				handles_are_smooth
+				and curve.get_point_in(point_index).is_equal_approx(
+					-curve.get_point_out(point_index)
+				)
+				and curve.get_point_out(point_index).length() > 0.01
+			)
+		_check(
+			handles_are_smooth and track.inspect_track().is_empty(),
+			"%s template is smooth and passes validation."
+			% String(template_id).capitalize()
+		)
+		_check(
+			is_equal_approx(
+				track.environment_size.x,
+				dimensions.x + 120.0
+			)
+			and is_equal_approx(
+				track.environment_size.y,
+				dimensions.y + 120.0
+			),
+			"%s environment follows route bounds with a 60 m margin per side."
+			% String(template_id).capitalize()
+		)
+		if previous_length > 0.0:
+			_check(
+				float(metrics.length) > previous_length
+				and dimensions.x > previous_dimensions.x
+				and dimensions.y > previous_dimensions.y
+				and track.environment_size.x > previous_environment_size.x
+				and track.environment_size.y > previous_environment_size.y,
+				"%s template grows in length, dimensions, and environment."
+				% String(template_id).capitalize()
+			)
+		previous_length = float(metrics.length)
+		previous_dimensions = dimensions
+		previous_environment_size = track.environment_size
+
+		var map_view := TrackMapView.new()
+		root.add_child(map_view)
+		map_view.set_track(track)
+		await process_frame
+		for viewport_size in [Vector2(1280.0, 720.0), Vector2(480.0, 320.0)]:
+			map_view.size = viewport_size
+			map_view._handle_resized()
+			var all_points_fit := true
+			for point_index in curve.point_count:
+				var screen_point := map_view._world_to_screen(
+					curve.get_point_position(point_index)
+				)
+				all_points_fit = (
+					all_points_fit
+					and screen_point.x >= 0.0
+					and screen_point.y >= 0.0
+					and screen_point.x <= viewport_size.x
+					and screen_point.y <= viewport_size.y
+				)
+			_check(
+				all_points_fit,
+				"%s template fits a %d×%d map."
+				% [
+					String(template_id).capitalize(),
+					roundi(viewport_size.x),
+					roundi(viewport_size.y),
+				]
+			)
+		var fitted_metrics := map_view.get_map_metrics()
+		var fitted_rule := float(fitted_metrics.scale_bar_meters)
+		var fitted_pixels := map_view._world_to_screen(
+			Vector3(fitted_rule, 0.0, 0.0)
+		).distance_to(map_view._world_to_screen(Vector3.ZERO))
+		_check(
+			fitted_rule in [5.0, 10.0, 20.0, 50.0]
+			and is_equal_approx(
+				fitted_pixels,
+				float(fitted_metrics.scale_bar_pixels)
+			),
+			"%s map rule represents its declared world distance."
+			% String(template_id).capitalize()
+		)
+		map_view.zoom_in()
+		var zoomed_metrics := map_view.get_map_metrics()
+		_check(
+			float(zoomed_metrics.zoom) > float(fitted_metrics.zoom)
+			and float(zoomed_metrics.scale_bar_meters) in [5.0, 10.0, 20.0, 50.0],
+			"%s map updates metric scale after zooming."
+			% String(template_id).capitalize()
+		)
+		map_view.frame_all()
+		_check(
+			is_equal_approx(float(map_view.get_map_metrics().zoom), 1.0),
+			"%s map restores fitted zoom when framing all."
+			% String(template_id).capitalize()
+		)
+		map_view.free()
+		track.free()
+
+
+func _test_asset_scale_contracts() -> void:
+	var library := load(
+		"res://assets/track/track_asset_library.tres"
+	) as TrackAssetLibrary
+	var entries := library.get_valid_entries()
+	_check(entries.size() == 7, "Decoration catalog keeps all seven calibrated assets.")
+	for entry in entries:
+		var scale_result := entry.resolve_base_scale()
+		var instance := entry.scene.instantiate() as Node3D
+		instance.scale = scale_result.scale
+		var bounds_result := TrackAssetEntry.get_node_aabb(instance)
+		var bounds: AABB = bounds_result.aabb
+		_check(
+			not bool(scale_result.used_fallback)
+			and bool(bounds_result.valid)
+			and absf(bounds.size.y - entry.target_height_meters)
+			<= entry.target_height_meters * 0.1,
+			"%s stays within 10%% of its %.1f m target height."
+			% [entry.display_name, entry.target_height_meters]
+		)
+		instance.free()
+
+	var fallback_entry := TrackAssetEntry.new()
+	var empty_scene := PackedScene.new()
+	var empty_root := Node3D.new()
+	empty_scene.pack(empty_root)
+	empty_root.free()
+	fallback_entry.scene = empty_scene
+	fallback_entry.target_height_meters = 4.0
+	fallback_entry.default_scale = Vector3(1.0, 2.0, 3.0)
+	var fallback_result := fallback_entry.resolve_base_scale()
+	_check(
+		bool(fallback_result.used_fallback)
+		and (fallback_result.scale as Vector3).is_equal_approx(
+			fallback_entry.default_scale
+		),
+		"Assets without measurable bounds keep their previous default scale."
+	)
+
+	var session := TrackEditorSession.new()
+	session.create_track(&"medium", "Escala de utilería")
+	var track := session.track
+	var props := track.get_node("Props") as Node3D
+	var legacy_prop := Node3D.new()
+	legacy_prop.name = "LegacyScaledProp"
+	legacy_prop.scale = Vector3(2.0, 1.25, 0.75)
+	props.add_child(legacy_prop)
+	legacy_prop.owner = track
+	var legacy_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.PROP,
+		track.get_path_to(legacy_prop)
+	)
+	var legacy_scale := legacy_prop.scale
+	_check(
+		not legacy_prop.has_meta(TrackEditorSession.META_PROP_BASE_SCALE),
+		"Existing props stay uncalibrated until an explicit scale edit."
+	)
+	session.snapshot_track_for_undo()
+	_check(
+		session.update_prop_anchor(
+			legacy_selection,
+			0.15,
+			12.0,
+			0.0,
+			20.0,
+			1.0
+		)
+		and legacy_prop.scale.is_equal_approx(legacy_scale)
+		and (legacy_prop.get_meta(
+			TrackEditorSession.META_PROP_BASE_SCALE
+		) as Vector3).is_equal_approx(legacy_scale),
+		"First legacy scale edit adopts the current transform as its proportional base."
+	)
+	session.undo_route()
+	_check(
+		legacy_prop.scale.is_equal_approx(legacy_scale)
+		and not legacy_prop.has_meta(TrackEditorSession.META_PROP_BASE_SCALE),
+		"Undo restores a legacy prop without scale metadata."
+	)
+	session.redo_route()
+	_check(
+		legacy_prop.scale.is_equal_approx(legacy_scale)
+		and legacy_prop.has_meta(TrackEditorSession.META_PROP_SCALE_MULTIPLIER),
+		"Redo restores the first explicit legacy scale edit."
+	)
+
+	var scaled_prop := Node3D.new()
+	scaled_prop.name = "ScaledProp"
+	props.add_child(scaled_prop)
+	scaled_prop.owner = track
+	var base_scale := Vector3(1.5, 2.0, 0.8)
+	_check(
+		session.initialize_prop_scale(scaled_prop, base_scale, 1.0),
+		"New props store their calibrated base scale and multiplier."
+	)
+	session.anchor_prop(scaled_prop, 0.3, -15.0, 1.0, 35.0)
+	var scaled_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.PROP,
+		track.get_path_to(scaled_prop)
+	)
+	for multiplier in [0.5, 1.0, 3.0]:
+		_check(
+			session.update_prop_scale(scaled_selection, multiplier)
+			and scaled_prop.scale.is_equal_approx(base_scale * multiplier),
+			"Uniform prop scale applies %d%% without changing proportions."
+			% roundi(multiplier * 100.0)
+		)
+	var scale_before_invalid := scaled_prop.scale
+	_check(
+		not session.update_prop_scale(scaled_selection, INF)
+		and scaled_prop.scale.is_equal_approx(scale_before_invalid),
+		"Non-finite prop scale values are rejected without mutation."
+	)
+	_check(
+		session.update_prop_scale(scaled_selection, 4.0)
+		and scaled_prop.scale.is_equal_approx(base_scale * 3.0)
+		and is_equal_approx(
+			float(scaled_prop.get_meta(
+				TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+			)),
+			3.0
+		),
+		"Prop scale multipliers clamp to the supported 50–300% range."
+	)
+	var route := track.get_main_route()
+	var route_point_before := route.curve.get_point_position(0)
+	var scale_before_route_edit := scaled_prop.scale
+	route.curve.set_point_position(0, route_point_before + Vector3.RIGHT * 2.0)
+	session.recalculate_route_dependents()
+	_check(
+		scaled_prop.scale.is_equal_approx(scale_before_route_edit),
+		"Route-dependent movement preserves prop scale and proportions."
+	)
+	route.curve.set_point_position(0, route_point_before)
+	session.recalculate_route_dependents()
+
+	session.snapshot_track_for_undo()
+	session.update_prop_anchor(
+		scaled_selection,
+		0.45,
+		18.0,
+		2.0,
+		70.0,
+		0.5
+	)
+	session.mark_dirty()
+	var edited_transform := scaled_prop.transform
+	session.undo_route()
+	_check(
+		scaled_prop.scale.is_equal_approx(base_scale * 3.0),
+		"Undo restores the previous prop scale with its anchor state."
+	)
+	session.redo_route()
+	_check(
+		scaled_prop.transform.is_equal_approx(edited_transform)
+		and is_equal_approx(
+			float(scaled_prop.get_meta(
+				TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+			)),
+			0.5
+		),
+		"Redo restores position, rotation, and scale as one prop edit."
+	)
+	var duplicate_selection := session.duplicate_entity(scaled_selection)
+	var duplicated_prop := session.get_selected_node(duplicate_selection)
+	_check(
+		duplicated_prop != null
+		and duplicated_prop.scale.is_equal_approx(scaled_prop.scale)
+		and duplicated_prop.get_meta(
+			TrackEditorSession.META_PROP_BASE_SCALE
+		) == scaled_prop.get_meta(TrackEditorSession.META_PROP_BASE_SCALE)
+		and duplicated_prop.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+		) == scaled_prop.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+		),
+		"Duplicating a prop preserves its scale and editor metadata."
+	)
+
+	var item := track.get_node("ItemSpawns").get_child(0) as Marker3D
+	var item_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.ITEM,
+		track.get_path_to(item)
+	)
+	session.update_item_progress(item_selection, 0.4)
+	_check(
+		not item.has_meta(TrackEditorSession.META_PROP_BASE_SCALE)
+		and not item.has_meta(TrackEditorSession.META_PROP_SCALE_MULTIPLIER),
+		"Functional item boxes never receive prop scale metadata."
+	)
+	var item_panel := TrackObjectPanel.new()
+	item_panel.configure(track, _make_test_button, item_selection)
+	_check(
+		item_panel.find_child("PropScalePercent", true, false) == null,
+		"The selected-item inspector does not expose prop scale editing."
+	)
+	item_panel.free()
+	var prop_panel := TrackObjectPanel.new()
+	prop_panel.configure(track, _make_test_button, scaled_selection)
+	var scale_control := prop_panel.find_child(
+		"PropScalePercent",
+		true,
+		false
+	) as SpinBox
+	_check(
+		scale_control != null
+		and scale_control.min_value == 50.0
+		and scale_control.max_value == 300.0
+		and scale_control.step == 10.0,
+		"Prop inspector exposes a uniform 50–300% control in 10% steps."
+	)
+	prop_panel.free()
+
+	var draft_path := "user://coastal_karts_prop_scale_test.tscn"
+	session.scene_path = draft_path
+	_check(session.save() == OK, "Scaled props can be saved in an editor draft.")
+	var reloaded_session := TrackEditorSession.new()
+	var reload_error := reloaded_session.load_track(draft_path)
+	var reloaded_prop := (
+		reloaded_session.track.get_node_or_null("Props/ScaledProp") as Node3D
+		if reload_error == OK
+		else null
+	)
+	_check(
+		reloaded_prop != null
+		and reloaded_prop.scale.is_equal_approx(scaled_prop.scale)
+		and reloaded_prop.get_meta(
+			TrackEditorSession.META_PROP_BASE_SCALE
+		) == scaled_prop.get_meta(TrackEditorSession.META_PROP_BASE_SCALE)
+		and reloaded_prop.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+		) == scaled_prop.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+		),
+		"Saving and reopening preserves prop scale and metadata."
+	)
+	if reloaded_session.track != null:
+		reloaded_session.track.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(draft_path))
+	session.clear_recovery()
+	track.free()
+
+
 func _get_shortcut_corridor_clearance(
 	track: TrackLevel,
 	shortcut: TrackShortcut
@@ -482,6 +849,22 @@ func _test_guided_screen() -> void:
 		and screen._guide_dialog.dialog_text.begins_with("1. CONFIGURACIÓN"),
 		"Editor dialogs preserve their actions and purposes."
 	)
+	screen._new_size.select(0)
+	screen._update_new_template_details()
+	var small_template_text := screen._new_template_details.text
+	screen._new_size.select(2)
+	screen._update_new_template_details()
+	var large_template_text := screen._new_template_details.text
+	_check(
+		small_template_text.contains("42 m")
+		and small_template_text.contains("6 puntos")
+		and large_template_text.contains("84 m")
+		and large_template_text.contains("12 puntos")
+		and small_template_text != large_template_text,
+		"New-track dialog updates dimensions and metrics for the selected template."
+	)
+	screen._new_size.select(1)
+	screen._update_new_template_details()
 	screen._show_unsaved_dialog("load", "user://pending-track.tscn")
 	_check(
 		screen._pending_action == "load"
