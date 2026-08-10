@@ -5,6 +5,8 @@ const BARRIER_HEIGHT := 1.0
 const BARRIER_PATH_INSET := 0.12
 const SHORTCUT_BARRIER_SHOULDER := 0.65
 const BARRIER_MITER_LIMIT := 2.0
+const ROUND_JOIN_MAX_ANGLE := deg_to_rad(15.0)
+const MINIMUM_CHAIN_SEGMENT_LENGTH := 0.01
 const BARRIER_THICKNESS := 0.24
 const BARRIER_VERTICES_PER_POINT := 6
 const BARRIER_CAP_SEGMENTS := 8
@@ -106,14 +108,14 @@ func create_shortcut_barriers(
 			barrier_chain.append(
 				(entry_portal.point as Vector3) + Vector3.UP * 0.08
 			)
+		var shortcut_section: Array[Vector3] = []
 		for point_index in range(entry_index, exit_index + 1):
-			var barrier_point := TrackSurfaceBuilder.offset_path_point(
-				shortcut_points,
-				point_index,
-				lateral_offset,
-				0.08,
-				false
-			)
+			shortcut_section.append(shortcut_points[point_index])
+		var offset_chain := build_open_offset_chain(
+			shortcut_section,
+			lateral_offset
+		)
+		for barrier_point in offset_chain:
 			if barrier_chain[-1].distance_to(barrier_point) > 0.0001:
 				barrier_chain.append(barrier_point)
 		if exit_junction != null and exit_junction.is_valid:
@@ -490,6 +492,154 @@ static func build_miter_barrier_ring(
 				"progress": progress,
 			})
 	return ring
+
+
+static func build_open_offset_chain(
+	path_points: Array[Vector3],
+	lateral_offset: float
+) -> PackedVector3Array:
+	var clean_points: Array[Vector3] = []
+	for point in path_points:
+		if (
+			point.is_finite()
+			and (
+				clean_points.is_empty()
+				or clean_points[-1].distance_to(point)
+				> MINIMUM_CHAIN_SEGMENT_LENGTH
+			)
+		):
+			clean_points.append(point)
+	var chain := PackedVector3Array()
+	if clean_points.size() < 2:
+		return chain
+	var first_direction := _flat_direction(clean_points[0], clean_points[1])
+	_append_unique_chain_point(
+		chain,
+		_offset_open_point(clean_points[0], first_direction, lateral_offset)
+	)
+	for point_index in range(1, clean_points.size() - 1):
+		var current := clean_points[point_index]
+		var previous_direction := _flat_direction(
+			clean_points[point_index - 1],
+			current
+		)
+		var next_direction := _flat_direction(
+			current,
+			clean_points[point_index + 1]
+		)
+		if (
+			previous_direction.length_squared() <= 0.0001
+			or next_direction.length_squared() <= 0.0001
+		):
+			continue
+		var previous_normal := Vector2(
+			previous_direction.y,
+			-previous_direction.x
+		)
+		var next_normal := Vector2(next_direction.y, -next_direction.x)
+		var current_2d := Vector2(current.x, current.z)
+		var previous_offset := current_2d + previous_normal * lateral_offset
+		var next_offset := current_2d + next_normal * lateral_offset
+		var intersection := _intersect_lines_2d(
+			previous_offset,
+			previous_direction,
+			next_offset,
+			next_direction
+		)
+		var uses_miter := bool(intersection.valid)
+		if uses_miter and absf(lateral_offset) > 0.001:
+			uses_miter = (
+				current_2d.distance_to(intersection.point)
+				<= absf(lateral_offset) * BARRIER_MITER_LIMIT
+			)
+		if uses_miter:
+			_append_unique_chain_point(
+				chain,
+				Vector3(
+					intersection.point.x,
+					current.y + 0.08,
+					intersection.point.y
+				)
+			)
+		else:
+			_append_round_join(
+				chain,
+				current,
+				previous_normal,
+				next_normal,
+				lateral_offset
+			)
+	var final_direction := _flat_direction(
+		clean_points[-2],
+		clean_points[-1]
+	)
+	_append_unique_chain_point(
+		chain,
+		_offset_open_point(clean_points[-1], final_direction, lateral_offset)
+	)
+	return chain
+
+
+static func _append_round_join(
+	chain: PackedVector3Array,
+	center: Vector3,
+	previous_normal: Vector2,
+	next_normal: Vector2,
+	lateral_offset: float
+) -> void:
+	var start_vector := previous_normal * lateral_offset
+	var finish_vector := next_normal * lateral_offset
+	var start_angle := start_vector.angle()
+	var angle_delta := wrapf(
+		finish_vector.angle() - start_angle + PI,
+		0.0,
+		TAU
+	) - PI
+	var sample_count := maxi(1, ceili(absf(angle_delta) / ROUND_JOIN_MAX_ANGLE))
+	for sample_index in range(sample_count + 1):
+		var weight := float(sample_index) / float(sample_count)
+		var offset_2d := Vector2.from_angle(
+			start_angle + angle_delta * weight
+		) * absf(lateral_offset)
+		_append_unique_chain_point(
+			chain,
+			Vector3(
+				center.x + offset_2d.x,
+				center.y + 0.08,
+				center.z + offset_2d.y
+			)
+		)
+
+
+static func _flat_direction(start: Vector3, finish: Vector3) -> Vector2:
+	return Vector2(finish.x - start.x, finish.z - start.z).normalized()
+
+
+static func _offset_open_point(
+	point: Vector3,
+	direction: Vector2,
+	lateral_offset: float
+) -> Vector3:
+	var normal := Vector2(direction.y, -direction.x)
+	return Vector3(
+		point.x + normal.x * lateral_offset,
+		point.y + 0.08,
+		point.z + normal.y * lateral_offset
+	)
+
+
+static func _append_unique_chain_point(
+	chain: PackedVector3Array,
+	point: Vector3
+) -> void:
+	if (
+		point.is_finite()
+		and (
+			chain.is_empty()
+			or chain[-1].distance_to(point) > MINIMUM_CHAIN_SEGMENT_LENGTH
+		)
+	):
+		chain.append(point)
 
 
 static func split_barrier_ring(
