@@ -13,6 +13,7 @@ var graphics_profile := "medium"
 var vibration_enabled := true
 var play_intro := true
 var track_definition: TrackDefinition
+var race_class: RaceClassDefinition = RaceClassDefinition.get_default()
 var race_manager: RaceManager
 var player_kart: Kart
 var item_catalog: ItemCatalog = DEFAULT_ITEM_CATALOG
@@ -104,6 +105,8 @@ func _build_active_item_container() -> void:
 
 
 func _build_race() -> void:
+	if race_class == null:
+		race_class = RaceClassDefinition.get_default()
 	race_manager = RaceManager.new()
 	add_child(race_manager)
 	if track_definition != null:
@@ -138,7 +141,7 @@ func _build_race() -> void:
 		kart.racer_name = names[slot]
 		kart.body_color = colors[slot]
 		kart.is_player = slot == 0
-		kart.stats = stat_sets[slot]
+		kart.configure_for_race(stat_sets[slot], race_class)
 		kart.item_catalog = item_catalog
 		kart.item_rng = _item_rng
 		add_child(kart)

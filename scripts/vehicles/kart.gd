@@ -19,15 +19,34 @@ enum HitResult {
 	APPLIED,
 }
 
-const GRAVITY := 28.0
+enum DriveState {
+	GROUND,
+	DRIFT_HOP,
+	DRIFT,
+	AIR,
+}
+
+const GRAVITY := 22.0
 const DRIFT_LEVEL_TIMES := [0.65, 1.25, 1.9]
 const SHORTCUT_SURFACE_LAYER := PhysicsLayers.SHORTCUTS
+const DRIFT_MINIMUM_SPEED := 7.0
+const DRIFT_HOP_SPEED := 4.2
+const FLOOR_SNAP_DISTANCE := 0.35
+const MAXIMUM_SNAP_FALL_SPEED := 6.0
+const AIR_STEERING_RATIO := 0.3
+const LANDING_COMPRESSION_DURATION := 0.18
+const SOFT_LIMIT_START_RATIO := 0.95
+const SOFT_LIMIT_RESPONSE := 10.0
+const ROLLING_RESISTANCE_BASE := 0.55
+const ROLLING_RESISTANCE_SPEED_FACTOR := 0.035
+const BARRIER_CONTACT_MEMORY := 0.14
 
 @export var racer_name := "Piloto"
 @export var is_player := false
 @export var body_color := Color("#ff6b4a")
 
 var stats := KartStats.new()
+var race_class: RaceClassDefinition
 var is_control_enabled := false
 var held_item: ItemDefinition
 var item_catalog: ItemCatalog
@@ -41,8 +60,11 @@ var _throttle_input := 0.0
 var _brake_input := 0.0
 var _steer_input := 0.0
 var _drift_input := false
+var _previous_drift_input := false
 var _use_item_requested := false
 var _drift_charge := 0.0
+var _drift_side := 0.0
+var _drive_state := DriveState.AIR
 var _boost_remaining := 0.0
 var _stun_remaining := 0.0
 var _invulnerable_remaining := 0.0
@@ -57,6 +79,9 @@ var _movement_sample_time := 0.0
 var _movement_sample_distance := 0.0
 var _last_motion_position := Vector3.ZERO
 var _visual_root: Node3D
+var _landing_compression_remaining := 0.0
+var _barrier_contact_remaining := 0.0
+var _last_barrier_normal := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -66,7 +91,7 @@ func _ready() -> void:
 		| PhysicsLayers.MAIN_BARRIERS
 		| PhysicsLayers.SHORTCUT_BARRIERS
 	)
-	floor_snap_length = 1.1
+	floor_snap_length = FLOOR_SNAP_DISTANCE
 	floor_max_angle = deg_to_rad(52.0)
 	_last_valid_transform = global_transform
 	_last_motion_position = global_position
@@ -82,54 +107,373 @@ func _physics_process(delta: float) -> void:
 		_use_item_requested = false
 		use_item()
 
+	var can_drive := is_control_enabled and _stun_remaining <= 0.0
+	var throttle := _throttle_input if can_drive else 0.0
+	var brake := _brake_input if can_drive else 0.0
+	var steer := _steer_input if can_drive else 0.0
+	var was_on_floor := is_on_floor()
+	var drift_was_pressed := _drift_input and not _previous_drift_input
+	_previous_drift_input = _drift_input
+	if not can_drive and _drift_side != 0.0:
+		_release_drift()
+	if was_on_floor and _drive_state == DriveState.AIR:
+		_drive_state = (
+			DriveState.DRIFT
+			if _drift_input and _drift_side != 0.0
+			else DriveState.GROUND
+		)
+
+	var hop_started := false
+	if was_on_floor and drift_was_pressed and can_drive:
+		hop_started = _try_start_drift_hop(steer)
+	if not _drift_input and _drift_side != 0.0:
+		_release_drift()
+
+	var is_ground_driving := was_on_floor and _drive_state != DriveState.DRIFT_HOP
+	if is_ground_driving:
+		_apply_ground_drive(delta, throttle, brake, steer)
+	else:
+		_apply_air_drive(delta, steer, hop_started)
+	if _drive_state == DriveState.DRIFT and _drift_input:
+		_drift_charge = minf(_drift_charge + delta, DRIFT_LEVEL_TIMES.back())
+
+	_update_floor_snap()
+	var velocity_before_move := velocity
+	move_and_slide()
+	_process_barrier_collisions(velocity_before_move)
+	_update_drive_state_after_move(was_on_floor)
+	var is_drifting := (
+		_drive_state == DriveState.DRIFT
+		or _drive_state == DriveState.DRIFT_HOP
+	)
+	_animate_visual(delta, steer, is_drifting)
+	_check_recovery(delta)
+
+
+func configure_for_race(
+	base_stats: KartStats,
+	definition: RaceClassDefinition
+) -> void:
+	race_class = definition if definition != null else RaceClassDefinition.get_default()
+	stats = race_class.apply_to(base_stats)
+
+
+func get_drive_state() -> DriveState:
+	return _drive_state
+
+
+func get_drift_side() -> float:
+	return _drift_side
+
+
+func get_landing_compression_ratio() -> float:
+	return clampf(
+		_landing_compression_remaining / LANDING_COMPRESSION_DURATION,
+		0.0,
+		1.0
+	)
+
+
+func get_horizontal_speed() -> float:
+	return Vector2(velocity.x, velocity.z).length()
+
+
+static func get_steering_factor(speed: float, maximum_speed: float) -> float:
+	var speed_ratio := clampf(absf(speed) / maxf(maximum_speed, 0.1), 0.0, 1.0)
+	if speed_ratio <= 0.4:
+		return lerpf(0.45, 1.0, speed_ratio / 0.4)
+	var high_speed_weight := (speed_ratio - 0.4) / 0.6
+	return lerpf(1.0, 0.72, high_speed_weight)
+
+
+static func get_acceleration_factor(speed: float, maximum_speed: float) -> float:
+	var speed_ratio := clampf(maxf(speed, 0.0) / maxf(maximum_speed, 0.1), 0.0, 1.2)
+	return maxf(1.0 - 0.82 * pow(speed_ratio, 1.5), 0.12)
+
+
+static func get_rolling_resistance(speed: float) -> float:
+	return ROLLING_RESISTANCE_BASE + maxf(speed, 0.0) * ROLLING_RESISTANCE_SPEED_FACTOR
+
+
+static func calculate_barrier_velocity(
+	incoming_velocity: Vector3,
+	collision_normal: Vector3
+) -> Vector3:
+	var horizontal_velocity := Vector3(
+		incoming_velocity.x,
+		0.0,
+		incoming_velocity.z
+	)
+	var incoming_speed := horizontal_velocity.length()
+	var wall_normal := Vector3(collision_normal.x, 0.0, collision_normal.z).normalized()
+	if incoming_speed <= 0.001 or wall_normal.is_zero_approx():
+		return incoming_velocity
+	var incident_ratio := clampf(
+		-horizontal_velocity.normalized().dot(wall_normal),
+		0.0,
+		1.0
+	)
+	var retention := 1.0
+	if incident_ratio <= 0.2:
+		retention = lerpf(1.0, 0.85, incident_ratio / 0.2)
+	else:
+		var frontal_weight := clampf(
+			inverse_lerp(0.2, 0.8, incident_ratio),
+			0.0,
+			1.0
+		)
+		retention = lerpf(0.85, 0.55, frontal_weight)
+	var retained_speed := incoming_speed * retention
+	var tangent := horizontal_velocity.slide(wall_normal)
+	if tangent.length_squared() <= 0.0001:
+		tangent = wall_normal.cross(Vector3.UP)
+		if tangent.dot(horizontal_velocity) < 0.0:
+			tangent = -tangent
+	var result := tangent.normalized() * retained_speed
+	result.y = incoming_velocity.y
+	return result
+
+
+func _try_start_drift_hop(steer: float) -> bool:
+	var forward := -global_transform.basis.z.normalized()
+	var forward_speed := Vector3(velocity.x, 0.0, velocity.z).dot(forward)
+	if absf(forward_speed) <= DRIFT_MINIMUM_SPEED:
+		return false
+	_drift_side = 1.0 if steer >= 0.0 else -1.0
+	_drive_state = DriveState.DRIFT_HOP
+	velocity.y = DRIFT_HOP_SPEED
+	floor_snap_length = 0.0
+	return true
+
+
+func _apply_ground_drive(
+	delta: float,
+	throttle: float,
+	brake: float,
+	steer: float
+) -> void:
 	var forward := -global_transform.basis.z.normalized()
 	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
 	var forward_speed := horizontal_velocity.dot(forward)
-	var can_drive := is_control_enabled and _stun_remaining <= 0.0
-	var throttle := _throttle_input if can_drive else 0.0
-	var brake := _brake_input if can_drive else 0.35
-	var steer := _steer_input if can_drive else 0.0
-	var drifting := _drift_input and can_drive and absf(forward_speed) > 7.0
+	if brake > 0.0:
+		if forward_speed > 0.5:
+			var braked_speed := move_toward(
+				forward_speed,
+				0.0,
+				stats.braking * brake * delta
+			)
+			velocity += forward * (braked_speed - forward_speed)
+		else:
+			velocity -= forward * stats.braking * 0.36 * brake * delta
+	elif throttle > 0.0:
+		var acceleration_factor := get_acceleration_factor(
+			forward_speed,
+			stats.max_speed
+		)
+		velocity += forward * stats.acceleration * acceleration_factor * throttle * delta
 
-	if is_on_floor():
-		if throttle > 0.0:
-			velocity += forward * stats.acceleration * throttle * delta
-		if brake > 0.0:
-			if forward_speed > 1.0:
-				velocity -= forward * stats.braking * brake * delta
-			else:
-				velocity += forward * stats.braking * 0.36 * brake * delta
+	var speed := Vector2(velocity.x, velocity.z).length()
+	var steering_factor := get_steering_factor(speed, stats.max_speed)
+	var steering_command := steer
+	var is_drifting := _drive_state == DriveState.DRIFT
+	if is_drifting:
+		var is_turning_inward := steer * _drift_side >= 0.0
+		var countersteer_scale := 1.08 if is_turning_inward else 0.72
+		steering_command = clampf(
+			_drift_side * 0.3 + steer * countersteer_scale,
+			-1.35,
+			1.35
+		)
+	var yaw_change := (
+		steering_command
+		* stats.steering_speed
+		* steering_factor
+		* delta
+	)
+	rotation.y -= yaw_change
 
-		var speed_limit := stats.max_speed + (stats.boost_power if _boost_remaining > 0.0 else 0.0)
-		var updated_forward_speed := velocity.dot(forward)
-		if updated_forward_speed > speed_limit:
-			velocity -= forward * (updated_forward_speed - speed_limit) * minf(delta * 7.0, 1.0)
-		elif updated_forward_speed < -stats.reverse_speed:
-			velocity -= forward * (updated_forward_speed + stats.reverse_speed)
+	forward = -global_transform.basis.z.normalized()
+	horizontal_velocity = Vector3(velocity.x, 0.0, velocity.z)
+	if not horizontal_velocity.is_zero_approx():
+		var tire_response := (
+			0.18
+			if is_drifting
+			else clampf(stats.grip / 9.2, 0.78, 1.08)
+		)
+		horizontal_velocity = horizontal_velocity.rotated(
+			Vector3.UP,
+			-yaw_change * tire_response
+		)
+	var lateral_velocity := horizontal_velocity - forward * horizontal_velocity.dot(forward)
+	var traction := stats.drift_grip if is_drifting else stats.grip
+	horizontal_velocity -= lateral_velocity * minf(traction * delta, 1.0)
 
-		var steering_factor := clampf(absf(forward_speed) / 8.0, 0.2, 1.0)
-		var drift_multiplier := 1.42 if drifting else 1.0
-		rotation.y -= steer * stats.steering_speed * steering_factor * drift_multiplier * delta
+	var resistance_scale := 0.35 if throttle > 0.0 and brake <= 0.0 else 1.0
+	var resistance := get_rolling_resistance(horizontal_velocity.length()) * resistance_scale
+	horizontal_velocity = horizontal_velocity.move_toward(Vector3.ZERO, resistance * delta)
+	horizontal_velocity = _apply_soft_speed_limit(horizontal_velocity, delta)
+	velocity.x = horizontal_velocity.x
+	velocity.z = horizontal_velocity.z
 
-		forward = -global_transform.basis.z.normalized()
-		var lateral := velocity - forward * velocity.dot(forward)
-		var traction := stats.drift_grip if drifting else stats.grip
-		velocity -= lateral * minf(traction * delta, 1.0)
-		velocity *= 1.0 - minf(delta * (0.45 if throttle > 0.0 else 1.5), 0.16)
 
-		if drifting and absf(steer) > 0.12:
-			_drift_charge = minf(_drift_charge + delta, DRIFT_LEVEL_TIMES.back())
-		elif _drift_charge > 0.0:
-			_release_drift()
-		velocity.y = -1.0
-	else:
+func _apply_air_drive(delta: float, steer: float, hop_started: bool) -> void:
+	if not hop_started:
 		velocity.y -= GRAVITY * delta
-		if _drift_charge > 0.0:
-			_release_drift()
+	var speed := Vector2(velocity.x, velocity.z).length()
+	var steering_factor := get_steering_factor(speed, stats.max_speed)
+	var yaw_change := (
+		steer
+		* stats.steering_speed
+		* steering_factor
+		* AIR_STEERING_RATIO
+		* delta
+	)
+	rotation.y -= yaw_change
+	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	if not horizontal_velocity.is_zero_approx():
+		horizontal_velocity = horizontal_velocity.rotated(Vector3.UP, -yaw_change)
+		velocity.x = horizontal_velocity.x
+		velocity.z = horizontal_velocity.z
 
-	move_and_slide()
-	_animate_visual(delta, steer, drifting)
-	_check_recovery(delta)
+
+func _apply_soft_speed_limit(
+	horizontal_velocity: Vector3,
+	delta: float
+) -> Vector3:
+	var speed_limit := stats.max_speed
+	if _boost_remaining > 0.0:
+		speed_limit += stats.boost_power
+	var forward := -global_transform.basis.z.normalized()
+	var forward_speed := horizontal_velocity.dot(forward)
+	var soft_limit := speed_limit * SOFT_LIMIT_START_RATIO
+	if forward_speed > soft_limit:
+		var reduction := (
+			(forward_speed - soft_limit)
+			* minf(SOFT_LIMIT_RESPONSE * delta, 1.0)
+		)
+		horizontal_velocity -= forward * reduction
+	elif forward_speed < -stats.reverse_speed:
+		horizontal_velocity -= forward * (forward_speed + stats.reverse_speed)
+	return horizontal_velocity
+
+
+func _update_floor_snap() -> void:
+	var can_snap := (
+		_drive_state != DriveState.DRIFT_HOP
+		and velocity.y <= 0.05
+		and velocity.y >= -MAXIMUM_SNAP_FALL_SPEED
+	)
+	floor_snap_length = FLOOR_SNAP_DISTANCE if can_snap else 0.0
+
+
+func _process_barrier_collisions(incoming_velocity: Vector3) -> void:
+	var strongest_incident_ratio := -1.0
+	var strongest_normal := Vector3.ZERO
+	var horizontal_incoming := Vector3(
+		incoming_velocity.x,
+		0.0,
+		incoming_velocity.z
+	)
+	if horizontal_incoming.is_zero_approx():
+		return
+	var resolved_vertical_velocity := velocity.y
+	for collision_index in get_slide_collision_count():
+		var collision := get_slide_collision(collision_index)
+		var collision_normal := collision.get_normal()
+		if absf(collision_normal.y) > 0.45:
+			continue
+		var wall_normal := Vector3(
+			collision_normal.x,
+			0.0,
+			collision_normal.z
+		).normalized()
+		var incident_ratio := clampf(
+			-horizontal_incoming.normalized().dot(wall_normal),
+			0.0,
+			1.0
+		)
+		if incident_ratio > strongest_incident_ratio:
+			strongest_incident_ratio = incident_ratio
+			strongest_normal = collision_normal
+	if strongest_incident_ratio >= 0.0:
+		var normalized_wall := Vector3(
+			strongest_normal.x,
+			0.0,
+			strongest_normal.z
+		).normalized()
+		var is_continuing_contact := (
+			_barrier_contact_remaining > 0.0
+			and normalized_wall.dot(_last_barrier_normal) > 0.82
+		)
+		if is_continuing_contact:
+			var tangent := horizontal_incoming.slide(normalized_wall)
+			if not tangent.is_zero_approx():
+				var horizontal_speed := horizontal_incoming.length()
+				var guided_tangent := (
+					tangent.normalized() + normalized_wall * 0.08
+				).normalized()
+				velocity.x = guided_tangent.x * horizontal_speed
+				velocity.z = guided_tangent.z * horizontal_speed
+		else:
+			velocity = calculate_barrier_velocity(incoming_velocity, strongest_normal)
+			velocity.y = resolved_vertical_velocity
+		var slide_speed := Vector2(velocity.x, velocity.z).length()
+		var minimum_slide_speed := minf(stats.max_speed * 0.2, 6.0)
+		if (
+			is_continuing_contact
+			and maxf(_throttle_input, _brake_input) > 0.5
+			and slide_speed < minimum_slide_speed
+		):
+			var escape_tangent := normalized_wall.cross(Vector3.UP).normalized()
+			var forward := -global_transform.basis.z.normalized()
+			var powered_direction := (
+				forward if _throttle_input >= _brake_input else -forward
+			)
+			if escape_tangent.dot(powered_direction) < 0.0:
+				escape_tangent = -escape_tangent
+			velocity.x = escape_tangent.x * minimum_slide_speed
+			velocity.z = escape_tangent.z * minimum_slide_speed
+			_align_with_barrier_tangent(0.5)
+		else:
+			_align_with_barrier_tangent(0.18 if is_continuing_contact else 0.08)
+		_last_barrier_normal = normalized_wall
+		_barrier_contact_remaining = BARRIER_CONTACT_MEMORY
+
+
+func _align_with_barrier_tangent(weight: float) -> void:
+	var travel_direction := Vector3(velocity.x, 0.0, velocity.z)
+	if travel_direction.length_squared() <= 0.01:
+		return
+	travel_direction = travel_direction.normalized()
+	var target_yaw := atan2(-travel_direction.x, -travel_direction.z)
+	rotation.y = lerp_angle(rotation.y, target_yaw, clampf(weight, 0.0, 1.0))
+
+
+func _update_drive_state_after_move(was_on_floor: bool) -> void:
+	if is_on_floor():
+		if not was_on_floor:
+			_stabilize_landing()
+			_landing_compression_remaining = LANDING_COMPRESSION_DURATION
+		_drive_state = (
+			DriveState.DRIFT
+			if _drift_input and _drift_side != 0.0
+			else DriveState.GROUND
+		)
+	elif _drive_state != DriveState.DRIFT_HOP:
+		_drive_state = DriveState.AIR
+
+
+func _stabilize_landing() -> void:
+	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
+	var speed := horizontal_velocity.length()
+	if speed <= 0.1:
+		return
+	var forward := -global_transform.basis.z.normalized()
+	if horizontal_velocity.normalized().dot(forward) <= 0.0:
+		return
+	var stable_direction := horizontal_velocity.normalized().slerp(forward, 0.14).normalized()
+	velocity.x = stable_direction.x * speed
+	velocity.z = stable_direction.z * speed
 
 
 func set_drive_input(
@@ -192,7 +536,7 @@ func receive_hit(duration: float) -> HitResult:
 
 
 func activate_boost(duration: float, power: float) -> void:
-	_activate_boost(duration, power)
+	_activate_boost(duration, power * _get_boost_multiplier())
 
 
 func activate_shield(item: ItemDefinition) -> void:
@@ -256,6 +600,14 @@ func reset_to_last_checkpoint(reason: String = "manual") -> void:
 	set_shortcut_surface_enabled(false)
 	global_transform = _last_valid_transform
 	velocity = Vector3.ZERO
+	_drive_state = DriveState.AIR
+	_drift_side = 0.0
+	_drift_charge = 0.0
+	_previous_drift_input = _drift_input
+	_landing_compression_remaining = 0.0
+	_barrier_contact_remaining = 0.0
+	_last_barrier_normal = Vector3.ZERO
+	floor_snap_length = 0.0
 	_stuck_time = 0.0
 	_movement_sample_time = 0.0
 	_movement_sample_distance = 0.0
@@ -290,15 +642,30 @@ func _release_drift() -> void:
 		if _drift_charge >= threshold:
 			boost_level += 1
 	if boost_level > 0:
-		_activate_boost(0.45 + boost_level * 0.22, 3.5 + boost_level * 2.0)
+		_activate_boost(
+			0.45 + boost_level * 0.22,
+			(3.5 + boost_level * 2.0) * _get_boost_multiplier()
+		)
 	_drift_charge = 0.0
+	_drift_side = 0.0
+	if _drive_state == DriveState.DRIFT:
+		_drive_state = DriveState.GROUND
 	boost_changed.emit(0.0)
+
+
+func _get_boost_multiplier() -> float:
+	return race_class.boost_multiplier if race_class != null else 1.0
 
 
 func _update_timers(delta: float) -> void:
 	_boost_remaining = maxf(_boost_remaining - delta, 0.0)
 	_stun_remaining = maxf(_stun_remaining - delta, 0.0)
 	_invulnerable_remaining = maxf(_invulnerable_remaining - delta, 0.0)
+	_landing_compression_remaining = maxf(
+		_landing_compression_remaining - delta,
+		0.0
+	)
+	_barrier_contact_remaining = maxf(_barrier_contact_remaining - delta, 0.0)
 	if held_item != null:
 		_held_item_elapsed += delta
 	else:
@@ -364,7 +731,16 @@ func _animate_visual(delta: float, steer: float, drifting: bool) -> void:
 		return
 	var target_roll := -steer * (0.12 if drifting else 0.06)
 	_visual_root.rotation.z = lerpf(_visual_root.rotation.z, target_roll, delta * 8.0)
-	_visual_root.position.y = sin(Time.get_ticks_msec() * 0.012) * 0.015
+	var landing_ratio := get_landing_compression_ratio()
+	_visual_root.position.y = (
+		sin(Time.get_ticks_msec() * 0.012) * 0.015
+		- landing_ratio * 0.08
+	)
+	_visual_root.scale = Vector3(
+		1.0 + landing_ratio * 0.025,
+		1.0 - landing_ratio * 0.08,
+		1.0 + landing_ratio * 0.025
+	)
 	if _stun_remaining > 0.0:
 		_visual_root.rotation.y += delta * 8.0
 	else:

@@ -23,3 +23,16 @@ static func create(
 	stats.steering_speed = steering
 	stats.grip = traction
 	return stats
+
+
+func copy() -> KartStats:
+	var copied_stats := KartStats.new()
+	copied_stats.max_speed = max_speed
+	copied_stats.reverse_speed = reverse_speed
+	copied_stats.acceleration = acceleration
+	copied_stats.braking = braking
+	copied_stats.steering_speed = steering_speed
+	copied_stats.grip = grip
+	copied_stats.drift_grip = drift_grip
+	copied_stats.boost_power = boost_power
+	return copied_stats
