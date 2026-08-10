@@ -492,6 +492,46 @@ func _test_explicit_portals() -> void:
 		track._barrier_material.cull_mode == BaseMaterial3D.CULL_BACK,
 		"Barrier material avoids double-sided self-shadowing."
 	)
+	var valid_junction_count := 0
+	var junction_nodes_match_collision := true
+	for shortcut_definition in track.shortcut_definitions:
+		var shortcut_id := int(shortcut_definition.id)
+		var shortcut_junctions: Dictionary = track._shortcut_junctions.get(
+			shortcut_id,
+			{}
+		)
+		for junction_key in ["entry", "exit"]:
+			var junction = shortcut_junctions.get(junction_key)
+			if junction == null or not junction.is_valid:
+				if junction != null:
+					print(
+						"INFO: Shortcut%d %s fallback: %s"
+						% [shortcut_id, junction_key, junction.fallback_reason]
+					)
+				continue
+			valid_junction_count += 1
+			var suffix := "Entry" if junction_key == "entry" else "Exit"
+			var junction_name := "Shortcut%d%sJunction" % [shortcut_id, suffix]
+			var visual := track.get_node_or_null(junction_name) as MeshInstance3D
+			var body := track.get_node_or_null(
+				junction_name + "Collision"
+			) as StaticBody3D
+			junction_nodes_match_collision = (
+				junction_nodes_match_collision
+				and visual != null
+				and visual.mesh != null
+				and body != null
+				and body.collision_layer == CoastalTrack.MAIN_COLLISION_LAYER
+				and body.get_child_count() == 1
+			)
+	_check(
+		valid_junction_count == track.shortcut_definitions.size() * 2,
+		"Every official shortcut builds curved entry and exit junctions."
+	)
+	_check(
+		junction_nodes_match_collision,
+		"Curved junction visuals and collisions share stable names and world layers."
+	)
 	var left_offset := -CoastalTrack.ROAD_WIDTH * 0.5 + CoastalTrack.BARRIER_PATH_INSET
 	var right_offset := CoastalTrack.ROAD_WIDTH * 0.5 - CoastalTrack.BARRIER_PATH_INSET
 	var left_portals := builder.build_main_barrier_portals(left_offset)

@@ -16,6 +16,7 @@ var _road_width: float
 var _shortcut_width: float
 var _barrier_material: StandardMaterial3D
 var _shortcut_join_clearance: float
+var _junctions: Dictionary
 
 
 func _init(
@@ -25,7 +26,8 @@ func _init(
 	road_width: float,
 	shortcut_width: float,
 	barrier_material: StandardMaterial3D,
-	shortcut_join_clearance: float
+	shortcut_join_clearance: float,
+	junctions := {}
 ) -> void:
 	_parent = parent
 	_route_points = route_points
@@ -34,6 +36,7 @@ func _init(
 	_shortcut_width = shortcut_width
 	_barrier_material = barrier_material
 	_shortcut_join_clearance = shortcut_join_clearance
+	_junctions = junctions
 
 
 func build_main_barriers(collision_layer: int) -> void:
@@ -52,7 +55,9 @@ func build_main_barriers(collision_layer: int) -> void:
 func create_shortcut_barriers(
 	shortcut_points: Array[Vector3],
 	name_prefix: String,
-	collision_layer: int
+	collision_layer: int,
+	entry_junction = null,
+	exit_junction = null
 ) -> void:
 	for side_data in [
 		[
@@ -82,11 +87,23 @@ func create_shortcut_barriers(
 			continue
 		var entry_index := int(entry_portal.point_index)
 		var exit_index := int(exit_portal.point_index)
+		if entry_junction != null and entry_junction.is_valid:
+			entry_index = entry_junction.shortcut_transition_index
+		if exit_junction != null and exit_junction.is_valid:
+			exit_index = exit_junction.shortcut_transition_index
 		if entry_index > exit_index:
 			continue
-		var barrier_chain := PackedVector3Array([
-			(entry_portal.point as Vector3) + Vector3.UP * 0.08,
-		])
+		var barrier_chain := PackedVector3Array()
+		if entry_junction != null and entry_junction.is_valid:
+			for junction_point in entry_junction.get_barrier_boundary(
+				lateral_offset,
+				BARRIER_PATH_INSET
+			):
+				barrier_chain.append(junction_point + Vector3.UP * 0.08)
+		else:
+			barrier_chain.append(
+				(entry_portal.point as Vector3) + Vector3.UP * 0.08
+			)
 		for point_index in range(entry_index, exit_index + 1):
 			var barrier_point := TrackSurfaceBuilder.offset_path_point(
 				shortcut_points,
@@ -97,14 +114,28 @@ func create_shortcut_barriers(
 			)
 			if barrier_chain[-1].distance_to(barrier_point) > 0.0001:
 				barrier_chain.append(barrier_point)
-		var exit_point := (
-			(exit_portal.point as Vector3) + Vector3.UP * 0.08
-		)
-		if barrier_chain[-1].distance_to(exit_point) > 0.0001:
-			barrier_chain.append(exit_point)
+		if exit_junction != null and exit_junction.is_valid:
+			var exit_boundary: PackedVector3Array = exit_junction.get_barrier_boundary(
+				lateral_offset,
+				BARRIER_PATH_INSET
+			)
+			for boundary_index in range(exit_boundary.size() - 1, -1, -1):
+				var exit_curve_point: Vector3 = (
+					exit_boundary[boundary_index] + Vector3.UP * 0.08
+				)
+				if barrier_chain[-1].distance_to(exit_curve_point) > 0.0001:
+					barrier_chain.append(exit_curve_point)
+		else:
+			var exit_point := (
+				(exit_portal.point as Vector3) + Vector3.UP * 0.08
+			)
+			if barrier_chain[-1].distance_to(exit_point) > 0.0001:
+				barrier_chain.append(exit_point)
 		var barrier_mesh := create_indexed_barrier_mesh(
 			[barrier_chain],
-			false
+			false,
+			entry_junction == null or not entry_junction.is_valid,
+			exit_junction == null or not exit_junction.is_valid
 		)
 		_commit_barrier_mesh(barrier_mesh, barrier_name, collision_layer)
 
@@ -120,6 +151,11 @@ func build_main_barrier_portals(lateral_offset: float) -> Array[Vector2]:
 		if shortcut_points.size() < 3:
 			continue
 		for is_entry in [true, false]:
+			var junction = _get_junction(shortcut, is_entry)
+			if junction != null and junction.is_valid:
+				if junction.side == requested_side:
+					intervals.append_array(junction.portal_intervals)
+				continue
 			var portal := find_shortcut_portal(
 				shortcut_points,
 				is_entry,
@@ -505,7 +541,9 @@ static func split_barrier_ring(
 
 static func create_indexed_barrier_mesh(
 	chains: Array,
-	is_closed: bool
+	is_closed: bool,
+	cap_start := true,
+	cap_end := true
 ) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
@@ -598,44 +636,46 @@ static func create_indexed_barrier_mesh(
 				end_tangent = Vector3.FORWARD
 			else:
 				end_tangent = end_tangent.normalized()
-			var start_cap_base := vertices.size()
-			_append_barrier_cap_vertices(
-				vertices,
-				normals,
-				[
-					vertices[base_vertex],
-					vertices[base_vertex + 2],
-					vertices[base_vertex + 3],
-					vertices[base_vertex + 1],
-				],
-				-start_tangent
-			)
-			_append_quad_indices(
-				indices,
-				start_cap_base,
-				start_cap_base + 1,
-				start_cap_base + 2,
-				start_cap_base + 3
-			)
-			var end_cap_base := vertices.size()
-			_append_barrier_cap_vertices(
-				vertices,
-				normals,
-				[
-					vertices[final_base],
-					vertices[final_base + 1],
-					vertices[final_base + 3],
-					vertices[final_base + 2],
-				],
-				end_tangent
-			)
-			_append_quad_indices(
-				indices,
-				end_cap_base,
-				end_cap_base + 1,
-				end_cap_base + 2,
-				end_cap_base + 3
-			)
+			if cap_start:
+				var start_cap_base := vertices.size()
+				_append_barrier_cap_vertices(
+					vertices,
+					normals,
+					[
+						vertices[base_vertex],
+						vertices[base_vertex + 2],
+						vertices[base_vertex + 3],
+						vertices[base_vertex + 1],
+					],
+					-start_tangent
+				)
+				_append_quad_indices(
+					indices,
+					start_cap_base,
+					start_cap_base + 1,
+					start_cap_base + 2,
+					start_cap_base + 3
+				)
+			if cap_end:
+				var end_cap_base := vertices.size()
+				_append_barrier_cap_vertices(
+					vertices,
+					normals,
+					[
+						vertices[final_base],
+						vertices[final_base + 1],
+						vertices[final_base + 3],
+						vertices[final_base + 2],
+					],
+					end_tangent
+				)
+				_append_quad_indices(
+					indices,
+					end_cap_base,
+					end_cap_base + 1,
+					end_cap_base + 2,
+					end_cap_base + 3
+				)
 	var mesh := ArrayMesh.new()
 	if vertices.is_empty() or indices.is_empty():
 		return mesh
@@ -722,6 +762,11 @@ func _get_route_length() -> float:
 			_route_points[(route_index + 1) % _route_points.size()]
 		)
 	return total_length
+
+
+func _get_junction(shortcut: Dictionary, is_entry: bool):
+	var shortcut_junctions: Dictionary = _junctions.get(int(shortcut.id), {})
+	return shortcut_junctions.get("entry" if is_entry else "exit")
 
 
 static func _intersect_lines_2d(

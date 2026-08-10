@@ -75,6 +75,71 @@ static func create_shortcut_drivable_surface(
 	path_body.add_child(path_collision)
 
 
+static func create_junction_surface(
+	parent: Node3D,
+	left_boundary: PackedVector3Array,
+	right_boundary: PackedVector3Array,
+	material: StandardMaterial3D,
+	node_name: String,
+	collision_layer: int
+) -> void:
+	var junction_mesh := create_boundary_ribbon_mesh(
+		left_boundary,
+		right_boundary,
+		0.012
+	)
+	if junction_mesh.get_surface_count() == 0:
+		return
+	var junction_visual := MeshInstance3D.new()
+	junction_visual.name = node_name
+	junction_visual.mesh = junction_mesh
+	junction_visual.material_override = material
+	parent.add_child(junction_visual)
+
+	var junction_body := StaticBody3D.new()
+	junction_body.name = node_name + "Collision"
+	junction_body.collision_layer = collision_layer
+	junction_body.collision_mask = PhysicsLayers.KARTS
+	parent.add_child(junction_body)
+	var junction_collision := CollisionShape3D.new()
+	var junction_shape := junction_mesh.create_trimesh_shape()
+	if junction_shape is ConcavePolygonShape3D:
+		(junction_shape as ConcavePolygonShape3D).backface_collision = true
+	junction_collision.shape = junction_shape
+	junction_body.add_child(junction_collision)
+
+
+static func create_boundary_curb(
+	parent: Node3D,
+	boundary: PackedVector3Array,
+	opposite_boundary: PackedVector3Array,
+	width: float,
+	material: StandardMaterial3D,
+	node_name: String
+) -> void:
+	if boundary.size() < 2 or boundary.size() != opposite_boundary.size():
+		return
+	var inner_boundary := PackedVector3Array()
+	for point_index in boundary.size():
+		var direction := opposite_boundary[point_index] - boundary[point_index]
+		direction.y = 0.0
+		if direction.length_squared() <= 0.0001:
+			inner_boundary.append(boundary[point_index])
+		else:
+			inner_boundary.append(
+				boundary[point_index] + direction.normalized() * width
+			)
+	var curb := MeshInstance3D.new()
+	curb.name = node_name
+	curb.mesh = create_boundary_ribbon_mesh(
+		boundary,
+		inner_boundary,
+		CURB_HEIGHT_OFFSET
+	)
+	curb.material_override = material
+	parent.add_child(curb)
+
+
 static func create_shortcut_collision_mesh(
 	path_points: Array[Vector3],
 	width: float
@@ -165,6 +230,63 @@ static func create_ribbon_mesh(
 		var next_distance := (
 			cumulative_distance
 			+ path_points[point_index].distance_to(path_points[next_index])
+		)
+		_add_surface_vertex(
+			surface,
+			current_left,
+			Vector2(0.0, cumulative_distance * UV_DISTANCE_SCALE)
+		)
+		_add_surface_vertex(
+			surface,
+			next_right,
+			Vector2(1.0, next_distance * UV_DISTANCE_SCALE)
+		)
+		_add_surface_vertex(
+			surface,
+			current_right,
+			Vector2(1.0, cumulative_distance * UV_DISTANCE_SCALE)
+		)
+		_add_surface_vertex(
+			surface,
+			current_left,
+			Vector2(0.0, cumulative_distance * UV_DISTANCE_SCALE)
+		)
+		_add_surface_vertex(
+			surface,
+			next_left,
+			Vector2(0.0, next_distance * UV_DISTANCE_SCALE)
+		)
+		_add_surface_vertex(
+			surface,
+			next_right,
+			Vector2(1.0, next_distance * UV_DISTANCE_SCALE)
+		)
+		cumulative_distance = next_distance
+	surface.generate_normals()
+	return surface.commit()
+
+
+static func create_boundary_ribbon_mesh(
+	left_boundary: PackedVector3Array,
+	right_boundary: PackedVector3Array,
+	height_offset: float
+) -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	if left_boundary.size() < 2 or left_boundary.size() != right_boundary.size():
+		return surface.commit()
+	var cumulative_distance := 0.0
+	for point_index in left_boundary.size() - 1:
+		var next_index := point_index + 1
+		var current_left := left_boundary[point_index] + Vector3.UP * height_offset
+		var current_right := right_boundary[point_index] + Vector3.UP * height_offset
+		var next_left := left_boundary[next_index] + Vector3.UP * height_offset
+		var next_right := right_boundary[next_index] + Vector3.UP * height_offset
+		var next_distance := cumulative_distance + (
+			left_boundary[point_index].lerp(right_boundary[point_index], 0.5)
+			.distance_to(
+				left_boundary[next_index].lerp(right_boundary[next_index], 0.5)
+			)
 		)
 		_add_surface_vertex(
 			surface,

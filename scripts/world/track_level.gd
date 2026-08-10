@@ -58,6 +58,7 @@ func _generate_track_output() -> void:
 	_prepare_materials()
 	_build_route()
 	_define_shortcuts()
+	_build_shortcut_junctions()
 	_build_environment()
 	_build_road()
 	_build_shortcuts()
@@ -78,6 +79,7 @@ func clear_generated_track() -> void:
 	route_points.clear()
 	item_spawn_points.clear()
 	shortcut_definitions.clear()
+	_shortcut_junctions.clear()
 	_active_shortcuts.clear()
 
 

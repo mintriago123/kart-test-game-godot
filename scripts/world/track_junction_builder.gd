@@ -101,6 +101,8 @@ func build(
 		geometry.fallback_reason = "El atajo es demasiado corto para suavizar la unión."
 		return geometry
 	var join_center := join_sample.point as Vector3
+	geometry.shortcut_transition_center = join_center
+	geometry.shortcut_transition_index = int(join_sample.point_index)
 	var join_inward := join_sample.direction as Vector3
 	var join_drive_forward := join_inward if is_entry else -join_inward
 	var join_right := Vector3.UP.cross(join_drive_forward).normalized()
@@ -282,6 +284,7 @@ func _sample_shortcut_inward(
 				return {
 					"point": previous.lerp(current, weight),
 					"direction": segment.normalized(),
+					"point_index": point_index,
 				}
 			traveled += segment_length
 		previous = current

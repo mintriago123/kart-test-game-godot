@@ -2,6 +2,8 @@
 class_name CoastalTrack
 extends Node3D
 
+const JunctionBuilder = preload("res://scripts/world/track_junction_builder.gd")
+
 signal shortcut_completed(kart: Node, entry_index: int, exit_index: int)
 
 const ROAD_WIDTH := 17.5
@@ -30,6 +32,7 @@ const SHORTCUT_BARRIER_COLLISION_LAYER := PhysicsLayers.SHORTCUT_BARRIERS
 var route_points: Array[Vector3] = []
 var item_spawn_points: Array[Vector3] = []
 var shortcut_definitions: Array[Dictionary] = []
+var _shortcut_junctions: Dictionary = {}
 
 var _road_material: StandardMaterial3D
 var _edge_material: StandardMaterial3D
@@ -45,6 +48,7 @@ func _ready() -> void:
 	_prepare_materials()
 	_build_route()
 	_define_shortcuts()
+	_build_shortcut_junctions()
 	_build_environment()
 	_build_road()
 	_build_shortcuts()
@@ -144,6 +148,21 @@ func _define_shortcuts() -> void:
 	})
 
 
+func _build_shortcut_junctions() -> void:
+	_shortcut_junctions.clear()
+	var junction_builder := JunctionBuilder.new(
+		route_points,
+		ROAD_WIDTH,
+		SHORTCUT_WIDTH
+	)
+	for shortcut in shortcut_definitions:
+		var shortcut_points: Array[Vector3] = shortcut.points
+		_shortcut_junctions[int(shortcut.id)] = {
+			"entry": junction_builder.build(shortcut_points, true),
+			"exit": junction_builder.build(shortcut_points, false),
+		}
+
+
 func _build_environment() -> void:
 	var ocean := MeshInstance3D.new()
 	var ocean_mesh := PlaneMesh.new()
@@ -199,6 +218,9 @@ func _build_shortcuts() -> void:
 		var shortcut_id: int = shortcut.id
 		var shortcut_name: String = shortcut.name
 		var shortcut_points: Array[Vector3] = shortcut.points
+		var junctions: Dictionary = _shortcut_junctions.get(shortcut_id, {})
+		var entry_junction = junctions.get("entry")
+		var exit_junction = junctions.get("exit")
 		TrackSurfaceBuilder.create_shortcut_drivable_surface(
 			self,
 			shortcut_points,
@@ -207,12 +229,69 @@ func _build_shortcuts() -> void:
 			"Shortcut%d" % shortcut_id,
 			SHORTCUT_COLLISION_LAYER
 		)
+		for junction_data in [
+			[entry_junction, "Entry"],
+			[exit_junction, "Exit"],
+		]:
+			var junction = junction_data[0]
+			if junction == null or not junction.is_valid:
+				continue
+			var junction_name := "Shortcut%d%sJunction" % [
+				shortcut_id,
+				junction_data[1],
+			]
+			TrackSurfaceBuilder.create_junction_surface(
+				self,
+				junction.left_boundary,
+				junction.right_boundary,
+				_shortcut_material,
+				junction_name,
+				MAIN_COLLISION_LAYER
+			)
+			TrackSurfaceBuilder.create_boundary_curb(
+				self,
+				junction.left_boundary,
+				junction.right_boundary,
+				CURB_WIDTH,
+				_edge_material,
+				junction_name + "CurbLeft"
+			)
+			TrackSurfaceBuilder.create_boundary_curb(
+				self,
+				junction.right_boundary,
+				junction.left_boundary,
+				CURB_WIDTH,
+				_edge_material,
+				junction_name + "CurbRight"
+			)
 		var trimmed_shortcut_points: Array[Vector3] = []
-		for point_index in range(
-			SHORTCUT_CURB_TRIM_SEGMENTS,
-			shortcut_points.size() - SHORTCUT_CURB_TRIM_SEGMENTS
-		):
-			trimmed_shortcut_points.append(shortcut_points[point_index])
+		var curb_start := SHORTCUT_CURB_TRIM_SEGMENTS
+		var curb_finish := shortcut_points.size() - SHORTCUT_CURB_TRIM_SEGMENTS
+		if entry_junction != null and entry_junction.is_valid:
+			curb_start = entry_junction.shortcut_transition_index
+			trimmed_shortcut_points.append(
+				entry_junction.shortcut_transition_center
+			)
+		if exit_junction != null and exit_junction.is_valid:
+			curb_finish = exit_junction.shortcut_transition_index + 1
+		for point_index in range(curb_start, curb_finish):
+			if (
+				trimmed_shortcut_points.is_empty()
+				or trimmed_shortcut_points[-1].distance_to(
+					shortcut_points[point_index]
+				) > 0.001
+			):
+				trimmed_shortcut_points.append(shortcut_points[point_index])
+		if exit_junction != null and exit_junction.is_valid:
+			if (
+				trimmed_shortcut_points.is_empty()
+				or trimmed_shortcut_points[-1].distance_to(
+					exit_junction.shortcut_transition_center
+				) > 0.001
+			):
+				trimmed_shortcut_points.append(
+					exit_junction.shortcut_transition_center
+				)
 		TrackSurfaceBuilder.create_curb(
 			self,
 			trimmed_shortcut_points,
@@ -232,7 +311,9 @@ func _build_shortcuts() -> void:
 		barrier_builder.create_shortcut_barriers(
 			shortcut_points,
 			"Shortcut%d" % shortcut_id,
-			SHORTCUT_BARRIER_COLLISION_LAYER
+			SHORTCUT_BARRIER_COLLISION_LAYER,
+			entry_junction,
+			exit_junction
 		)
 		_create_shortcut_gate(
 			shortcut_points[SHORTCUT_GATE_OFFSET_SEGMENTS],
@@ -266,7 +347,8 @@ func _create_barrier_builder() -> TrackBarrierBuilder:
 		ROAD_WIDTH,
 		SHORTCUT_WIDTH,
 		_barrier_material,
-		_get_shortcut_barrier_join_clearance()
+		_get_shortcut_barrier_join_clearance(),
+		_shortcut_junctions
 	)
 
 
