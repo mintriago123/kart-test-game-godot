@@ -368,6 +368,7 @@ func _test_guided_screen() -> void:
 	screen._pending_action = ""
 	screen._pending_path = ""
 	var interactive_controls_are_accessible := true
+	var inaccessible_buttons := PackedStringArray()
 	var button_count := 0
 	for node in _collect_descendants(screen):
 		if node is Button:
@@ -377,10 +378,16 @@ func _test_guided_screen() -> void:
 				and (node as Button).custom_minimum_size.y >= 44.0
 				and (node as Button).focus_mode == Control.FOCUS_ALL
 			)
+			if (
+				(node as Button).custom_minimum_size.y < 44.0
+				or (node as Button).focus_mode != Control.FOCUS_ALL
+			):
+				inaccessible_buttons.append(str(node.name))
 	_check(button_count >= 14, "Guided editor exposes the complete five-step workflow.")
 	_check(
 		interactive_controls_are_accessible,
-		"Guided editor buttons are touch-friendly and keyboard focusable."
+		"Guided editor buttons are touch-friendly and keyboard focusable: %s"
+		% ", ".join(inaccessible_buttons)
 	)
 	for step_index in 5:
 		screen._show_step(step_index)
@@ -513,6 +520,45 @@ func _test_template_and_history() -> void:
 			original_position + Vector3(8.0, 0.0, 0.0)
 		),
 		"Undone route edits can be redone."
+	)
+	var item_root := track.get_node("ItemSpawns")
+	var first_item := item_root.get_child(0) as Marker3D
+	var item_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.ITEM,
+		track.get_path_to(first_item)
+	)
+	session.snapshot_track_for_undo()
+	var duplicate_selection := session.duplicate_entity(item_selection)
+	session.mark_dirty()
+	_check(
+		item_root.get_child_count() == 5 and not duplicate_selection.is_empty(),
+		"Entity operations duplicate an anchored item with a stable selection."
+	)
+	session.undo_route()
+	_check(
+		item_root.get_child_count() == 4,
+		"Undo removes an entity created after the snapshot."
+	)
+	session.redo_route()
+	_check(
+		item_root.get_child_count() == 5,
+		"Redo reconstructs an entity that was removed by undo."
+	)
+	var restored_duplicate := item_root.get_child(-1) as Marker3D
+	var restored_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.ITEM,
+		track.get_path_to(restored_duplicate)
+	)
+	session.snapshot_track_for_undo()
+	_check(
+		session.delete_entity(restored_selection),
+		"Entity operations delete the selected item."
+	)
+	session.mark_dirty()
+	session.undo_route()
+	_check(
+		item_root.get_child_count() == 5,
+		"Undo restores a directly deleted entity."
 	)
 
 	track.start_point_index = 2

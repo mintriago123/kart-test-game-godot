@@ -65,12 +65,19 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 	var shortcuts: Array[TrackShortcut] = track.get_shortcuts()
 	for shortcut in shortcuts:
 		var shortcut_path: NodePath = track.get_path_to(shortcut)
+		var shortcut_transform: Transform3D = track._get_transform_relative_to_track(shortcut)
+		var shortcut_position := shortcut_transform.origin
+		if shortcut.curve != null and shortcut.curve.point_count > 0:
+			shortcut_position = shortcut_transform * shortcut.curve.get_point_position(
+				shortcut.curve.point_count / 2
+			)
 		if shortcut.display_name.strip_edges().is_empty():
 			_append_issue(
 				issues,
 				&"shortcut_name_missing",
 				"El atajo %d necesita un nombre." % shortcut.shortcut_id,
-				shortcut_path
+				shortcut_path,
+				shortcut_position
 			)
 		if shortcut.shortcut_id in shortcut_ids:
 			_append_issue(
@@ -80,7 +87,8 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 					"El identificador de atajo %d está repetido."
 					% shortcut.shortcut_id
 				),
-				shortcut_path
+				shortcut_path,
+				shortcut_position
 			)
 		shortcut_ids[shortcut.shortcut_id] = true
 		if shortcut.curve == null or shortcut.curve.point_count < 3:
@@ -89,14 +97,16 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 				&"shortcut_point_count",
 				"%s necesita al menos tres puntos."
 				% shortcut.display_name,
-				shortcut_path
+				shortcut_path,
+				shortcut_position
 			)
 		elif shortcut.curve.closed:
 			_append_issue(
 				issues,
 				&"shortcut_not_open",
 				"%s debe ser una curva abierta." % shortcut.display_name,
-				shortcut_path
+				shortcut_path,
+				shortcut_position
 			)
 		elif not validation_route.is_empty():
 			for shortcut_error in validate_shortcut(
@@ -113,7 +123,8 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 					issues,
 					issue_code,
 					shortcut_error,
-					shortcut_path
+					shortcut_path,
+					shortcut_position
 				)
 
 	var props: Node = track.get_node_or_null("Props")
@@ -147,7 +158,12 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 					issues,
 					&"item_type",
 					"%s debe ser Marker3D." % child.name,
-					item_path
+					item_path,
+					(
+						track._get_transform_relative_to_track(child).origin
+						if child is Node3D
+						else Vector3.ZERO
+					)
 				)
 				continue
 			var marker_position: Vector3 = track._get_transform_relative_to_track(
@@ -163,7 +179,8 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 					issues,
 					&"item_off_route",
 					"%s está fuera de la carretera." % child.name,
-					item_path
+					item_path,
+					marker_position
 				)
 	return issues
 
@@ -249,7 +266,8 @@ static func _append_issue(
 	issues: Array[TrackValidationIssue],
 	code: StringName,
 	message: String,
-	target_path: NodePath
+	target_path: NodePath,
+	world_position := Vector3.ZERO
 ) -> void:
 	for issue in issues:
 		if issue.code == code and issue.target_path == target_path:
@@ -259,7 +277,8 @@ static func _append_issue(
 			code,
 			message,
 			TrackValidationIssue.Severity.ERROR,
-			target_path
+			target_path,
+			world_position
 		)
 	)
 

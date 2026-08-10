@@ -2,16 +2,35 @@
 class_name TrackShortcutPanel
 extends "res://addons/track_editor/track_editor_panel.gd"
 
+const Selection := preload(
+	"res://addons/track_editor/track_editor_selection.gd"
+)
+
 signal create_shortcut_requested(entry_index: int, exit_index: int)
 signal delete_shortcut_requested(shortcut: TrackShortcut)
+signal midpoint_changed(
+	selection: RefCounted,
+	longitudinal: float,
+	lateral: float,
+	height: float
+)
 
 
-func configure(track: TrackLevel, button_factory: Callable) -> void:
+func configure(
+	track: TrackLevel,
+	button_factory: Callable,
+	selection: RefCounted = null
+) -> void:
 	configure_panel("3  ATAJOS", button_factory)
 	add_help(
 		"Elige dos puntos de la carretera. La entrada debe aparecer antes "
 		+ "que la salida siguiendo las flechas."
 	)
+	if (
+		selection != null
+		and selection.kind == Selection.Kind.SHORTCUT_MIDPOINT
+	):
+		_build_midpoint_inspector(track, selection)
 	var route := track.get_main_route()
 	var point_count := (
 		route.curve.point_count
@@ -51,3 +70,39 @@ func configure(track: TrackLevel, button_factory: Callable) -> void:
 			)
 		)
 		add_child(row)
+
+
+func _build_midpoint_inspector(
+	track: TrackLevel,
+	selection: RefCounted
+) -> void:
+	var shortcut := track.get_node_or_null(selection.node_path) as TrackShortcut
+	if shortcut == null:
+		return
+	add_field_label("SELECCIÓN · %s" % shortcut.display_name)
+	var values: Array[SpinBox] = []
+	for value_data in [
+		{"label": "Desplazamiento longitudinal", "value": shortcut.midpoint_longitudinal_offset},
+		{"label": "Desplazamiento lateral", "value": shortcut.midpoint_lateral_offset},
+		{"label": "Altura", "value": shortcut.midpoint_height_offset},
+	]:
+		add_field_label(value_data.label)
+		var input := SpinBox.new()
+		input.min_value = -100.0
+		input.max_value = 100.0
+		input.step = 0.25
+		input.suffix = " m"
+		input.value = value_data.value
+		input.custom_minimum_size.y = 44.0
+		add_child(input)
+		values.append(input)
+	add_child(make_button(
+		"APLICAR FORMA",
+		func() -> void:
+			midpoint_changed.emit(
+				selection,
+				values[0].value,
+				values[1].value,
+				values[2].value
+			)
+	))

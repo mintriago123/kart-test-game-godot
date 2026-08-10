@@ -13,6 +13,9 @@ const RoutePanel := preload("res://addons/track_editor/track_route_panel.gd")
 const ShortcutPanel := preload("res://addons/track_editor/track_shortcut_panel.gd")
 const ObjectPanel := preload("res://addons/track_editor/track_object_panel.gd")
 const ReviewPanel := preload("res://addons/track_editor/track_review_panel.gd")
+const Selection := preload(
+	"res://addons/track_editor/track_editor_selection.gd"
+)
 const STEP_LABELS := [
 	"1  CONFIGURACIÓN",
 	"2  CARRETERA",
@@ -49,6 +52,7 @@ var _current_step := 0
 var _laps := 3
 var _description := ""
 var _is_showing_preview := false
+var _selection: RefCounted = Selection.none()
 
 
 func _ready() -> void:
@@ -222,6 +226,51 @@ func _build_workspace() -> VBoxContainer:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	view_bar.add_child(spacer)
+	var grid_picker := OptionButton.new()
+	grid_picker.name = "GridStep"
+	grid_picker.tooltip_text = "Cuadrícula usada al mantener Ctrl durante el movimiento"
+	grid_picker.custom_minimum_size = Vector2(86.0, 44.0)
+	for grid_value in [1, 2, 5]:
+		grid_picker.add_item("%d m" % grid_value, grid_value)
+	grid_picker.item_selected.connect(func(index: int) -> void:
+		_map_view.set_grid_step(float(grid_picker.get_item_id(index)))
+	)
+	view_bar.add_child(grid_picker)
+	var layers := MenuButton.new()
+	layers.name = "MapLayers"
+	layers.text = "CAPAS"
+	layers.custom_minimum_size = Vector2(92.0, 44.0)
+	layers.focus_mode = Control.FOCUS_ALL
+	var layer_labels := {
+		&"direction": "Sentido",
+		&"objects": "Objetos",
+		&"shortcuts": "Atajos y portales",
+		&"errors": "Errores",
+		&"slope": "Pendiente",
+		&"curvature": "Curvatura",
+		&"barriers": "Barreras",
+	}
+	for layer_name in layer_labels:
+		var layer_index := layers.get_popup().item_count
+		layers.get_popup().add_check_item(layer_labels[layer_name])
+		layers.get_popup().set_item_metadata(layer_index, layer_name)
+		layers.get_popup().set_item_checked(
+			layer_index,
+			layer_name in [&"direction", &"objects", &"shortcuts", &"errors"]
+		)
+	layers.get_popup().index_pressed.connect(func(index: int) -> void:
+		var popup := layers.get_popup()
+		var enabled := not popup.is_item_checked(index)
+		popup.set_item_checked(index, enabled)
+		_map_view.set_layer_enabled(
+			StringName(popup.get_item_metadata(index)),
+			enabled
+		)
+	)
+	view_bar.add_child(layers)
+	view_bar.add_child(_button("−", func() -> void: _map_view.zoom_out(), "Alejar mapa"))
+	view_bar.add_child(_button("＋", func() -> void: _map_view.zoom_in(), "Acercar mapa"))
+	view_bar.add_child(_button("ENCUADRAR", func() -> void: _map_view.frame_all(), "Mostrar la pista completa"))
 	_view_toggle = _button("VISTA 3D", _toggle_view)
 	view_bar.add_child(_view_toggle)
 	workspace.add_child(view_bar)
@@ -237,6 +286,10 @@ func _build_workspace() -> VBoxContainer:
 	_map_view.route_edited.connect(_handle_route_edited)
 	_map_view.edit_finished.connect(_handle_route_edit_finished)
 	_map_view.point_selected.connect(_handle_point_selected)
+	_map_view.selection_changed.connect(_handle_selection_changed)
+	_map_view.entity_move_requested.connect(_handle_entity_move_requested)
+	_map_view.entity_delete_requested.connect(_handle_entity_delete_requested)
+	_map_view.entity_duplicate_requested.connect(_handle_entity_duplicate_requested)
 	view_stack.add_child(_map_view)
 
 	_preview_container = _preview_controller.build(view_stack)
@@ -322,10 +375,12 @@ func _load_path(path: String) -> void:
 
 
 func _handle_track_changed(track: TrackLevel) -> void:
+	_selection = Selection.none()
 	_preview_controller.set_track(track)
 	_map_view.set_track(track)
 	_title_label.text = "PISTAS  /  %s" % track.display_name.to_upper()
 	_rebuild_preview()
+	_refresh_validation()
 	_show_step(_current_step)
 
 
@@ -339,6 +394,7 @@ func _handle_dirty_changed(is_dirty: bool) -> void:
 
 func _handle_session_route_changed() -> void:
 	_map_view.set_track(session.track)
+	_restore_selection_after_history()
 	_rebuild_preview()
 	if _current_step == 1:
 		_show_step(1)
@@ -390,24 +446,29 @@ func _build_route_properties() -> void:
 	panel.delete_point_requested.connect(_handle_delete_point)
 	panel.height_changed.connect(_map_view.set_selected_height)
 	panel.mark_start_requested.connect(_handle_mark_start)
+	panel.position_changed.connect(_handle_route_position_changed)
 	_properties.add_child(panel)
 
 
 func _build_shortcut_properties() -> void:
 	var panel := ShortcutPanel.new()
 	panel.name = "TrackShortcutPanel"
-	panel.configure(session.track, _button)
+	panel.configure(session.track, _button, _selection)
 	panel.create_shortcut_requested.connect(_create_shortcut)
 	panel.delete_shortcut_requested.connect(_delete_shortcut)
+	panel.midpoint_changed.connect(_handle_shortcut_midpoint_changed)
 	_properties.add_child(panel)
 
 
 func _build_object_properties() -> void:
 	var panel := ObjectPanel.new()
 	panel.name = "TrackObjectPanel"
-	panel.configure(session.track, _button)
+	panel.configure(session.track, _button, _selection)
 	panel.add_item_requested.connect(_add_item_spawn)
 	panel.add_asset_requested.connect(_add_asset)
+	panel.anchor_changed.connect(_handle_object_anchor_changed)
+	panel.duplicate_requested.connect(_handle_entity_duplicate_requested)
+	panel.delete_requested.connect(_handle_entity_delete_requested)
 	_properties.add_child(panel)
 
 
@@ -504,12 +565,154 @@ func _handle_route_edited() -> void:
 func _handle_route_edit_finished() -> void:
 	session.recalculate_route_dependents()
 	_rebuild_preview()
+	_refresh_validation()
+	_show_step(_current_step)
 	_show_success("Carretera actualizada.")
 
 
 func _handle_point_selected(_point_index: int) -> void:
-	if _current_step == 1:
-		_show_step(1)
+	pass
+
+
+func _handle_selection_changed(new_selection: RefCounted) -> void:
+	_selection = new_selection
+	var step := int(_selection.workflow_step())
+	if step >= 0:
+		_show_step(step)
+
+
+func _handle_entity_move_requested(
+	selected: RefCounted,
+	track_position: Vector3
+) -> void:
+	if session.move_entity(selected, track_position):
+		session.mark_dirty()
+
+
+func _handle_entity_delete_requested(selected: RefCounted) -> void:
+	if selected == null or selected.is_empty():
+		return
+	session.snapshot_track_for_undo()
+	if not session.delete_entity(selected):
+		_show_error("Este elemento no se puede eliminar.")
+		return
+	_selection = Selection.none()
+	_map_view.clear_selection()
+	session.mark_dirty()
+	session.recalculate_route_dependents()
+	_complete_entity_edit("Elemento eliminado.")
+
+
+func _handle_entity_duplicate_requested(selected: RefCounted) -> void:
+	if selected == null or selected.is_empty():
+		return
+	session.snapshot_track_for_undo()
+	var duplicated := session.duplicate_entity(selected)
+	if duplicated == null or duplicated.is_empty():
+		_show_error("Este elemento no se puede duplicar.")
+		return
+	_selection = duplicated
+	_map_view.set_selection(_selection)
+	session.mark_dirty()
+	_complete_entity_edit("Elemento duplicado.")
+
+
+func _complete_entity_edit(message: String) -> void:
+	_map_view.queue_redraw()
+	_rebuild_preview()
+	_refresh_validation()
+	_show_step(_current_step)
+	_show_success(message)
+
+
+func _restore_selection_after_history() -> void:
+	if _selection == null or _selection.is_empty():
+		return
+	if (
+		_selection.kind != Selection.Kind.ROUTE_POINT
+		and session.track.get_node_or_null(_selection.node_path) == null
+	):
+		_selection = Selection.none()
+	_map_view.set_selection(_selection)
+
+
+func _refresh_validation() -> void:
+	if session.track == null:
+		return
+	var issues := _deduplicate_issues(session.track.inspect_track())
+	_map_view.set_issues(issues)
+	_update_step_badges(issues)
+
+
+func _update_step_badges(issues: Array[TrackValidationIssue]) -> void:
+	var counts := [0, 0, 0, 0, 0]
+	for issue in issues:
+		var path_text := str(issue.target_path)
+		if path_text.begins_with("Shortcuts"):
+			counts[2] += 1
+		elif path_text.begins_with("ItemSpawns") or path_text.begins_with("Props"):
+			counts[3] += 1
+		elif path_text == ".":
+			counts[0] += 1
+		else:
+			counts[1] += 1
+	for step_index in STEP_LABELS.size():
+		_step_buttons[step_index].text = (
+			"%s  ⚠ %d" % [STEP_LABELS[step_index], counts[step_index]]
+			if counts[step_index] > 0
+			else STEP_LABELS[step_index]
+		)
+
+
+func _handle_route_position_changed(position: Vector3) -> void:
+	if _selection.kind != Selection.Kind.ROUTE_POINT:
+		return
+	session.snapshot_track_for_undo()
+	if session.update_route_point(_selection.point_index, position):
+		session.mark_dirty()
+		session.recalculate_route_dependents()
+		_complete_entity_edit("Punto de carretera actualizado.")
+
+
+func _handle_object_anchor_changed(
+	selected: RefCounted,
+	progress: float,
+	lateral: float,
+	height: float,
+	rotation: float
+) -> void:
+	session.snapshot_track_for_undo()
+	var changed := (
+		session.update_item_progress(selected, progress)
+		if selected.kind == Selection.Kind.ITEM
+		else session.update_prop_anchor(
+			selected,
+			progress,
+			lateral,
+			height,
+			rotation
+		)
+	)
+	if changed:
+		session.mark_dirty()
+		_complete_entity_edit("Objeto actualizado.")
+
+
+func _handle_shortcut_midpoint_changed(
+	selected: RefCounted,
+	longitudinal: float,
+	lateral: float,
+	height: float
+) -> void:
+	session.snapshot_track_for_undo()
+	if session.update_shortcut_midpoint(
+		selected,
+		longitudinal,
+		lateral,
+		height
+	):
+		session.mark_dirty()
+		_complete_entity_edit("Atajo actualizado.")
 
 
 func _handle_add_point() -> void:
@@ -540,6 +743,7 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 	if exit_index <= entry_index + 1:
 		_show_error("La salida debe estar al menos dos puntos después de la entrada.")
 		return
+	session.snapshot_track_for_undo()
 	var curve := session.track.get_main_route().curve
 	var shortcut := TrackShortcut.new()
 	shortcut.name = "Shortcut%d" % (session.track.get_shortcuts().size() + 1)
@@ -585,6 +789,7 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 func _delete_shortcut(shortcut: TrackShortcut) -> void:
 	if not is_instance_valid(shortcut):
 		return
+	session.snapshot_track_for_undo()
 	shortcut.get_parent().remove_child(shortcut)
 	shortcut.free()
 	session.mark_dirty()
@@ -599,6 +804,7 @@ func _add_item_spawn(point_index: int) -> void:
 	if item_root == null or route == null or route.curve == null:
 		_show_error("La pista no tiene un contenedor de cajas válido.")
 		return
+	session.snapshot_track_for_undo()
 	var marker := Marker3D.new()
 	marker.name = "ItemSpawn%d" % (item_root.get_child_count() + 1)
 	marker.position = route.curve.get_point_position(point_index)
@@ -626,6 +832,7 @@ func _add_asset(
 	if props == null or route == null or entry == null or entry.scene == null:
 		_show_error("No se pudo colocar el asset.")
 		return
+	session.snapshot_track_for_undo()
 	var instance := entry.scene.instantiate() as Node3D
 	if instance == null:
 		_show_error("El asset seleccionado no es un modelo 3D.")
@@ -661,13 +868,22 @@ func _add_asset(
 
 
 func _focus_issue(issue: TrackValidationIssue) -> void:
-	match str(issue.target_path):
-		"Shortcuts":
-			_show_step(2)
-		"ItemSpawns", "Props":
-			_show_step(3)
-		_:
-			_show_step(1)
+	var path_text := str(issue.target_path)
+	if path_text.begins_with("Shortcuts/"):
+		_selection = Selection.node(
+			Selection.Kind.SHORTCUT_MIDPOINT,
+			issue.target_path
+		)
+	elif path_text.begins_with("ItemSpawns/"):
+		_selection = Selection.node(Selection.Kind.ITEM, issue.target_path)
+	elif path_text.begins_with("Props/"):
+		_selection = Selection.node(Selection.Kind.PROP, issue.target_path)
+	else:
+		_selection = Selection.none()
+	if not _selection.is_empty():
+		_map_view.set_selection(_selection, true)
+	else:
+		_show_step(1)
 	_show_error(issue.message)
 
 

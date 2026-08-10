@@ -3,9 +3,17 @@ class_name TrackMapView
 extends Control
 
 signal point_selected(point_index: int)
+signal selection_changed(selection: RefCounted)
 signal edit_started
 signal route_edited
 signal edit_finished
+signal entity_move_requested(selection: RefCounted, track_position: Vector3)
+signal entity_delete_requested(selection: RefCounted)
+signal entity_duplicate_requested(selection: RefCounted)
+
+const Selection := preload(
+	"res://addons/track_editor/track_editor_selection.gd"
+)
 
 const BACKGROUND_COLOR := Color("#151b1f")
 const GRID_COLOR := Color("#293238")
@@ -16,11 +24,31 @@ const SHORTCUT_COLOR := Color("#42c7b9")
 const ERROR_COLOR := Color("#ef7656")
 const MAP_PADDING := 54.0
 const POINT_RADIUS := 9.0
+const MIN_ZOOM := 0.5
+const MAX_ZOOM := 8.0
+const ZOOM_FACTOR := 1.15
 
 var track: TrackLevel
 var selected_point := -1
+var selection: RefCounted = Selection.none()
+var grid_step := 1.0
 
 var _is_dragging := false
+var _is_panning := false
+var _space_pressed := false
+var _last_pointer_position := Vector2.ZERO
+var _zoom := 1.0
+var _pan := Vector2.ZERO
+var _issues: Array[TrackValidationIssue] = []
+var _layers := {
+	&"direction": true,
+	&"objects": true,
+	&"shortcuts": true,
+	&"errors": true,
+	&"slope": false,
+	&"curvature": false,
+	&"barriers": false,
+}
 var _map_bounds := Rect2(Vector2(-100.0, -100.0), Vector2(200.0, 200.0))
 
 
@@ -36,8 +64,63 @@ func _ready() -> void:
 
 func set_track(new_track: TrackLevel) -> void:
 	track = new_track
-	selected_point = -1
+	clear_selection()
 	_refresh_bounds()
+	frame_all()
+	queue_redraw()
+
+
+func set_issues(issues: Array[TrackValidationIssue]) -> void:
+	_issues = issues
+	queue_redraw()
+
+
+func set_layer_enabled(layer: StringName, is_enabled: bool) -> void:
+	if _layers.has(layer):
+		_layers[layer] = is_enabled
+		queue_redraw()
+
+
+func is_layer_enabled(layer: StringName) -> bool:
+	return bool(_layers.get(layer, false))
+
+
+func set_grid_step(value: float) -> void:
+	grid_step = value if value in [1.0, 2.0, 5.0] else 1.0
+
+
+func frame_all() -> void:
+	_zoom = 1.0
+	_pan = Vector2.ZERO
+	queue_redraw()
+
+
+func zoom_in() -> void:
+	_set_zoom(_zoom * ZOOM_FACTOR)
+
+
+func zoom_out() -> void:
+	_set_zoom(_zoom / ZOOM_FACTOR)
+
+
+func clear_selection() -> void:
+	selection = Selection.none()
+	selected_point = -1
+	queue_redraw()
+
+
+func set_selection(new_selection: RefCounted, center := false) -> void:
+	selection = new_selection if new_selection != null else Selection.none()
+	selected_point = (
+		selection.point_index
+		if selection.kind == Selection.Kind.ROUTE_POINT
+		else -1
+	)
+	if center and not selection.is_empty():
+		_center_on_world_position(_get_selection_position(selection))
+	selection_changed.emit(selection)
+	if selected_point >= 0:
+		point_selected.emit(selected_point)
 	queue_redraw()
 
 
@@ -100,62 +183,98 @@ func _gui_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton:
 		var mouse_button := event as InputEventMouseButton
+		if mouse_button.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			if mouse_button.pressed:
+				_set_zoom(
+					_zoom * ZOOM_FACTOR
+					if mouse_button.button_index == MOUSE_BUTTON_WHEEL_UP
+					else _zoom / ZOOM_FACTOR
+				)
+				accept_event()
+			return
+		var pan_button: bool = (
+			mouse_button.button_index == MOUSE_BUTTON_MIDDLE
+			or (
+				mouse_button.button_index == MOUSE_BUTTON_LEFT
+				and _space_pressed
+			)
+		)
+		if pan_button:
+			_is_panning = mouse_button.pressed
+			_last_pointer_position = mouse_button.position
+			accept_event()
+			return
 		if mouse_button.button_index == MOUSE_BUTTON_LEFT and mouse_button.pressed:
 			grab_focus()
-			var hit_index := _find_point_at(mouse_button.position)
-			if hit_index >= 0:
-				selected_point = hit_index
+			var hit_selection := _find_selection_at(mouse_button.position)
+			if not hit_selection.is_empty():
+				set_selection(hit_selection)
 				_is_dragging = true
 				edit_started.emit()
-				point_selected.emit(selected_point)
-				queue_redraw()
 				accept_event()
 		elif mouse_button.button_index == MOUSE_BUTTON_LEFT:
 			if _is_dragging:
 				_is_dragging = false
-				_smooth_curve(curve)
 				route_edited.emit()
 				edit_finished.emit()
 				_refresh_bounds()
 				queue_redraw()
 				accept_event()
-	elif event is InputEventMouseMotion and _is_dragging and selected_point >= 0:
+	elif event is InputEventMouseMotion and _is_panning:
+		var pan_motion := event as InputEventMouseMotion
+		_pan += pan_motion.position - _last_pointer_position
+		_last_pointer_position = pan_motion.position
+		queue_redraw()
+		accept_event()
+	elif event is InputEventMouseMotion and _is_dragging and not selection.is_empty():
 		var mouse_motion := event as InputEventMouseMotion
-		var position := curve.get_point_position(selected_point)
 		var mapped_position := _screen_to_world(mouse_motion.position)
-		position.x = mapped_position.x
-		position.z = mapped_position.z
-		curve.set_point_position(selected_point, position)
+		var current_position := _get_selection_position(selection)
+		mapped_position.y = current_position.y
+		if mouse_motion.ctrl_pressed:
+			mapped_position.x = snappedf(mapped_position.x, grid_step)
+			mapped_position.z = snappedf(mapped_position.z, grid_step)
+		entity_move_requested.emit(selection, mapped_position)
 		route_edited.emit()
 		queue_redraw()
 		accept_event()
 	elif event is InputEventKey:
 		var key_event := event as InputEventKey
-		if not key_event.pressed or key_event.echo or selected_point < 0:
+		if key_event.keycode == KEY_SPACE:
+			_space_pressed = key_event.pressed
+			return
+		if not key_event.pressed or key_event.echo or selection.is_empty():
 			return
 		var movement := Vector3.ZERO
+		var movement_step := 0.25 if key_event.shift_pressed else 1.0
 		match key_event.keycode:
 			KEY_LEFT:
-				movement.x = -1.0
+				movement.x = -movement_step
 			KEY_RIGHT:
-				movement.x = 1.0
+				movement.x = movement_step
 			KEY_UP:
-				movement.z = -1.0
+				movement.z = -movement_step
 			KEY_DOWN:
-				movement.z = 1.0
+				movement.z = movement_step
 			KEY_DELETE:
-				delete_selected_point()
+				entity_delete_requested.emit(selection)
 				accept_event()
+				return
+			KEY_D:
+				if key_event.ctrl_pressed:
+					entity_duplicate_requested.emit(selection)
+					accept_event()
 				return
 			_:
 				return
 		edit_started.emit()
-		curve.set_point_position(
-			selected_point,
-			curve.get_point_position(selected_point) + movement
-		)
-		_smooth_curve(curve)
-		_finish_discrete_edit()
+		var target_position := _get_selection_position(selection) + movement
+		if key_event.ctrl_pressed:
+			target_position.x = snappedf(target_position.x, grid_step)
+			target_position.z = snappedf(target_position.z, grid_step)
+		entity_move_requested.emit(selection, target_position)
+		route_edited.emit()
+		edit_finished.emit()
 		accept_event()
 
 
@@ -173,10 +292,22 @@ func _draw() -> void:
 		for baked_point in baked_points:
 			screen_points.append(_world_to_screen(baked_point))
 		screen_points.append(screen_points[0])
-		draw_polyline(screen_points, ROAD_EDGE_COLOR, 18.0, true)
-		draw_polyline(screen_points, ROAD_COLOR, 11.0, true)
-		_draw_direction_arrows(screen_points)
-	_draw_shortcuts()
+		var road_width_pixels := maxf(
+			_world_distance_to_screen(CoastalTrack.ROAD_WIDTH),
+			8.0
+		)
+		draw_polyline(screen_points, ROAD_EDGE_COLOR, road_width_pixels + 4.0, true)
+		draw_polyline(screen_points, ROAD_COLOR, road_width_pixels, true)
+		if is_layer_enabled(&"slope"):
+			_draw_slope_overlay(baked_points)
+		if is_layer_enabled(&"barriers"):
+			_draw_barriers(screen_points, road_width_pixels)
+		if is_layer_enabled(&"direction"):
+			_draw_direction_arrows(screen_points)
+	if is_layer_enabled(&"shortcuts"):
+		_draw_shortcuts()
+	if is_layer_enabled(&"objects"):
+		_draw_objects()
 	for point_index in curve.point_count:
 		var point_position := _world_to_screen(curve.get_point_position(point_index))
 		var point_color := ACCENT_COLOR if point_index == selected_point else Color("#f4f1e8")
@@ -205,6 +336,10 @@ func _draw() -> void:
 			12,
 			ERROR_COLOR
 		)
+	if is_layer_enabled(&"curvature"):
+		_draw_curvature_overlay(curve)
+	if is_layer_enabled(&"errors"):
+		_draw_issues()
 
 
 func _draw_grid() -> void:
@@ -243,6 +378,146 @@ func _draw_shortcuts() -> void:
 			shortcut_points.append(_world_to_screen(point))
 		if shortcut_points.size() >= 2:
 			draw_polyline(shortcut_points, SHORTCUT_COLOR, 8.0, true)
+			_draw_handle(shortcut_points[0], SHORTCUT_COLOR, false)
+			_draw_handle(shortcut_points[-1], SHORTCUT_COLOR, false)
+			var middle_index := shortcut.curve.point_count / 2
+			var midpoint := _world_to_screen(
+				shortcut.transform * shortcut.curve.get_point_position(middle_index)
+			)
+			var is_selected: bool = (
+				selection.kind == Selection.Kind.SHORTCUT_MIDPOINT
+				and selection.node_path == track.get_path_to(shortcut)
+			)
+			_draw_handle(midpoint, SHORTCUT_COLOR, is_selected)
+
+
+func _draw_objects() -> void:
+	if track == null:
+		return
+	var item_root := track.get_node_or_null("ItemSpawns")
+	if item_root != null:
+		for child in item_root.get_children():
+			if child is Marker3D:
+				var item_path := track.get_path_to(child)
+				_draw_entity_marker(
+					_get_node_track_position(child),
+					Color("#ef7656"),
+					selection.kind == Selection.Kind.ITEM
+					and selection.node_path == item_path,
+					false
+				)
+	var props := track.get_node_or_null("Props")
+	if props != null:
+		for child in props.get_children():
+			if child is Node3D:
+				var prop_path := track.get_path_to(child)
+				_draw_entity_marker(
+					_get_node_track_position(child),
+					Color("#42c7b9"),
+					selection.kind == Selection.Kind.PROP
+					and selection.node_path == prop_path,
+					true
+				)
+
+
+func _draw_entity_marker(
+	world_position: Vector3,
+	color: Color,
+	is_selected: bool,
+	is_diamond: bool
+) -> void:
+	var point := _world_to_screen(world_position)
+	var radius := 10.0 if is_selected else 7.0
+	if is_diamond:
+		var diamond := PackedVector2Array([
+			point + Vector2(0.0, -radius),
+			point + Vector2(radius, 0.0),
+			point + Vector2(0.0, radius),
+			point + Vector2(-radius, 0.0),
+		])
+		draw_colored_polygon(diamond, color)
+		draw_polyline(diamond + PackedVector2Array([diamond[0]]), BACKGROUND_COLOR, 2.0)
+	else:
+		draw_rect(Rect2(point - Vector2.ONE * radius, Vector2.ONE * radius * 2.0), color)
+		draw_rect(
+			Rect2(point - Vector2.ONE * radius, Vector2.ONE * radius * 2.0),
+			BACKGROUND_COLOR,
+			false,
+			2.0
+		)
+
+
+func _draw_handle(point: Vector2, color: Color, is_selected: bool) -> void:
+	draw_circle(point, 10.0 if is_selected else 7.0, BACKGROUND_COLOR)
+	draw_circle(point, 7.0 if is_selected else 5.0, color)
+
+
+func _draw_slope_overlay(points: PackedVector3Array) -> void:
+	for point_index in points.size():
+		var next_index := (point_index + 1) % points.size()
+		var delta := points[next_index] - points[point_index]
+		var horizontal := Vector2(delta.x, delta.z).length()
+		var grade := absf(delta.y) / maxf(horizontal, 0.01)
+		var color := Color("#42c7b9").lerp(ERROR_COLOR, clampf(grade / 0.2, 0.0, 1.0))
+		draw_line(
+			_world_to_screen(points[point_index]),
+			_world_to_screen(points[next_index]),
+			color,
+			3.0,
+			true
+		)
+
+
+func _draw_curvature_overlay(curve: Curve3D) -> void:
+	for point_index in curve.point_count:
+		var previous := curve.get_point_position(
+			(point_index - 1 + curve.point_count) % curve.point_count
+		)
+		var current := curve.get_point_position(point_index)
+		var next := curve.get_point_position((point_index + 1) % curve.point_count)
+		var first := Vector2(previous.x - current.x, previous.z - current.z).normalized()
+		var second := Vector2(next.x - current.x, next.z - current.z).normalized()
+		var sharpness := clampf((first.dot(second) + 1.0) * 0.5, 0.0, 1.0)
+		var color := Color("#42c7b9").lerp(ERROR_COLOR, sharpness)
+		draw_arc(_world_to_screen(current), 15.0, 0.0, TAU, 20, color, 3.0)
+
+
+func _draw_barriers(points: PackedVector2Array, road_width_pixels: float) -> void:
+	var half_width := road_width_pixels * 0.5
+	for side_sign in [-1.0, 1.0]:
+		var barrier := PackedVector2Array()
+		for point_index in points.size() - 1:
+			var previous := points[(point_index - 1 + points.size() - 1) % (points.size() - 1)]
+			var next := points[(point_index + 1) % (points.size() - 1)]
+			var forward := (next - previous).normalized()
+			barrier.append(
+				points[point_index]
+				+ Vector2(-forward.y, forward.x) * half_width * side_sign
+			)
+		barrier.append(barrier[0])
+		draw_polyline(barrier, ERROR_COLOR, 2.0, true)
+
+
+func _draw_issues() -> void:
+	for issue in _issues:
+		var position := issue.world_position
+		if position.is_zero_approx() and not issue.target_path.is_empty():
+			var target := track.get_node_or_null(issue.target_path) as Node3D
+			if target != null:
+				position = _get_node_track_position(target)
+		if position.is_zero_approx():
+			continue
+		var screen_position := _world_to_screen(position)
+		draw_arc(screen_position, 14.0, 0.0, TAU, 20, ERROR_COLOR, 3.0, true)
+		draw_string(
+			get_theme_default_font(),
+			screen_position + Vector2(12.0, -10.0),
+			"!",
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0,
+			16,
+			ERROR_COLOR
+		)
 
 
 func _draw_centered_message(message: String) -> void:
@@ -291,26 +566,42 @@ func _refresh_bounds() -> void:
 
 
 func _world_to_screen(position: Vector3) -> Vector2:
-	var available_size := (size - Vector2.ONE * MAP_PADDING * 2.0).max(Vector2.ONE)
-	var scale := minf(
-		available_size.x / _map_bounds.size.x,
-		available_size.y / _map_bounds.size.y
-	)
+	var scale := _get_screen_scale()
 	var used_size := _map_bounds.size * scale
-	var offset := (size - used_size) * 0.5
+	var offset := (size - used_size) * 0.5 + _pan
 	return offset + (Vector2(position.x, position.z) - _map_bounds.position) * scale
 
 
 func _screen_to_world(screen_position: Vector2) -> Vector3:
+	var scale := _get_screen_scale()
+	var used_size := _map_bounds.size * scale
+	var offset := (size - used_size) * 0.5 + _pan
+	var mapped := (screen_position - offset) / scale + _map_bounds.position
+	return Vector3(mapped.x, 0.0, mapped.y)
+
+
+func _get_screen_scale() -> float:
 	var available_size := (size - Vector2.ONE * MAP_PADDING * 2.0).max(Vector2.ONE)
-	var scale := minf(
+	var fit_scale := minf(
 		available_size.x / _map_bounds.size.x,
 		available_size.y / _map_bounds.size.y
 	)
-	var used_size := _map_bounds.size * scale
-	var offset := (size - used_size) * 0.5
-	var mapped := (screen_position - offset) / scale + _map_bounds.position
-	return Vector3(mapped.x, 0.0, mapped.y)
+	return maxf(fit_scale * _zoom, 0.0001)
+
+
+func _world_distance_to_screen(distance: float) -> float:
+	return distance * _get_screen_scale()
+
+
+func _set_zoom(value: float) -> void:
+	_zoom = clampf(value, MIN_ZOOM, MAX_ZOOM)
+	queue_redraw()
+
+
+func _center_on_world_position(world_position: Vector3) -> void:
+	var current_screen := _world_to_screen(world_position)
+	_pan += size * 0.5 - current_screen
+	queue_redraw()
 
 
 func _smooth_curve(curve: Curve3D) -> void:
@@ -335,3 +626,87 @@ func _finish_discrete_edit() -> void:
 func _get_curve() -> Curve3D:
 	var route := track.get_main_route() if track != null else null
 	return route.curve if route != null else null
+
+
+func _find_selection_at(screen_position: Vector2) -> RefCounted:
+	var best := Selection.none()
+	var best_distance := POINT_RADIUS * 2.4
+	var curve := _get_curve()
+	if curve == null:
+		return best
+	for point_index in curve.point_count:
+		var distance := screen_position.distance_to(
+			_world_to_screen(curve.get_point_position(point_index))
+		)
+		if distance < best_distance:
+			best_distance = distance
+			best = Selection.route_point(point_index)
+	if is_layer_enabled(&"objects"):
+		for container_data in [
+			{"path": NodePath("ItemSpawns"), "kind": Selection.Kind.ITEM},
+			{"path": NodePath("Props"), "kind": Selection.Kind.PROP},
+		]:
+			var container := track.get_node_or_null(container_data.path)
+			if container == null:
+				continue
+			for child in container.get_children():
+				if not child is Node3D:
+					continue
+				var distance := screen_position.distance_to(
+					_world_to_screen(_get_node_track_position(child))
+				)
+				if distance < best_distance:
+					best_distance = distance
+					best = Selection.node(
+						int(container_data.kind),
+						track.get_path_to(child)
+					)
+	if is_layer_enabled(&"shortcuts"):
+		for shortcut in track.get_shortcuts():
+			if shortcut.curve == null or shortcut.curve.point_count < 3:
+				continue
+			var midpoint := shortcut.transform * shortcut.curve.get_point_position(
+				shortcut.curve.point_count / 2
+			)
+			var distance := screen_position.distance_to(_world_to_screen(midpoint))
+			if distance < best_distance:
+				best_distance = distance
+				best = Selection.node(
+					Selection.Kind.SHORTCUT_MIDPOINT,
+					track.get_path_to(shortcut)
+				)
+	return best
+
+
+func _get_selection_position(selected: RefCounted) -> Vector3:
+	if track == null or selected == null:
+		return Vector3.ZERO
+	if selected.kind == Selection.Kind.ROUTE_POINT:
+		var route := track.get_main_route() as Path3D
+		if (
+			route != null
+			and route.curve != null
+			and selected.point_index >= 0
+			and selected.point_index < route.curve.point_count
+		):
+			return route.transform * route.curve.get_point_position(selected.point_index)
+		return Vector3.ZERO
+	var node := track.get_node_or_null(selected.node_path) as Node3D
+	if node == null:
+		return Vector3.ZERO
+	if selected.kind == Selection.Kind.SHORTCUT_MIDPOINT:
+		var shortcut := node as TrackShortcut
+		if shortcut != null and shortcut.curve != null:
+			return shortcut.transform * shortcut.curve.get_point_position(
+				shortcut.curve.point_count / 2
+			)
+	return _get_node_track_position(node)
+
+
+func _get_node_track_position(node: Node3D) -> Vector3:
+	var relative_transform := Transform3D.IDENTITY
+	var current := node
+	while current != null and current != track:
+		relative_transform = current.transform * relative_transform
+		current = current.get_parent() as Node3D
+	return relative_transform.origin

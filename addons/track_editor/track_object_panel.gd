@@ -3,6 +3,9 @@ class_name TrackObjectPanel
 extends "res://addons/track_editor/track_editor_panel.gd"
 
 const ASSET_LIBRARY_PATH := "res://assets/track/track_asset_library.tres"
+const Selection := preload(
+	"res://addons/track_editor/track_editor_selection.gd"
+)
 
 signal add_item_requested(point_index: int)
 signal add_asset_requested(
@@ -12,14 +15,32 @@ signal add_asset_requested(
 	distance: float,
 	rotation_degrees_y: float
 )
+signal anchor_changed(
+	selection: RefCounted,
+	progress: float,
+	lateral: float,
+	height: float,
+	rotation_degrees_y: float
+)
+signal duplicate_requested(selection: RefCounted)
+signal delete_requested(selection: RefCounted)
 
 
-func configure(track: TrackLevel, button_factory: Callable) -> void:
+func configure(
+	track: TrackLevel,
+	button_factory: Callable,
+	selection: RefCounted = null
+) -> void:
 	configure_panel("4  OBJETOS", button_factory)
 	add_help(
 		"Elige un punto y un lado. El editor coloca la decoración fuera "
 		+ "de la carretera para no bloquear los karts."
 	)
+	if (
+		selection != null
+		and selection.kind in [Selection.Kind.ITEM, Selection.Kind.PROP]
+	):
+		_build_selected_inspector(track, selection)
 	var route := track.get_main_route()
 	var point_count := (
 		route.curve.point_count
@@ -97,3 +118,85 @@ func configure(track: TrackLevel, button_factory: Callable) -> void:
 	]
 	counts.add_theme_color_override("font_color", Color("#aab5b9"))
 	add_child(counts)
+
+
+func _build_selected_inspector(
+	track: TrackLevel,
+	selection: RefCounted
+) -> void:
+	var selected_node := track.get_node_or_null(selection.node_path) as Node3D
+	if selected_node == null:
+		return
+	add_field_label("SELECCIÓN · %s" % selected_node.name)
+	var progress := SpinBox.new()
+	progress.min_value = 0.0
+	progress.max_value = 100.0
+	progress.step = 0.1
+	progress.suffix = " %"
+	progress.value = float(selected_node.get_meta(
+		&"track_editor_anchor_progress",
+		0.0
+	)) * 100.0
+	progress.custom_minimum_size.y = 44.0
+	add_field_label("Progreso sobre la vuelta")
+	add_child(progress)
+	var lateral := SpinBox.new()
+	lateral.min_value = -100.0
+	lateral.max_value = 100.0
+	lateral.step = 0.25
+	lateral.suffix = " m"
+	lateral.value = float(selected_node.get_meta(
+		&"track_editor_anchor_lateral",
+		0.0
+	))
+	lateral.custom_minimum_size.y = 44.0
+	lateral.editable = selection.kind == Selection.Kind.PROP
+	add_field_label("Distancia lateral")
+	add_child(lateral)
+	var height := SpinBox.new()
+	height.min_value = -10.0
+	height.max_value = 30.0
+	height.step = 0.25
+	height.suffix = " m"
+	height.value = float(selected_node.get_meta(
+		&"track_editor_anchor_height",
+		0.0
+	))
+	height.custom_minimum_size.y = 44.0
+	height.editable = selection.kind == Selection.Kind.PROP
+	add_field_label("Altura relativa")
+	add_child(height)
+	var rotation := SpinBox.new()
+	rotation.min_value = -180.0
+	rotation.max_value = 180.0
+	rotation.step = 5.0
+	rotation.suffix = "°"
+	rotation.value = float(selected_node.get_meta(
+		&"track_editor_anchor_rotation",
+		selected_node.rotation_degrees.y
+	))
+	rotation.custom_minimum_size.y = 44.0
+	rotation.editable = selection.kind == Selection.Kind.PROP
+	add_field_label("Rotación")
+	add_child(rotation)
+	add_child(make_button(
+		"APLICAR CAMBIOS",
+		func() -> void:
+			anchor_changed.emit(
+				selection,
+				progress.value / 100.0,
+				lateral.value,
+				height.value,
+				rotation.value
+			)
+	))
+	add_child(make_button(
+		"DUPLICAR SELECCIÓN",
+		func() -> void: duplicate_requested.emit(selection),
+		"Duplicar este objeto (Ctrl+D)"
+	))
+	add_child(make_button(
+		"ELIMINAR SELECCIÓN",
+		func() -> void: delete_requested.emit(selection),
+		"Eliminar este objeto (Supr)"
+	))

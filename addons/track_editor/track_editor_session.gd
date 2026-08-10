@@ -16,6 +16,9 @@ const HistoryService := preload(
 const AnchorService := preload(
 	"res://addons/track_editor/track_anchor_service.gd"
 )
+const EntityService := preload(
+	"res://addons/track_editor/track_editor_entity_service.gd"
+)
 const CATALOG_PATH := PersistenceService.CATALOG_PATH
 const NEW_TRACKS_DIRECTORY := PersistenceService.NEW_TRACKS_DIRECTORY
 const RECOVERY_PATH := PersistenceService.RECOVERY_PATH
@@ -36,12 +39,14 @@ var last_repair_summary := ""
 var _persistence: RefCounted
 var _history: RefCounted
 var _anchors: RefCounted
+var _entities: RefCounted
 
 
 func _init() -> void:
 	_persistence = PersistenceService.new(self)
 	_history = HistoryService.new(self)
 	_anchors = AnchorService.new(self)
+	_entities = EntityService.new(self)
 
 
 func load_track(path: String) -> Error:
@@ -114,6 +119,70 @@ func anchor_prop(
 
 func get_route_progress_for_control_point(point_index: int) -> float:
 	return _anchors.get_route_progress_for_control_point(point_index)
+
+
+func get_route_anchor_for_position(track_position: Vector3) -> Dictionary:
+	return _anchors.get_route_anchor_for_position(track_position)
+
+
+func get_selected_node(selection: RefCounted) -> Node3D:
+	return _entities.get_node(selection)
+
+
+func move_entity(
+	selection: RefCounted,
+	track_position: Vector3
+) -> bool:
+	return _entities.move_to_track_position(selection, track_position)
+
+
+func update_route_point(index: int, position: Vector3) -> bool:
+	return _entities.update_route_point(index, position)
+
+
+func update_item_progress(
+	selection: RefCounted,
+	progress: float
+) -> bool:
+	return _entities.update_item_progress(selection, progress)
+
+
+func update_prop_anchor(
+	selection: RefCounted,
+	progress: float,
+	lateral: float,
+	height: float,
+	rotation_degrees_y: float
+) -> bool:
+	return _entities.update_prop_anchor(
+		selection,
+		progress,
+		lateral,
+		height,
+		rotation_degrees_y
+	)
+
+
+func update_shortcut_midpoint(
+	selection: RefCounted,
+	longitudinal: float,
+	lateral: float,
+	height: float
+) -> bool:
+	return _entities.update_shortcut_midpoint(
+		selection,
+		longitudinal,
+		lateral,
+		height
+	)
+
+
+func duplicate_entity(selection: RefCounted) -> RefCounted:
+	return _entities.duplicate(selection)
+
+
+func delete_entity(selection: RefCounted) -> bool:
+	return _entities.delete(selection)
 
 
 func migrate_legacy_anchors() -> Dictionary:

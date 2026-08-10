@@ -166,6 +166,29 @@ func get_route_progress_for_control_point(point_index: int) -> float:
 	)
 
 
+func get_route_anchor_for_position(track_position: Vector3) -> Dictionary:
+	var route := _get_usable_route()
+	if route == null:
+		return {}
+	var route_length := route.curve.get_baked_length()
+	var route_position := route.transform.affine_inverse() * track_position
+	var offset := route.curve.get_closest_offset(route_position)
+	var progress := offset / route_length
+	var sample := _sample_route_in_node(progress, _session.track)
+	var forward: Vector3 = sample.forward
+	var lateral_axis := Vector3(-forward.z, 0.0, forward.x)
+	if lateral_axis.length_squared() <= 0.0001:
+		lateral_axis = Vector3.RIGHT
+	else:
+		lateral_axis = lateral_axis.normalized()
+	var delta := track_position - (sample.position as Vector3)
+	return {
+		"progress": progress,
+		"lateral": delta.dot(lateral_axis),
+		"height": delta.y,
+	}
+
+
 func migrate_legacy_anchors() -> Dictionary:
 	var counts := {"shortcuts": 0, "items": 0}
 	var route := _get_usable_route()
