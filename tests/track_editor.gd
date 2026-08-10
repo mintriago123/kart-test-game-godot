@@ -14,6 +14,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_validation_contract()
 	_test_all_validation_contracts()
+	await _test_junction_warning_contract()
 	await _test_guided_screen()
 	await _test_template_and_history()
 	await _test_migration_and_partial_preview()
@@ -269,6 +270,101 @@ func _create_validation_case_track(code: StringName) -> TrackLevel:
 			var marker := track.get_node("ItemSpawns/Norte") as Marker3D
 			marker.position = Vector3(1000.0, 0.0, 1000.0)
 	return track
+
+
+func _test_junction_warning_contract() -> void:
+	var track := _create_shallow_junction_track()
+	var issues := track.inspect_track()
+	var warnings: Array[TrackValidationIssue] = []
+	for issue in issues:
+		if issue.code == &"shortcut_junction_fallback":
+			warnings.append(issue)
+	_check(
+		warnings.size() == 1
+		and warnings[0].severity == TrackValidationIssue.Severity.WARNING
+		and track.validate_track().is_empty(),
+		"Unsafe curved junctions emit one non-blocking fallback warning."
+	)
+	var panel := TrackReviewPanel.new()
+	root.add_child(panel)
+	panel.configure(warnings, Callable(self, "_make_test_button"))
+	var test_button: Button
+	var publish_button: Button
+	for child in panel.get_children():
+		if child is Button and child.text == "▶ PROBAR CON EL KART":
+			test_button = child
+		elif child is Button and child.text == "PUBLICAR EN EL JUEGO":
+			publish_button = child
+	_check(
+		test_button != null
+		and not test_button.disabled
+		and publish_button != null
+		and not publish_button.disabled,
+		"Fallback warnings stay visible without blocking testing or publication."
+	)
+	panel.queue_free()
+	track.free()
+	await process_frame
+
+
+func _create_shallow_junction_track() -> TrackLevel:
+	var track := TrackLevel.new()
+	track.track_id = &"shallow_junction"
+	track.display_name = "Unión rasa"
+	var main_route := Path3D.new()
+	main_route.name = "MainRoute"
+	main_route.curve = Curve3D.new()
+	for route_point in [
+		Vector3(-100.0, 0.25, -20.0),
+		Vector3(100.0, 0.25, -20.0),
+		Vector3(100.0, 0.25, 20.0),
+		Vector3(-100.0, 0.25, 20.0),
+	]:
+		main_route.curve.add_point(route_point)
+	main_route.curve.closed = true
+	track.add_child(main_route)
+	var shortcuts := Node3D.new()
+	shortcuts.name = "Shortcuts"
+	track.add_child(shortcuts)
+	var shortcut := TrackShortcut.new()
+	shortcut.name = "Shallow"
+	shortcut.shortcut_id = 0
+	shortcut.display_name = "Atajo raso"
+	shortcut.curve = Curve3D.new()
+	for shortcut_point in [
+		Vector3(-80.0, 0.27, -20.0),
+		Vector3(0.0, 0.27, -30.0),
+		Vector3(80.0, 0.27, -20.0),
+	]:
+		shortcut.curve.add_point(shortcut_point)
+	shortcuts.add_child(shortcut)
+	var props := Node3D.new()
+	props.name = "Props"
+	track.add_child(props)
+	var items := Node3D.new()
+	items.name = "ItemSpawns"
+	track.add_child(items)
+	for item_index in 4:
+		var marker := Marker3D.new()
+		marker.name = "Item%d" % item_index
+		marker.position = Vector3(-60.0 + item_index * 40.0, 0.25, -20.0)
+		items.add_child(marker)
+	return track
+
+
+func _make_test_button(
+	text: String,
+	callback: Callable,
+	tooltip := "",
+	is_primary := false
+) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.tooltip_text = tooltip
+	button.set_meta(&"primary", is_primary)
+	if callback.is_valid():
+		button.pressed.connect(callback)
+	return button
 
 
 func _test_guided_screen() -> void:

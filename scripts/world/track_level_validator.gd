@@ -1,6 +1,8 @@
 class_name TrackLevelValidator
 extends RefCounted
 
+const JunctionBuilder = preload("res://scripts/world/track_junction_builder.gd")
+
 
 static func inspect(track) -> Array[TrackValidationIssue]:
 	var issues: Array[TrackValidationIssue] = []
@@ -109,11 +111,12 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 				shortcut_position
 			)
 		elif not validation_route.is_empty():
-			for shortcut_error in validate_shortcut(
+			var shortcut_errors := validate_shortcut(
 				track,
 				shortcut,
 				validation_route
-			):
+			)
+			for shortcut_error in shortcut_errors:
 				var issue_code := &"shortcut_connection"
 				if "meta" in shortcut_error or "sale antes" in shortcut_error:
 					issue_code = &"shortcut_order"
@@ -123,6 +126,15 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 					issues,
 					issue_code,
 					shortcut_error,
+					shortcut_path,
+					shortcut_position
+				)
+			if shortcut_errors.is_empty():
+				_append_junction_warning(
+					issues,
+					track,
+					shortcut,
+					validation_route,
 					shortcut_path,
 					shortcut_position
 				)
@@ -279,6 +291,48 @@ static func _append_issue(
 			TrackValidationIssue.Severity.ERROR,
 			target_path,
 			world_position
+		)
+	)
+
+
+static func _append_junction_warning(
+	issues: Array[TrackValidationIssue],
+	track,
+	shortcut: TrackShortcut,
+	validation_route: Array[Vector3],
+	shortcut_path: NodePath,
+	shortcut_position: Vector3
+) -> void:
+	var shortcut_points: Array[Vector3] = track._sample_path(shortcut, false)
+	var builder := JunctionBuilder.new(
+		validation_route,
+		CoastalTrack.ROAD_WIDTH,
+		CoastalTrack.SHORTCUT_WIDTH
+	)
+	var fallback_labels := PackedStringArray()
+	var warning_position := shortcut_position
+	for junction_data in [
+		[builder.build(shortcut_points, true), "entrada"],
+		[builder.build(shortcut_points, false), "salida"],
+	]:
+		var junction = junction_data[0]
+		if junction.is_valid:
+			continue
+		fallback_labels.append(
+			"%s (%s)" % [junction_data[1], junction.fallback_reason]
+		)
+		if not junction.world_position.is_zero_approx():
+			warning_position = junction.world_position
+	if fallback_labels.is_empty():
+		return
+	issues.append(
+		TrackValidationIssue.create(
+			&"shortcut_junction_fallback",
+			"%s usará una unión recta en %s."
+			% [shortcut.display_name, " y ".join(fallback_labels)],
+			TrackValidationIssue.Severity.WARNING,
+			shortcut_path,
+			warning_position
 		)
 	)
 

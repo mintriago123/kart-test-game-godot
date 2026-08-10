@@ -566,7 +566,7 @@ func _handle_save_pressed() -> void:
 
 func _handle_publish_pressed() -> void:
 	var issues := session.track.inspect_track() if session.track != null else []
-	if not issues.is_empty():
+	if _has_blocking_issues(issues):
 		_show_error("Corrige los problemas indicados antes de publicar.")
 		_show_step(4)
 		return
@@ -946,6 +946,13 @@ func _deduplicate_issues(
 		observed[key] = true
 		unique_issues.append(issue)
 	return unique_issues
+
+
+func _has_blocking_issues(issues: Array[TrackValidationIssue]) -> bool:
+	for issue in issues:
+		if issue.severity == TrackValidationIssue.Severity.ERROR:
+			return true
+	return false
 
 
 func _frame_preview_camera() -> void:

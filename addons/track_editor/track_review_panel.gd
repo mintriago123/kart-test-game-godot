@@ -18,6 +18,10 @@ func configure(
 		"El editor revisa carretera, salida, cajas y atajos. "
 		+ "Puedes guardar un borrador aunque todavía tenga errores."
 	)
+	var blocking_issue_count := 0
+	for issue in issues:
+		if issue.severity == TrackValidationIssue.Severity.ERROR:
+			blocking_issue_count += 1
 	if issues.is_empty():
 		var ready := Label.new()
 		ready.text = "✓ PISTA LISTA PARA PROBAR"
@@ -25,15 +29,25 @@ func configure(
 		ready.add_theme_font_size_override("font_size", 17)
 		add_child(ready)
 	else:
+		if blocking_issue_count == 0:
+			var warning_ready := Label.new()
+			warning_ready.text = "✓ PISTA LISTA CON ADVERTENCIAS"
+			warning_ready.add_theme_color_override("font_color", Color("#f6c344"))
+			warning_ready.add_theme_font_size_override("font_size", 17)
+			add_child(warning_ready)
 		for issue in issues:
+			var is_warning := issue.severity == TrackValidationIssue.Severity.WARNING
 			var issue_button := make_button(
-				"⚠  " + issue.message,
+				("△  " if is_warning else "⚠  ") + issue.message,
 				func() -> void: issue_focus_requested.emit(issue),
 				"Ir al elemento con este problema"
 			)
 			issue_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			issue_button.add_theme_color_override("font_color", Color("#ffd3c8"))
+			issue_button.add_theme_color_override(
+				"font_color",
+				Color("#f6c344") if is_warning else Color("#ffd3c8")
+			)
 			add_child(issue_button)
 	add_child(
 		make_button(
@@ -51,7 +65,7 @@ func configure(
 		"▶ PROBAR CON EL KART",
 		func() -> void: test_requested.emit()
 	)
-	test_button.disabled = not issues.is_empty()
+	test_button.disabled = blocking_issue_count > 0
 	add_child(test_button)
 	var publish_button := make_button(
 		"PUBLICAR EN EL JUEGO",
@@ -59,5 +73,5 @@ func configure(
 		"",
 		true
 	)
-	publish_button.disabled = not issues.is_empty()
+	publish_button.disabled = blocking_issue_count > 0
 	add_child(publish_button)

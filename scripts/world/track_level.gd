@@ -86,7 +86,8 @@ func clear_generated_track() -> void:
 func validate_track() -> PackedStringArray:
 	var errors := PackedStringArray()
 	for issue in inspect_track():
-		errors.append(issue.message)
+		if issue.severity == TrackValidationIssue.Severity.ERROR:
+			errors.append(issue.message)
 	return errors
 
 

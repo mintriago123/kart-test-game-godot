@@ -22,6 +22,7 @@ const ROAD_EDGE_COLOR := Color("#59666d")
 const ACCENT_COLOR := Color("#f6c344")
 const SHORTCUT_COLOR := Color("#42c7b9")
 const ERROR_COLOR := Color("#ef7656")
+const WARNING_COLOR := Color("#f6c344")
 const MAP_PADDING := 54.0
 const POINT_RADIUS := 9.0
 const MIN_ZOOM := 0.5
@@ -383,6 +384,7 @@ func _draw_shortcuts() -> void:
 		for point in shortcut.curve.get_baked_points():
 			shortcut_points.append(_world_to_screen(point))
 		if shortcut_points.size() >= 2:
+			_draw_shortcut_junctions(shortcut)
 			draw_polyline(shortcut_points, SHORTCUT_COLOR, 8.0, true)
 			_draw_handle(shortcut_points[0], SHORTCUT_COLOR, false)
 			_draw_handle(shortcut_points[-1], SHORTCUT_COLOR, false)
@@ -395,6 +397,45 @@ func _draw_shortcuts() -> void:
 				and selection.node_path == track.get_path_to(shortcut)
 			)
 			_draw_handle(midpoint, SHORTCUT_COLOR, is_selected)
+
+
+func _draw_shortcut_junctions(shortcut: TrackShortcut) -> void:
+	var junctions: Dictionary = track._shortcut_junctions.get(shortcut.shortcut_id, {})
+	for junction_key in ["entry", "exit"]:
+		var junction = junctions.get(junction_key)
+		if junction == null or not junction.is_valid:
+			continue
+		var left_line := PackedVector2Array()
+		var right_line := PackedVector2Array()
+		for point in junction.left_boundary:
+			left_line.append(_world_to_screen(point))
+		for point in junction.right_boundary:
+			right_line.append(_world_to_screen(point))
+		for point_index in left_line.size() - 1:
+			_draw_junction_triangle(
+				left_line[point_index],
+				left_line[point_index + 1],
+				right_line[point_index + 1]
+			)
+			_draw_junction_triangle(
+				left_line[point_index],
+				right_line[point_index + 1],
+				right_line[point_index]
+			)
+		draw_polyline(left_line, ROAD_EDGE_COLOR, 2.0, true)
+		draw_polyline(right_line, ROAD_EDGE_COLOR, 2.0, true)
+		if is_layer_enabled(&"barriers"):
+			draw_polyline(left_line, ERROR_COLOR, 2.0, true)
+			draw_polyline(right_line, ERROR_COLOR, 2.0, true)
+
+
+func _draw_junction_triangle(first: Vector2, second: Vector2, third: Vector2) -> void:
+	if absf((second - first).cross(third - first)) <= 0.001:
+		return
+	draw_colored_polygon(
+		PackedVector2Array([first, second, third]),
+		Color(SHORTCUT_COLOR, 0.32)
+	)
 
 
 func _draw_objects() -> void:
@@ -514,7 +555,12 @@ func _draw_issues() -> void:
 		if position.is_zero_approx():
 			continue
 		var screen_position := _world_to_screen(position)
-		draw_arc(screen_position, 14.0, 0.0, TAU, 20, ERROR_COLOR, 3.0, true)
+		var issue_color := (
+			WARNING_COLOR
+			if issue.severity == TrackValidationIssue.Severity.WARNING
+			else ERROR_COLOR
+		)
+		draw_arc(screen_position, 14.0, 0.0, TAU, 20, issue_color, 3.0, true)
 		draw_string(
 			get_theme_default_font(),
 			screen_position + Vector2(12.0, -10.0),
@@ -522,7 +568,7 @@ func _draw_issues() -> void:
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1.0,
 			16,
-			ERROR_COLOR
+			issue_color
 		)
 
 
