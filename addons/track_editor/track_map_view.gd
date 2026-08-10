@@ -17,6 +17,8 @@ const Selection := preload(
 
 const BACKGROUND_COLOR := Color("#151b1f")
 const GRID_COLOR := Color("#293238")
+const METRIC_BACKGROUND_COLOR := Color("#151b1fd9")
+const METRIC_TEXT_COLOR := Color("#c7d0d2")
 const ROAD_COLOR := Color("#eef1e8")
 const ROAD_EDGE_COLOR := Color("#59666d")
 const ACCENT_COLOR := Color("#f6c344")
@@ -54,6 +56,7 @@ var _layers := {
 	&"barriers": false,
 }
 var _map_bounds := Rect2(Vector2(-100.0, -100.0), Vector2(200.0, 200.0))
+var _route_bounds := Rect2(Vector2(-100.0, -100.0), Vector2(200.0, 200.0))
 
 
 func _ready() -> void:
@@ -350,18 +353,98 @@ func _draw() -> void:
 		_draw_curvature_overlay(curve)
 	if is_layer_enabled(&"errors"):
 		_draw_issues()
+	_draw_metric_overlay()
 
 
 func _draw_grid() -> void:
-	var grid_step := 32.0
-	var x := fmod(size.x * 0.5, grid_step)
-	while x < size.x:
-		draw_line(Vector2(x, 0.0), Vector2(x, size.y), GRID_COLOR, 1.0)
-		x += grid_step
-	var y := fmod(size.y * 0.5, grid_step)
-	while y < size.y:
-		draw_line(Vector2(0.0, y), Vector2(size.x, y), GRID_COLOR, 1.0)
-		y += grid_step
+	var world_grid_step := get_scale_bar_distance()
+	var first_corner := _screen_to_world(Vector2.ZERO)
+	var final_corner := _screen_to_world(size)
+	var minimum_x := minf(first_corner.x, final_corner.x)
+	var maximum_x := maxf(first_corner.x, final_corner.x)
+	var minimum_z := minf(first_corner.z, final_corner.z)
+	var maximum_z := maxf(first_corner.z, final_corner.z)
+	var world_x := floorf(minimum_x / world_grid_step) * world_grid_step
+	while world_x <= maximum_x:
+		var screen_x := _world_to_screen(Vector3(world_x, 0.0, 0.0)).x
+		draw_line(
+			Vector2(screen_x, 0.0),
+			Vector2(screen_x, size.y),
+			GRID_COLOR,
+			1.0
+		)
+		world_x += world_grid_step
+	var world_z := floorf(minimum_z / world_grid_step) * world_grid_step
+	while world_z <= maximum_z:
+		var screen_y := _world_to_screen(Vector3(0.0, 0.0, world_z)).y
+		draw_line(
+			Vector2(0.0, screen_y),
+			Vector2(size.x, screen_y),
+			GRID_COLOR,
+			1.0
+		)
+		world_z += world_grid_step
+
+
+func _draw_metric_overlay() -> void:
+	if _get_curve() == null:
+		return
+	var metrics := get_map_metrics()
+	var panel_height := 48.0
+	draw_rect(
+		Rect2(Vector2(0.0, size.y - panel_height), Vector2(size.x, panel_height)),
+		METRIC_BACKGROUND_COLOR
+	)
+	var dimensions: Vector2 = metrics.dimensions
+	draw_string(
+		get_theme_default_font(),
+		Vector2(14.0, size.y - 27.0),
+		"Circuito %d × %d m  ·  ≈%d m  ·  %d puntos"
+		% [
+			roundi(dimensions.x),
+			roundi(dimensions.y),
+			roundi(float(metrics.length)),
+			int(metrics.point_count),
+		],
+		HORIZONTAL_ALIGNMENT_LEFT,
+		maxf(size.x - 175.0, 20.0),
+		14,
+		METRIC_TEXT_COLOR
+	)
+	draw_string(
+		get_theme_default_font(),
+		Vector2(14.0, size.y - 9.0),
+		"Zoom %d%%" % roundi(float(metrics.zoom) * 100.0),
+		HORIZONTAL_ALIGNMENT_LEFT,
+		110.0,
+		14,
+		METRIC_TEXT_COLOR
+	)
+	var bar_pixels := float(metrics.scale_bar_pixels)
+	var bar_end := Vector2(size.x - 18.0, size.y - 13.0)
+	var bar_start := bar_end - Vector2(bar_pixels, 0.0)
+	draw_line(bar_start, bar_end, ACCENT_COLOR, 3.0, true)
+	draw_line(
+		bar_start - Vector2(0.0, 5.0),
+		bar_start + Vector2(0.0, 5.0),
+		ACCENT_COLOR,
+		2.0
+	)
+	draw_line(
+		bar_end - Vector2(0.0, 5.0),
+		bar_end + Vector2(0.0, 5.0),
+		ACCENT_COLOR,
+		2.0
+	)
+	draw_string(
+		get_theme_default_font(),
+		bar_start + Vector2(0.0, -7.0),
+		"%d m" % int(metrics.scale_bar_meters),
+		HORIZONTAL_ALIGNMENT_CENTER,
+		bar_pixels,
+		14,
+		ACCENT_COLOR
+	)
 
 
 func _draw_direction_arrows(points: PackedVector2Array) -> void:
@@ -661,7 +744,8 @@ func _refresh_bounds() -> void:
 		maximum.x = minimum.x + 10.0
 	if maximum.y - minimum.y < 10.0:
 		maximum.y = minimum.y + 10.0
-	_map_bounds = Rect2(minimum, maximum - minimum).grow(
+	_route_bounds = Rect2(minimum, maximum - minimum)
+	_map_bounds = _route_bounds.grow(
 		CoastalTrack.ROAD_WIDTH * 0.5 + 4.0
 	)
 
@@ -696,6 +780,32 @@ func _get_screen_scale() -> float:
 
 func _world_distance_to_screen(distance: float) -> float:
 	return distance * _get_screen_scale()
+
+
+func get_scale_bar_distance() -> float:
+	var best_distance := 5.0
+	var best_difference := INF
+	for candidate in [5.0, 10.0, 20.0, 50.0]:
+		var difference := absf(
+			_world_distance_to_screen(candidate) - 90.0
+		)
+		if difference < best_difference:
+			best_difference = difference
+			best_distance = candidate
+	return best_distance
+
+
+func get_map_metrics() -> Dictionary:
+	var curve := _get_curve()
+	var scale_bar_distance := get_scale_bar_distance()
+	return {
+		"dimensions": _route_bounds.size,
+		"length": curve.get_baked_length() if curve != null else 0.0,
+		"point_count": curve.point_count if curve != null else 0,
+		"zoom": _zoom,
+		"scale_bar_meters": scale_bar_distance,
+		"scale_bar_pixels": _world_distance_to_screen(scale_bar_distance),
+	}
 
 
 func _set_zoom(value: float) -> void:
