@@ -93,8 +93,11 @@ func recalculate_route_dependents() -> void:
 	_anchors.recalculate_route_dependents()
 
 
-func configure_shortcut_anchor(shortcut: TrackShortcut) -> bool:
-	return _anchors.configure_shortcut_anchor(shortcut)
+func configure_shortcut_anchor(
+	shortcut: TrackShortcut,
+	preserve_curve := false
+) -> bool:
+	return _anchors.configure_shortcut_anchor(shortcut, preserve_curve)
 
 
 func anchor_item_spawn(marker: Marker3D, progress: float) -> void:

@@ -6,6 +6,7 @@ const SHORTCUT_ROUTE_CLEARANCE := (
 	CoastalTrack.ROAD_WIDTH * 0.5
 	+ CoastalTrack.SHORTCUT_WIDTH * 0.5
 )
+const SHORTCUT_MINIMUM_TURN_RADIUS := 8.0
 
 
 static func inspect(track) -> Array[TrackValidationIssue]:
@@ -241,6 +242,42 @@ static func validate_shortcut(
 			% shortcut.display_name
 		)
 		return errors
+	if not shortcut_follows_route_direction(shortcut_points, validation_route):
+		errors.append(
+			"%s entra o sale a contravía." % shortcut.display_name
+		)
+	var corridor_clearance := get_shortcut_corridor_clearance(
+		shortcut_points,
+		validation_route
+	)
+	if (
+		has_shortcut_route_crossing(shortcut_points, validation_route)
+		or (
+			corridor_clearance >= 0.0
+			and corridor_clearance < SHORTCUT_ROUTE_CLEARANCE
+		)
+	):
+		errors.append(
+			"%s se superpone a MainRoute fuera de sus conexiones."
+			% shortcut.display_name
+		)
+	return errors
+
+
+static func shortcut_follows_route_direction(
+	shortcut_points: Array[Vector3],
+	validation_route: Array[Vector3]
+) -> bool:
+	if shortcut_points.size() < 3 or validation_route.size() < 3:
+		return false
+	var entry_index := _find_closest_index_in_points(
+		shortcut_points[0],
+		validation_route
+	)
+	var exit_index := _find_closest_index_in_points(
+		shortcut_points[-1],
+		validation_route
+	)
 	var route_entry_forward := (
 		validation_route[(entry_index + 1) % validation_route.size()]
 		- validation_route[
@@ -255,34 +292,22 @@ static func validate_shortcut(
 			% validation_route.size()
 		]
 	)
-	var shortcut_entry_forward: Vector3 = (
-		shortcut_points[2] - shortcut_points[0]
-	)
-	var shortcut_exit_forward: Vector3 = (
-		shortcut_points[-1]
-		- shortcut_points[shortcut_points.size() - 3]
+	var shortcut_entry_forward := shortcut_points[2] - shortcut_points[0]
+	var shortcut_exit_forward := (
+		shortcut_points[-1] - shortcut_points[shortcut_points.size() - 3]
 	)
 	route_entry_forward.y = 0.0
 	route_exit_forward.y = 0.0
 	shortcut_entry_forward.y = 0.0
 	shortcut_exit_forward.y = 0.0
-	if (
+	return (
 		route_entry_forward.normalized().dot(
 			shortcut_entry_forward.normalized()
-		) < 0.75
-		or route_exit_forward.normalized().dot(
+		) >= 0.75
+		and route_exit_forward.normalized().dot(
 			shortcut_exit_forward.normalized()
-		) < 0.75
-	):
-		errors.append(
-			"%s entra o sale a contravía." % shortcut.display_name
-		)
-	if has_shortcut_route_crossing(shortcut_points, validation_route):
-		errors.append(
-			"%s se superpone a MainRoute fuera de sus conexiones."
-			% shortcut.display_name
-		)
-	return errors
+		) >= 0.75
+	)
 
 
 static func has_shortcut_route_crossing(
@@ -325,15 +350,26 @@ static func has_shortcut_route_crossing(
 	return false
 
 
-static func get_shortcut_middle_clearance(
+static func get_shortcut_corridor_clearance(
 	shortcut_points: Array[Vector3],
 	validation_route: Array[Vector3]
 ) -> float:
 	if shortcut_points.size() < 3 or validation_route.size() < 3:
-		return 0.0
+		return -1.0
+	var builder := JunctionBuilder.new(
+		validation_route,
+		CoastalTrack.ROAD_WIDTH,
+		CoastalTrack.SHORTCUT_WIDTH
+	)
+	var entry_junction := builder.build(shortcut_points, true)
+	var exit_junction := builder.build(shortcut_points, false)
+	if not entry_junction.is_valid or not exit_junction.is_valid:
+		return -1.0
+	var first_index: int = entry_junction.shortcut_transition_index
+	var final_index: int = exit_junction.shortcut_transition_index
+	if first_index < 0 or final_index < first_index:
+		return -1.0
 	var minimum_clearance := INF
-	var first_index := shortcut_points.size() / 4
-	var final_index := shortcut_points.size() * 3 / 4
 	for point_index in range(first_index, final_index + 1):
 		minimum_clearance = minf(
 			minimum_clearance,
@@ -343,6 +379,63 @@ static func get_shortcut_middle_clearance(
 			)
 		)
 	return minimum_clearance
+
+
+static func get_shortcut_minimum_turn_radius(
+	shortcut_points: Array[Vector3],
+	validation_route: Array[Vector3] = []
+) -> float:
+	if shortcut_points.size() < 5:
+		return 0.0
+	var first_index := 0
+	var final_index := shortcut_points.size() - 1
+	if validation_route.size() >= 3:
+		var builder := JunctionBuilder.new(
+			validation_route,
+			CoastalTrack.ROAD_WIDTH,
+			CoastalTrack.SHORTCUT_WIDTH
+		)
+		var entry_junction := builder.build(shortcut_points, true)
+		var exit_junction := builder.build(shortcut_points, false)
+		if entry_junction.is_valid and exit_junction.is_valid:
+			first_index = entry_junction.shortcut_transition_index
+			final_index = exit_junction.shortcut_transition_index
+	var sample_stride := maxi(1, shortcut_points.size() / 24)
+	var minimum_radius := INF
+	for point_index in range(
+		first_index + sample_stride,
+		final_index - sample_stride + 1,
+		sample_stride
+	):
+		var first := Vector2(
+			shortcut_points[point_index - sample_stride].x,
+			shortcut_points[point_index - sample_stride].z
+		)
+		var middle := Vector2(
+			shortcut_points[point_index].x,
+			shortcut_points[point_index].z
+		)
+		var final := Vector2(
+			shortcut_points[point_index + sample_stride].x,
+			shortcut_points[point_index + sample_stride].z
+		)
+		var first_length := first.distance_to(middle)
+		var second_length := middle.distance_to(final)
+		var chord_length := first.distance_to(final)
+		var doubled_area := absf((middle - first).cross(final - first))
+		if (
+			first_length <= 0.001
+			or second_length <= 0.001
+			or chord_length <= 0.001
+			or doubled_area <= 0.0001
+		):
+			continue
+		minimum_radius = minf(
+			minimum_radius,
+			first_length * second_length * chord_length
+			/ (2.0 * doubled_area)
+		)
+	return minimum_radius
 
 
 static func _append_issue(

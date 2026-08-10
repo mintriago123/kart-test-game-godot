@@ -379,11 +379,11 @@ func _make_test_button(
 	return button
 
 
-func _get_shortcut_middle_clearance(
+func _get_shortcut_corridor_clearance(
 	track: TrackLevel,
 	shortcut: TrackShortcut
 ) -> float:
-	return TrackLevelValidator.get_shortcut_middle_clearance(
+	return TrackLevelValidator.get_shortcut_corridor_clearance(
 		track._sample_path(shortcut, false),
 		track._sample_path(track.get_main_route(), true)
 	)
@@ -542,14 +542,26 @@ func _test_guided_screen() -> void:
 		"The shortcut step creates a physical shortcut without editing nodes."
 	)
 	var created_shortcut := screen.session.track.get_shortcuts()[0]
-	var created_clearance := _get_shortcut_middle_clearance(
+	var created_clearance := _get_shortcut_corridor_clearance(
 		screen.session.track,
 		created_shortcut
 	)
 	_check(
 		created_clearance
 		>= TrackLevelValidator.SHORTCUT_ROUTE_CLEARANCE + 2.0,
-		"Automatic shortcut creation keeps its barriers clear of MainRoute."
+		"Automatic shortcut creation keeps its asphalt clear of MainRoute."
+	)
+	var created_turn_radius := TrackLevelValidator.get_shortcut_minimum_turn_radius(
+		screen.session.track._sample_path(created_shortcut, false),
+		screen.session.track._sample_path(
+			screen.session.track.get_main_route(),
+			true
+		)
+	)
+	_check(
+		created_turn_radius >= TrackLevelValidator.SHORTCUT_MINIMUM_TURN_RADIUS,
+		"Automatic shortcut creation avoids sharp asphalt corners (%.2f m)."
+		% created_turn_radius
 	)
 	var shortcut_midpoint := (
 		created_shortcut.transform
@@ -568,9 +580,11 @@ func _test_guided_screen() -> void:
 		and screen.find_child("TrackShortcutPanel", true, false) != null,
 		"Selecting a shortcut opens its contextual workflow step."
 	)
+	var created_validation_errors := screen.session.track.validate_track()
 	_check(
-		screen.session.track.validate_track().is_empty(),
-		"The automatically connected shortcut passes track validation."
+		created_validation_errors.is_empty(),
+		"The automatically connected shortcut passes track validation: %s"
+		% " | ".join(created_validation_errors)
 	)
 	var asset_library := load(
 		"res://assets/track/track_asset_library.tres"
@@ -703,6 +717,47 @@ func _test_guided_screen() -> void:
 		and screen._status_label.text.contains("2 recuperaciones")
 		and not FileAccess.file_exists(result_path),
 		"The editor consumes the matching playtest result and shows its summary."
+	)
+	var garden_loaded := screen.session.load_track(
+		"res://levels/garden_track.tscn"
+	)
+	var garden_curve := screen.session.track.get_main_route().curve
+	var garden_start := garden_curve.get_point_position(5)
+	var garden_finish := garden_curve.get_point_position(8)
+	var garden_candidate := screen._find_clear_shortcut_curve(
+		garden_start,
+		garden_finish,
+		screen._get_route_forward_at_position(garden_curve, garden_start),
+		screen._get_route_forward_at_position(garden_curve, garden_finish)
+	)
+	var garden_candidate_is_safe := garden_candidate == null
+	if garden_candidate != null:
+		var garden_points := screen._sample_shortcut_curve(garden_candidate)
+		var garden_route_points := screen.session.track._sample_path(
+			screen.session.track.get_main_route(),
+			true
+		)
+		garden_candidate_is_safe = (
+			TrackLevelValidator.get_shortcut_corridor_clearance(
+				garden_points,
+				garden_route_points
+			) >= TrackLevelValidator.SHORTCUT_ROUTE_CLEARANCE + 2.0
+			and TrackLevelValidator.get_shortcut_minimum_turn_radius(
+				garden_points,
+				garden_route_points
+			) >= TrackLevelValidator.SHORTCUT_MINIMUM_TURN_RADIUS
+			and TrackLevelValidator.shortcut_follows_route_direction(
+				garden_points,
+				garden_route_points
+			)
+		)
+	_check(
+		garden_loaded == OK and garden_candidate_is_safe,
+		(
+			"Garden's problematic 5→8 shortcut returns safe asphalt."
+			if garden_candidate != null
+			else "Garden's problematic 5→8 shortcut is explicitly rejected."
+		)
 	)
 	screen.queue_free()
 	await process_frame

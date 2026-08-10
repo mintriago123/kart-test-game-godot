@@ -50,7 +50,10 @@ func recalculate_route_dependents() -> void:
 				_reposition_anchored_node(child as Node3D, true)
 
 
-func configure_shortcut_anchor(shortcut: TrackShortcut) -> bool:
+func configure_shortcut_anchor(
+	shortcut: TrackShortcut,
+	preserve_curve := false
+) -> bool:
 	var route := _get_usable_route()
 	if shortcut == null or route == null or shortcut.curve == null:
 		return false
@@ -113,6 +116,8 @@ func configure_shortcut_anchor(shortcut: TrackShortcut) -> bool:
 		middle_index
 	).length()
 	shortcut.route_anchor_enabled = true
+	if preserve_curve:
+		return true
 	return shortcut.rebuild_from_route(
 		entry_position,
 		entry_sample.forward,

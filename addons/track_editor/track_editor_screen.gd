@@ -789,18 +789,8 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 	var curve := session.track.get_main_route().curve
 	var start := curve.get_point_position(entry_index)
 	var finish := curve.get_point_position(exit_index)
-	var entry_forward := (
-		curve.get_point_position((entry_index + 1) % curve.point_count)
-		- curve.get_point_position(
-			(entry_index - 1 + curve.point_count) % curve.point_count
-		)
-	).normalized()
-	var exit_forward := (
-		curve.get_point_position((exit_index + 1) % curve.point_count)
-		- curve.get_point_position(
-			(exit_index - 1 + curve.point_count) % curve.point_count
-		)
-	).normalized()
+	var entry_forward := _get_route_forward_at_position(curve, start)
+	var exit_forward := _get_route_forward_at_position(curve, finish)
 	var shortcut_curve := _find_clear_shortcut_curve(
 		start,
 		finish,
@@ -821,7 +811,7 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 	var shortcuts := session.track.get_node_or_null("Shortcuts")
 	shortcuts.add_child(shortcut)
 	shortcut.owner = session.track
-	session.configure_shortcut_anchor(shortcut)
+	session.configure_shortcut_anchor(shortcut, true)
 	session.mark_dirty()
 	_map_view.queue_redraw()
 	_rebuild_preview()
@@ -831,6 +821,31 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 		_show_success("Atajo creado y conectado.")
 	else:
 		_show_error("Atajo creado. Revisa su dirección y conexiones.")
+
+
+func _get_route_forward_at_position(
+	route_curve: Curve3D,
+	position: Vector3
+) -> Vector3:
+	var route_length := route_curve.get_baked_length()
+	if route_length <= 0.001:
+		return Vector3.FORWARD
+	var offset := route_curve.get_closest_offset(position)
+	var sample_distance := minf(1.0, route_length * 0.01)
+	var previous_offset := offset - sample_distance
+	var next_offset := offset + sample_distance
+	if route_curve.closed:
+		previous_offset = fposmod(previous_offset, route_length)
+		next_offset = fposmod(next_offset, route_length)
+	else:
+		previous_offset = maxf(previous_offset, 0.0)
+		next_offset = minf(next_offset, route_length)
+	var forward := (
+		route_curve.sample_baked(next_offset)
+		- route_curve.sample_baked(previous_offset)
+	)
+	forward.y = 0.0
+	return forward.normalized() if forward.length_squared() > 0.0001 else Vector3.FORWARD
 
 
 func _find_clear_shortcut_curve(
@@ -852,34 +867,65 @@ func _find_clear_shortcut_curve(
 	var base_offset := required_clearance + 2.0
 	for offset_multiplier in [1.0, 1.45, 2.0, 2.8, 3.8]:
 		var best_curve: Curve3D = null
-		var best_clearance := -INF
+		var best_score := -INF
 		for side in [-1.0, 1.0]:
 			var midpoint := start.lerp(finish, 0.5)
 			midpoint += lateral * base_offset * offset_multiplier * side
-			var candidate := _build_shortcut_curve(
-				start,
-				finish,
-				midpoint,
-				entry_forward,
-				exit_forward
-			)
-			var candidate_points: Array[Vector3] = []
-			candidate_points.assign(candidate.get_baked_points())
-			if TrackLevelValidator.has_shortcut_route_crossing(
-				candidate_points,
-				route_points
-			):
-				continue
-			var clearance := TrackLevelValidator.get_shortcut_middle_clearance(
-				candidate_points,
-				route_points
-			)
-			if clearance >= required_clearance and clearance > best_clearance:
-				best_curve = candidate
-				best_clearance = clearance
+			for tangent_ratio in [0.14, 0.2, 0.26, 0.32]:
+				var candidate := _build_shortcut_curve(
+					start,
+					finish,
+					midpoint,
+					entry_forward,
+					exit_forward,
+					tangent_ratio
+				)
+				var candidate_points := _sample_shortcut_curve(candidate)
+				if TrackLevelValidator.has_shortcut_route_crossing(
+					candidate_points,
+					route_points
+				):
+					continue
+				if not TrackLevelValidator.shortcut_follows_route_direction(
+					candidate_points,
+					route_points
+				):
+					continue
+				var clearance := TrackLevelValidator.get_shortcut_corridor_clearance(
+					candidate_points,
+					route_points
+				)
+				var turn_radius := TrackLevelValidator.get_shortcut_minimum_turn_radius(
+					candidate_points,
+					route_points
+				)
+				if (
+					clearance < required_clearance
+					or turn_radius < TrackLevelValidator.SHORTCUT_MINIMUM_TURN_RADIUS
+				):
+					continue
+				var score := minf(turn_radius, 40.0) + clearance * 0.1
+				if score > best_score:
+					best_curve = candidate
+					best_score = score
 		if best_curve != null:
 			return best_curve
 	return null
+
+
+func _sample_shortcut_curve(shortcut_curve: Curve3D) -> Array[Vector3]:
+	var points: Array[Vector3] = []
+	var segment_count := shortcut_curve.point_count - 1
+	for segment_index in segment_count:
+		for subdivision in session.track.shortcut_subdivisions:
+			points.append(
+				shortcut_curve.sample(
+					segment_index,
+					float(subdivision) / session.track.shortcut_subdivisions
+				)
+			)
+	points.append(shortcut_curve.sample(segment_count - 1, 1.0))
+	return points
 
 
 func _build_shortcut_curve(
@@ -887,12 +933,22 @@ func _build_shortcut_curve(
 	finish: Vector3,
 	midpoint: Vector3,
 	entry_forward: Vector3,
-	exit_forward: Vector3
+	exit_forward: Vector3,
+	tangent_ratio := 0.22
 ) -> Curve3D:
 	var shortcut_curve := Curve3D.new()
-	var chord_length := start.distance_to(finish)
-	var endpoint_tangent_length := clampf(chord_length * 0.22, 12.0, 24.0)
-	var middle_tangent := (finish - start) / 5.0
+	var endpoint_distance := minf(
+		start.distance_to(midpoint),
+		midpoint.distance_to(finish)
+	)
+	var endpoint_tangent_length := clampf(
+		endpoint_distance * tangent_ratio,
+		8.0,
+		28.0
+	)
+	var middle_direction := (finish - start).normalized()
+	var middle_tangent_length := clampf(endpoint_distance * 0.24, 6.0, 18.0)
+	var middle_tangent := middle_direction * middle_tangent_length
 	shortcut_curve.add_point(
 		start,
 		Vector3.ZERO,
