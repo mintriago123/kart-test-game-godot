@@ -28,10 +28,14 @@ pistas nuevas se guardan en `levels/tracks/<identificador>.tscn`.
 
 ## Editar la carretera
 
-- Arrastra un punto para moverlo sobre el mapa.
+- Pulsa un punto, caja, decoración o centro de atajo para seleccionarlo; el
+  editor abre automáticamente su paso e inspector.
+- Arrastra para mover libremente. Mantén `Ctrl` para ajustar a la cuadrícula
+  elegida de 1, 2 o 5 metros.
 - Usa **Añadir punto después** para ampliar el trazado.
 - Usa **Eliminar punto** para simplificarlo; siempre deben quedar cuatro.
-- El control **Altura** crea pendientes sencillas.
+- Los campos X/Y/Z permiten introducir una posición exacta; `Shift` + flechas
+  mueve la selección en incrementos de 0,25 metros.
 - **Marcar como salida** mueve la parrilla, la meta y el inicio lógico.
 - Las flechas amarillas indican el sentido de carrera.
 - `Ctrl+Z`/los botones de flecha permiten deshacer y rehacer la ruta junto con
@@ -42,6 +46,11 @@ terminar, evitando que el editor se bloquee. Los atajos, cajas y la decoración
 colocada desde este editor conservan un progreso normalizado sobre la carretera:
 siguen conectados aunque se muevan, inserten o eliminen puntos.
 
+La rueda acerca o aleja el mapa. El botón central, o `Espacio` mientras se
+arrastra, desplaza la mesa de trazado. **Encuadrar** restaura la vista completa.
+El menú **Capas** controla sentido, objetos, atajos, errores y las vistas
+técnicas opcionales de pendiente, curvatura y barreras.
+
 ## Atajos
 
 Selecciona un punto de entrada y otro de salida. La salida debe estar al menos
@@ -51,6 +60,8 @@ dirección de ambas conexiones y abre las barreras automáticamente.
 Los errores se explican con mensajes como “entra a contravía” o “sale antes de
 entrar”. Un atajo inválido puede guardarse como borrador, pero no probarse ni
 publicarse.
+El control turquesa central permite cambiar sus desplazamientos longitudinal,
+lateral y vertical sin desconectar entrada o salida.
 
 ## Cajas y decoración
 
@@ -64,7 +75,9 @@ Las cajas se ajustan a un punto de la carretera. Para decorar:
 La decoración no genera colisiones. Las barreras continuas siguen controlando
 la física del kart. Los props creados desde el editor conservan lado, distancia,
 altura y rotación al cambiar la ruta; los props oficiales o colocados manualmente
-sin ancla permanecen en sus coordenadas originales.
+sin ancla permanecen en sus coordenadas originales hasta su primera edición.
+Entonces reciben un ancla compatible dentro de una operación deshacer/rehacer.
+Cajas y decoración se duplican con `Ctrl+D` y se eliminan con `Supr`.
 
 ## Abrir pistas antiguas
 
@@ -92,11 +105,18 @@ La reparación:
 El editor mantiene una copia de recuperación dentro de `user://`; no forma parte
 del repositorio ni del APK.
 
+Durante una prueba se muestran tiempo, recuperaciones, salidas del corredor
+válido y atajos aceptados. **Volver al editor** o `F8` termina la prueba incluso
+en pausa. El editor consume únicamente el resultado de la sesión recién
+iniciada, muestra su resumen y no conserva un historial permanente.
+
 ## Validación y pruebas
 
 Antes de publicar se comprueban la ruta cerrada, longitud, salida, cajas,
 dirección de atajos y recursos obligatorios. Cada problema permite regresar al
-paso correspondiente. Una pista inválida conserva en Vista 3D toda carretera,
+paso correspondiente, selecciona el elemento y centra el mapa cuando existe una
+posición concreta. Los pasos muestran su cantidad de problemas y actualizan la
+validación al terminar cada edición. Una pista inválida conserva en Vista 3D toda carretera,
 bordillo y barrera que todavía pueda generarse; solo se omiten sus componentes
 inválidos.
 
