@@ -581,6 +581,27 @@ func _test_guided_screen() -> void:
 		and screen.find_child("TrackShortcutPanel", true, false) != null,
 		"Selecting a shortcut opens its contextual workflow step."
 	)
+	var original_entry_progress := created_shortcut.entry_progress
+	var original_exit_progress := created_shortcut.exit_progress
+	var fit_result := screen.session.fit_shortcut_midpoint(
+		shortcut_hit,
+		created_shortcut.midpoint_longitudinal_offset,
+		100.0,
+		created_shortcut.midpoint_height_offset
+	)
+	var fitted_shortcut := screen.session.track.get_shortcuts()[0]
+	var fitted_safety := TrackLevelValidator.get_shortcut_safety(
+		screen.session.track,
+		fitted_shortcut
+	)
+	_check(
+		fit_result.status == &"adjusted"
+		and bool(fitted_safety.safe)
+		and not is_equal_approx(fitted_shortcut.midpoint_lateral_offset, 100.0)
+		and is_equal_approx(fitted_shortcut.entry_progress, original_entry_progress)
+		and is_equal_approx(fitted_shortcut.exit_progress, original_exit_progress),
+		"Unsafe midpoint edits are adjusted without moving shortcut anchors."
+	)
 	var created_validation_errors := screen.session.track.validate_track()
 	_check(
 		created_validation_errors.is_empty(),
