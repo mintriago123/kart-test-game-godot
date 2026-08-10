@@ -483,7 +483,23 @@ func _test_guided_screen() -> void:
 		zoomed_distance > fitted_distance,
 		"Map zoom increases the visible distance between world points."
 	)
-	map_view.frame_all()
+	map_view._handle_resized()
+	var route_points_fit := map_view.clip_contents and is_equal_approx(map_view._zoom, 1.0)
+	for point_index in screen.session.track.get_main_route().curve.point_count:
+		var fitted_point := map_view._world_to_screen(
+			screen.session.track.get_main_route().curve.get_point_position(point_index)
+		)
+		route_points_fit = (
+			route_points_fit
+			and fitted_point.x >= 0.0
+			and fitted_point.y >= 0.0
+			and fitted_point.x <= map_view.size.x
+			and fitted_point.y <= map_view.size.y
+		)
+	_check(
+		route_points_fit,
+		"Resizing clips the map and reframes every route handle inside its visible area."
+	)
 	map_view.set_layer_enabled(&"slope", true)
 	_check(
 		map_view.is_layer_enabled(&"slope")

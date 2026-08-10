@@ -54,12 +54,13 @@ var _map_bounds := Rect2(Vector2(-100.0, -100.0), Vector2(200.0, 200.0))
 
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
+	clip_contents = true
 	mouse_default_cursor_shape = Control.CURSOR_CROSS
 	tooltip_text = (
 		"Arrastra los puntos para mover la carretera. "
 		+ "También puedes usar las flechas del teclado."
 	)
-	resized.connect(queue_redraw)
+	resized.connect(_handle_resized)
 
 
 func set_track(new_track: TrackLevel) -> void:
@@ -92,6 +93,11 @@ func set_grid_step(value: float) -> void:
 func frame_all() -> void:
 	_zoom = 1.0
 	_pan = Vector2.ZERO
+	queue_redraw()
+
+
+func refresh_view_bounds() -> void:
+	_refresh_bounds()
 	queue_redraw()
 
 
@@ -275,6 +281,7 @@ func _gui_input(event: InputEvent) -> void:
 		entity_move_requested.emit(selection, target_position)
 		route_edited.emit()
 		edit_finished.emit()
+		_refresh_bounds()
 		accept_event()
 
 
@@ -285,7 +292,6 @@ func _draw() -> void:
 	if curve == null:
 		_draw_centered_message("Abre o crea una pista para comenzar")
 		return
-	_refresh_bounds()
 	var baked_points := curve.get_baked_points()
 	if baked_points.size() >= 2:
 		var screen_points := PackedVector2Array()
@@ -552,8 +558,16 @@ func _refresh_bounds() -> void:
 		return
 	var minimum := Vector2(INF, INF)
 	var maximum := Vector2(-INF, -INF)
+	var bound_points := curve.get_baked_points()
 	for point_index in curve.point_count:
-		var point := curve.get_point_position(point_index)
+		bound_points.append(curve.get_point_position(point_index))
+	if track != null:
+		for shortcut in track.get_shortcuts():
+			if shortcut.curve == null:
+				continue
+			for shortcut_point in shortcut.curve.get_baked_points():
+				bound_points.append(shortcut.transform * shortcut_point)
+	for point in bound_points:
 		minimum.x = minf(minimum.x, point.x)
 		minimum.y = minf(minimum.y, point.z)
 		maximum.x = maxf(maximum.x, point.x)
@@ -562,7 +576,13 @@ func _refresh_bounds() -> void:
 		maximum.x = minimum.x + 10.0
 	if maximum.y - minimum.y < 10.0:
 		maximum.y = minimum.y + 10.0
-	_map_bounds = Rect2(minimum, maximum - minimum).grow(12.0)
+	_map_bounds = Rect2(minimum, maximum - minimum).grow(
+		CoastalTrack.ROAD_WIDTH * 0.5 + 4.0
+	)
+
+
+func _handle_resized() -> void:
+	frame_all()
 
 
 func _world_to_screen(position: Vector3) -> Vector2:

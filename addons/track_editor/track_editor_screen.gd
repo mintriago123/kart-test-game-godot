@@ -661,7 +661,7 @@ func _handle_entity_duplicate_requested(selected: RefCounted) -> void:
 
 
 func _complete_entity_edit(message: String) -> void:
-	_map_view.queue_redraw()
+	_map_view.refresh_view_bounds()
 	_rebuild_preview()
 	_refresh_validation()
 	_show_step(_current_step)
