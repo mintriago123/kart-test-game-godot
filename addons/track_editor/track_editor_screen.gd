@@ -53,6 +53,8 @@ var _laps := 3
 var _description := ""
 var _is_showing_preview := false
 var _selection: RefCounted = Selection.none()
+var _pending_test_token := ""
+var _test_result_path := ""
 
 
 func _ready() -> void:
@@ -63,6 +65,47 @@ func _ready() -> void:
 	_reload_track_picker()
 	if _track_picker.item_count > 0:
 		_load_selected_track()
+
+
+func _process(_delta: float) -> void:
+	if (
+		_pending_test_token.is_empty()
+		or _test_result_path.is_empty()
+		or not FileAccess.file_exists(_test_result_path)
+	):
+		return
+	var result := ConfigFile.new()
+	if result.load(_test_result_path) != OK:
+		return
+	if str(result.get_value("result", "token", "")) != _pending_test_token:
+		return
+	_show_test_result(result)
+	_pending_test_token = ""
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(_test_result_path))
+
+
+func track_test_started(token: String, result_path: String) -> void:
+	_pending_test_token = token
+	_test_result_path = result_path
+	_show_success("Prueba iniciada. Usa F8 o VOLVER AL EDITOR para regresar.")
+
+
+func _show_test_result(result: ConfigFile) -> void:
+	var elapsed := float(result.get_value("result", "elapsed_time", 0.0))
+	var minutes := floori(elapsed / 60.0)
+	var seconds := fmod(elapsed, 60.0)
+	var completed := bool(result.get_value("result", "completed", false))
+	_show_success(
+		"Última prueba%s · %02d:%06.3f · %d recuperaciones · %d fuera de ruta · %d atajos."
+		% [
+			" completada" if completed else "",
+			minutes,
+			seconds,
+			int(result.get_value("result", "recovery_count", 0)),
+			int(result.get_value("result", "off_route_count", 0)),
+			int(result.get_value("result", "shortcut_count", 0)),
+		]
+	)
 
 
 func _shortcut_input(event: InputEvent) -> void:

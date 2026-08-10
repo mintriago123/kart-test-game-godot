@@ -1,5 +1,9 @@
 extends SceneTree
 
+const TestDiagnostics := preload(
+	"res://addons/track_editor/track_test_diagnostics.gd"
+)
+
 var _has_failed := false
 
 
@@ -13,6 +17,7 @@ func _run() -> void:
 	await _test_guided_screen()
 	await _test_template_and_history()
 	await _test_migration_and_partial_preview()
+	_test_playtest_diagnostics()
 	await _test_track_runner()
 	quit(1 if _has_failed else 0)
 
@@ -418,6 +423,24 @@ func _test_guided_screen() -> void:
 		screen.session.track.get_shortcuts().size() == 1,
 		"The shortcut step creates a physical shortcut without editing nodes."
 	)
+	var created_shortcut := screen.session.track.get_shortcuts()[0]
+	var shortcut_midpoint := (
+		created_shortcut.transform
+		* created_shortcut.curve.get_point_position(1)
+	)
+	var shortcut_hit := map_view._find_selection_at(
+		map_view._world_to_screen(shortcut_midpoint)
+	)
+	_check(
+		shortcut_hit.kind == TrackEditorSelection.Kind.SHORTCUT_MIDPOINT,
+		"The shortcut midpoint exposes a direct map handle."
+	)
+	map_view.set_selection(shortcut_hit)
+	_check(
+		screen._current_step == 2
+		and screen.find_child("TrackShortcutPanel", true, false) != null,
+		"Selecting a shortcut opens its contextual workflow step."
+	)
 	_check(
 		screen.session.track.validate_track().is_empty(),
 		"The automatically connected shortcut passes track validation."
@@ -432,6 +455,40 @@ func _test_guided_screen() -> void:
 	var anchored_prop := screen.session.track.get_node("Props").get_child(-1) as Node3D
 	var anchored_item := (
 		screen.session.track.get_node("ItemSpawns").get_child(-1) as Marker3D
+	)
+	var item_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.ITEM,
+		screen.session.track.get_path_to(anchored_item)
+	)
+	map_view.set_selection(item_selection)
+	_check(
+		screen._current_step == 3
+		and screen.find_child("TrackObjectPanel", true, false) != null,
+		"Selecting an item opens its contextual object inspector."
+	)
+	var first_screen := map_view._world_to_screen(
+		screen.session.track.get_main_route().curve.get_point_position(0)
+	)
+	var second_screen := map_view._world_to_screen(
+		screen.session.track.get_main_route().curve.get_point_position(1)
+	)
+	var fitted_distance := first_screen.distance_to(second_screen)
+	map_view.zoom_in()
+	var zoomed_distance := map_view._world_to_screen(
+		screen.session.track.get_main_route().curve.get_point_position(0)
+	).distance_to(map_view._world_to_screen(
+		screen.session.track.get_main_route().curve.get_point_position(1)
+	))
+	_check(
+		zoomed_distance > fitted_distance,
+		"Map zoom increases the visible distance between world points."
+	)
+	map_view.frame_all()
+	map_view.set_layer_enabled(&"slope", true)
+	_check(
+		map_view.is_layer_enabled(&"slope")
+		and not map_view.is_layer_enabled(&"barriers"),
+		"Technical map layers are independently configurable."
 	)
 	var original_shortcut_entry := anchored_shortcut.curve.get_point_position(0)
 	var original_prop_position := anchored_prop.position
@@ -486,6 +543,23 @@ func _test_guided_screen() -> void:
 		and play_request.get("track_id", &"") == screen.session.track.track_id
 		and play_request.get("laps", 0) == 3,
 		"Test action preserves the play_requested signal contract."
+	)
+	var result_path := "user://coastal_karts_editor_result_test.cfg"
+	var test_result := ConfigFile.new()
+	test_result.set_value("result", "token", "editor-result")
+	test_result.set_value("result", "elapsed_time", 75.25)
+	test_result.set_value("result", "recovery_count", 2)
+	test_result.set_value("result", "off_route_count", 1)
+	test_result.set_value("result", "shortcut_count", 3)
+	test_result.set_value("result", "completed", true)
+	test_result.save(result_path)
+	screen.track_test_started("editor-result", result_path)
+	await process_frame
+	_check(
+		screen._status_label.text.contains("01:15.250")
+		and screen._status_label.text.contains("2 recuperaciones")
+		and not FileAccess.file_exists(result_path),
+		"The editor consumes the matching playtest result and shows its summary."
 	)
 	screen.queue_free()
 	await process_frame
@@ -693,10 +767,13 @@ func _test_migration_and_partial_preview() -> void:
 
 func _test_track_runner() -> void:
 	var config_path := "user://coastal_karts_track_test.cfg"
+	var result_path := "user://coastal_karts_track_test_result.cfg"
 	var config := ConfigFile.new()
 	config.set_value("track", "scene_path", "res://levels/coastal_track.tscn")
 	config.set_value("track", "id", &"coastal")
 	config.set_value("track", "laps", 3)
+	config.set_value("test", "token", "runner-contract")
+	config.set_value("test", "result_path", result_path)
 	config.save(config_path)
 	var runner_scene := load(
 		"res://addons/track_editor/track_test_runner.tscn"
@@ -710,10 +787,59 @@ func _test_track_runner() -> void:
 		test_world != null and test_world.player_kart != null,
 		"The Test button runner starts the selected draft with the real player kart."
 	)
+	_check(
+		runner.find_child("ReturnToTrackEditor", true, false) != null
+		and runner.find_child("TrackTestMetrics", true, false) != null,
+		"The track runner exposes an accessible return action and live metrics."
+	)
 	runner.queue_free()
 	await process_frame
 	await process_frame
+	var result := ConfigFile.new()
+	_check(
+		result.load(result_path) == OK
+		and result.get_value("result", "token", "") == "runner-contract",
+		"Leaving a track test persists only its tokenized diagnostic result."
+	)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(config_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(result_path))
+
+
+func _test_playtest_diagnostics() -> void:
+	var session := TrackEditorSession.new()
+	session.create_track(&"medium", "Corredor diagnóstico")
+	var track := session.track
+	root.add_child(track)
+	track.rebuild_preview()
+	var diagnostics := TestDiagnostics.new()
+	diagnostics.configure(track)
+	var inside := track.route_points[0]
+	diagnostics.observe_position(inside, 1.0)
+	diagnostics.observe_position(Vector3(1000.0, 0.0, 1000.0), 0.25)
+	diagnostics.observe_position(Vector3(1000.0, 0.0, 1000.0), 0.25)
+	diagnostics.observe_position(Vector3(1000.0, 0.0, 1000.0), 1.0)
+	_check(
+		diagnostics.off_route_count == 1,
+		"Playtest diagnostics debounce a continuous excursion into one event."
+	)
+	diagnostics.observe_position(inside, 0.1)
+	diagnostics.observe_position(Vector3(1000.0, 0.0, 1000.0), 0.5)
+	_check(
+		diagnostics.off_route_count == 2,
+		"Re-entering the valid corridor arms the next off-route event."
+	)
+	diagnostics.record_recovery("fell")
+	diagnostics.record_recovery("fell")
+	diagnostics.record_shortcut()
+	var result: Dictionary = diagnostics.to_dictionary(&"diagnostic", "token-1")
+	_check(
+		result.recovery_count == 2
+		and result.recovery_reasons.fell == 2
+		and result.shortcut_count == 1
+		and result.token == "token-1",
+		"Playtest diagnostics preserve recoveries, reasons, shortcuts, and token."
+	)
+	track.free()
 
 
 func _collect_descendants(node: Node) -> Array[Node]:
