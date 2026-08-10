@@ -49,7 +49,14 @@ func _test_track_shortcuts(
 	player.is_control_enabled = true
 
 	for shortcut_definition in track.shortcut_definitions:
-		await _drive_shortcut(player, track, shortcut_definition, track_definition)
+		for lateral_offset in [0.0, -1.5, 1.5]:
+			await _drive_shortcut(
+				player,
+				track,
+				shortcut_definition,
+				track_definition,
+				lateral_offset
+			)
 
 	main.queue_free()
 	await process_frame
@@ -59,10 +66,20 @@ func _drive_shortcut(
 	player: Kart,
 	track: CoastalTrack,
 	shortcut_definition: Dictionary,
-	track_definition: TrackDefinition
+	track_definition: TrackDefinition,
+	lateral_offset: float
 ) -> void:
 	player.set_shortcut_surface_enabled(false)
-	var drive_points := _build_drive_points(track, shortcut_definition)
+	var drive_points := _build_drive_points(
+		track,
+		shortcut_definition,
+		lateral_offset
+	)
+	var drive_label := (
+		"centro"
+		if is_zero_approx(lateral_offset)
+		else "margen %+.1f m" % lateral_offset
+	)
 	var first_forward := (drive_points[1] - drive_points[0]).normalized()
 	player.global_transform = Transform3D(
 		Basis.looking_at(first_forward, Vector3.UP),
@@ -113,10 +130,11 @@ func _drive_shortcut(
 		):
 			break
 	print(
-		"INFO: %s / %s target=%d/%d distance=%.2f speed=%.1f recoveries=%d"
+		"INFO: %s / %s / %s target=%d/%d distance=%.2f speed=%.1f recoveries=%d"
 		% [
 			track_definition.display_name,
 			shortcut_definition.name,
+			drive_label,
 			target_index,
 			drive_points.size() - 1,
 			player.global_position.distance_to(drive_points.back()),
@@ -127,26 +145,27 @@ func _drive_shortcut(
 	_check(
 		target_index == drive_points.size() - 1
 		and player.global_position.distance_to(drive_points.back()) < TARGET_DISTANCE,
-		"%s / %s is traversable by the real player kart."
-		% [track_definition.display_name, shortcut_definition.name]
+		"%s / %s / %s is traversable by the real player kart."
+		% [track_definition.display_name, shortcut_definition.name, drive_label]
 	)
 	_check(
 		player.recovery_count == initial_recovery_count,
-		"%s / %s does not trigger player recovery."
-		% [track_definition.display_name, shortcut_definition.name]
+		"%s / %s / %s does not trigger player recovery."
+		% [track_definition.display_name, shortcut_definition.name, drive_label]
 	)
 	_check(
 		shortcut_surface_was_enabled
 		and (player.collision_mask & Kart.SHORTCUT_SURFACE_LAYER) == 0,
-		"%s / %s enables its floor only during traversal."
-		% [track_definition.display_name, shortcut_definition.name]
+		"%s / %s / %s enables its floor only during traversal."
+		% [track_definition.display_name, shortcut_definition.name, drive_label]
 	)
 	player.set_drive_input(0.0, 1.0, 0.0, false, false)
 
 
 func _build_drive_points(
 	track: CoastalTrack,
-	shortcut_definition: Dictionary
+	shortcut_definition: Dictionary,
+	lateral_offset := 0.0
 ) -> Array[Vector3]:
 	var drive_points: Array[Vector3] = []
 	var route_size := track.route_points.size()
@@ -157,7 +176,20 @@ func _build_drive_points(
 			track.route_points[(entry_index + route_offset + route_size) % route_size]
 		)
 	var shortcut_points: Array[Vector3] = shortcut_definition.points
-	for shortcut_point in shortcut_points:
+	for shortcut_index in shortcut_points.size():
+		var shortcut_point := shortcut_points[shortcut_index]
+		if not is_zero_approx(lateral_offset):
+			var previous_index := maxi(shortcut_index - 1, 0)
+			var next_index := mini(shortcut_index + 1, shortcut_points.size() - 1)
+			var forward := shortcut_points[next_index] - shortcut_points[previous_index]
+			forward.y = 0.0
+			var right := Vector3.UP.cross(forward.normalized()).normalized()
+			var edge_distance := mini(
+				shortcut_index,
+				shortcut_points.size() - 1 - shortcut_index
+			)
+			var junction_weight := 1.0 - clampf(float(edge_distance) / 6.0, 0.0, 1.0)
+			shortcut_point += right * lateral_offset * junction_weight
 		if drive_points.back().distance_to(shortcut_point) > 0.01:
 			drive_points.append(shortcut_point)
 	for route_offset in range(1, 5):

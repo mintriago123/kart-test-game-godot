@@ -21,10 +21,10 @@ func _run() -> void:
 
 func _test_shortcut_junction_geometry() -> void:
 	var route_points: Array[Vector3] = [
-		Vector3(-35.0, 0.0, -20.0),
-		Vector3(35.0, 0.0, -20.0),
-		Vector3(35.0, 0.0, 20.0),
-		Vector3(-35.0, 0.0, 20.0),
+		Vector3(-100.0, 0.0, -20.0),
+		Vector3(100.0, 0.0, -20.0),
+		Vector3(100.0, 0.0, 20.0),
+		Vector3(-100.0, 0.0, 20.0),
 	]
 	var shortcut_points: Array[Vector3] = [
 		Vector3(-20.0, 0.02, -20.0),
@@ -65,6 +65,55 @@ func _test_shortcut_junction_geometry() -> void:
 	_check(
 		not fallback.is_valid and not fallback.fallback_reason.is_empty(),
 		"Unsafe shallow junctions preserve an explicit fallback reason."
+	)
+	var supported_angles_are_valid := true
+	for angle_degrees in [20.0, 45.0, 90.0]:
+		var outward_distance := 20.0
+		var longitudinal_distance := (
+			0.0
+			if is_equal_approx(angle_degrees, 90.0)
+			else outward_distance / tan(deg_to_rad(angle_degrees))
+		)
+		var angled_points: Array[Vector3] = [
+			Vector3(-80.0, 0.02, -20.0),
+			Vector3(-80.0 + longitudinal_distance, 0.02, -40.0),
+			Vector3(80.0 - longitudinal_distance, 0.02, -40.0),
+			Vector3(80.0, 0.02, -20.0),
+		]
+		var angled_entry := builder.build(angled_points, true)
+		var angled_exit := builder.build(angled_points, false)
+		supported_angles_are_valid = (
+			supported_angles_are_valid
+			and angled_entry.is_valid
+			and angled_exit.is_valid
+		)
+	_check(
+		supported_angles_are_valid,
+		"Automatic junctions accept 20°, 45°, and 90° entries and exits."
+	)
+	var opposite_side_points: Array[Vector3] = [
+		Vector3(-80.0, 0.02, -20.0),
+		Vector3(-60.0, 0.02, 0.0),
+		Vector3(60.0, 0.02, 0.0),
+		Vector3(80.0, 0.02, -20.0),
+	]
+	var opposite_entry := builder.build(opposite_side_points, true)
+	var wrapping_points: Array[Vector3] = [
+		Vector3(-99.9, 0.02, -20.0),
+		Vector3(-99.9, 0.02, -40.0),
+		Vector3(0.0, 0.02, -40.0),
+		Vector3(80.0, 0.02, -20.0),
+	]
+	var wrapping_entry := builder.build(wrapping_points, true)
+	_check(
+		opposite_entry.is_valid
+		and opposite_entry.side == -entry.side,
+		"Automatic junctions support both sides of the main road."
+	)
+	_check(
+		wrapping_entry.is_valid
+		and wrapping_entry.portal_intervals.size() == 2,
+		"Automatic junction portals wrap safely across route progress."
 	)
 
 
