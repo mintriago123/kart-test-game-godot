@@ -7,8 +7,13 @@ const Selection := preload(
 )
 const META_PROP_BASE_SCALE := &"track_editor_prop_base_scale"
 const META_PROP_SCALE_MULTIPLIER := &"track_editor_prop_scale_multiplier"
+const META_ASSET_ID := &"track_editor_asset_id"
+const ASSET_LIBRARY_PATH := "res://assets/track/track_asset_library.tres"
 const MIN_PROP_SCALE_MULTIPLIER := 0.5
 const MAX_PROP_SCALE_MULTIPLIER := 3.0
+const MIN_SHORTCUT_PROGRESS_GAP := 0.001
+const SHORTCUT_HANDLE_MIN := 0.0
+const SHORTCUT_HANDLE_MAX := 100.0
 
 var _session_ref: WeakRef
 var _session: RefCounted:
@@ -39,8 +44,14 @@ func move_to_track_position(
 			return _move_item(selection, track_position)
 		Selection.Kind.PROP:
 			return _move_prop(selection, track_position)
-		Selection.Kind.SHORTCUT_MIDPOINT:
-			return _move_shortcut_midpoint(selection, track_position)
+		Selection.Kind.SHORTCUT_ENTRY, \
+		Selection.Kind.SHORTCUT_EXIT, \
+		Selection.Kind.SHORTCUT_MIDPOINT, \
+		Selection.Kind.SHORTCUT_ENTRY_TANGENT, \
+		Selection.Kind.SHORTCUT_EXIT_TANGENT, \
+		Selection.Kind.SHORTCUT_MIDPOINT_IN_TANGENT, \
+		Selection.Kind.SHORTCUT_MIDPOINT_OUT_TANGENT:
+			return _move_shortcut_control(selection, track_position)
 		_:
 			return false
 
@@ -120,6 +131,65 @@ func initialize_prop_scale(
 	return true
 
 
+func set_prop_asset_id(prop: Node3D, asset_id: StringName) -> void:
+	if prop == null or asset_id.is_empty():
+		return
+	prop.set_meta(META_ASSET_ID, asset_id)
+
+
+func get_prop_asset_entry(prop: Node3D) -> TrackAssetEntry:
+	if prop == null:
+		return null
+	var library := load(ASSET_LIBRARY_PATH) as TrackAssetLibrary
+	if library == null:
+		return null
+	if prop.has_meta(META_ASSET_ID):
+		var metadata_id := StringName(prop.get_meta(META_ASSET_ID, &""))
+		var metadata_entry := library.get_entry(metadata_id)
+		if metadata_entry != null:
+			return metadata_entry
+	return library.get_entry_for_scene_path(prop.scene_file_path)
+
+
+func restore_prop_recommended_scale(selection: RefCounted) -> bool:
+	var prop := get_node(selection)
+	var entry := get_prop_asset_entry(prop)
+	if prop == null or entry == null:
+		return false
+	var scale_result := entry.resolve_base_scale()
+	var recommended_scale: Vector3 = scale_result.scale
+	if not _is_valid_scale(recommended_scale):
+		return false
+	set_prop_asset_id(prop, entry.id)
+	return initialize_prop_scale(prop, recommended_scale, 1.0)
+
+
+func calibrate_known_props() -> Dictionary:
+	var result := {"affected": 0, "omitted": 0}
+	if _session == null or _session.track == null:
+		return result
+	var props: Node = _session.track.get_node_or_null("Props")
+	if props == null:
+		return result
+	for child in props.get_children():
+		var prop := child as Node3D
+		if prop == null:
+			continue
+		var entry := get_prop_asset_entry(prop)
+		if entry == null:
+			result.omitted += 1
+			continue
+		var scale_result := entry.resolve_base_scale()
+		var recommended_scale: Vector3 = scale_result.scale
+		if not _is_valid_scale(recommended_scale):
+			result.omitted += 1
+			continue
+		set_prop_asset_id(prop, entry.id)
+		initialize_prop_scale(prop, recommended_scale, 1.0)
+		result.affected += 1
+	return result
+
+
 func _apply_prop_scale(prop: Node3D, scale_multiplier: float) -> void:
 	var base_scale := prop.scale
 	if prop.has_meta(META_PROP_BASE_SCALE):
@@ -172,6 +242,17 @@ func fit_shortcut_midpoint(
 	lateral: float,
 	height: float
 ) -> Dictionary:
+	return fit_shortcut_shape(selection, {
+		"midpoint_longitudinal": longitudinal,
+		"midpoint_lateral": lateral,
+		"midpoint_height": height,
+	})
+
+
+func fit_shortcut_shape(
+	selection: RefCounted,
+	requested_shape: Dictionary
+) -> Dictionary:
 	var shortcut := get_node(selection) as TrackShortcut
 	if shortcut == null or not shortcut.route_anchor_enabled:
 		return _fit_result(
@@ -180,14 +261,30 @@ func fit_shortcut_midpoint(
 			shortcut
 		)
 	var original := _capture_shortcut_shape(shortcut)
-	_apply_shortcut_shape(
-		shortcut,
-		longitudinal,
-		lateral,
-		height,
-		original,
-		1.0
-	)
+	var requested := original.duplicate()
+	var aliases := {
+		"longitudinal": "midpoint_longitudinal",
+		"lateral": "midpoint_lateral",
+		"height": "midpoint_height",
+		"entry_handle_length": "entry_handle",
+		"exit_handle_length": "exit_handle",
+		"midpoint_in_handle_length": "midpoint_in_handle",
+		"midpoint_out_handle_length": "midpoint_out_handle",
+	}
+	for key in requested_shape:
+		var normalized_key: Variant = aliases.get(key, key)
+		if requested.has(normalized_key):
+			requested[normalized_key] = requested_shape[key]
+	var validation_message := _validate_shortcut_shape(requested)
+	if not validation_message.is_empty():
+		return _fit_result(&"rejected", validation_message, shortcut)
+	if not _has_valid_shortcut_order(requested):
+		return _fit_result(
+			&"rejected",
+			"La entrada debe quedar antes que la salida sin cruzar la meta.",
+			shortcut
+		)
+	_apply_shortcut_shape(shortcut, requested)
 	var requested_safety := TrackLevelValidator.get_shortcut_safety(
 		_session.track,
 		shortcut
@@ -196,63 +293,11 @@ func fit_shortcut_midpoint(
 		shortcut.set_meta(&"editor_safety_checked", true)
 		return _fit_result(&"accepted", "Forma segura.", shortcut)
 
-	var best_candidate: Dictionary = {}
-	var best_score := INF
-	var lateral_candidates := PackedFloat32Array([
-		lateral,
-		lateral * 0.85,
-		lateral * 0.7,
-		lateral * 1.15,
-		lateral * 1.3,
-		float(original.lateral),
-	])
-	var longitudinal_candidates := PackedFloat32Array([
-		longitudinal,
-		longitudinal - 2.0,
-		longitudinal + 2.0,
-		longitudinal - 4.0,
-		longitudinal + 4.0,
-		float(original.longitudinal),
-	])
-	for candidate_lateral in lateral_candidates:
-		for candidate_longitudinal in longitudinal_candidates:
-			for handle_multiplier in [1.0, 1.2, 1.4]:
-				_apply_shortcut_shape(
-					shortcut,
-					candidate_longitudinal,
-					candidate_lateral,
-					height,
-					original,
-					handle_multiplier
-				)
-				var safety := TrackLevelValidator.get_shortcut_safety(
-					_session.track,
-					shortcut
-				)
-				if not bool(safety.safe):
-					continue
-				var score := (
-					absf(candidate_longitudinal - longitudinal)
-					+ absf(candidate_lateral - lateral)
-					+ absf(handle_multiplier - 1.0) * 4.0
-					+ maxf(
-						0.0,
-						absf(candidate_longitudinal - float(original.longitudinal))
-						- 12.0
-					) * 3.0
-					+ maxf(
-						0.0,
-						absf(candidate_lateral - float(original.lateral))
-						- 12.0
-					) * 3.0
-				)
-				if score < best_score:
-					best_score = score
-					best_candidate = {
-						"longitudinal": candidate_longitudinal,
-						"lateral": candidate_lateral,
-						"handle_multiplier": handle_multiplier,
-					}
+	var best_candidate := _find_safe_shape_between(
+		shortcut,
+		requested,
+		original
+	)
 	if best_candidate.is_empty():
 		_restore_shortcut_shape(shortcut, original)
 		return _fit_result(
@@ -260,14 +305,7 @@ func fit_shortcut_midpoint(
 			String(requested_safety.message),
 			shortcut
 		)
-	_apply_shortcut_shape(
-		shortcut,
-		float(best_candidate.longitudinal),
-		float(best_candidate.lateral),
-		height,
-		original,
-		float(best_candidate.handle_multiplier)
-	)
+	_apply_shortcut_shape(shortcut, best_candidate)
 	shortcut.set_meta(&"editor_safety_checked", true)
 	return _fit_result(
 		&"adjusted",
@@ -276,11 +314,43 @@ func fit_shortcut_midpoint(
 	)
 
 
+func reset_shortcut_safe(selection: RefCounted) -> Dictionary:
+	var shortcut := get_node(selection) as TrackShortcut
+	if shortcut == null or not shortcut.route_anchor_enabled:
+		return _fit_result(&"rejected", "No se pudo restablecer el atajo.", shortcut)
+	var original := _capture_shortcut_shape(shortcut)
+	var safety := TrackLevelValidator.get_shortcut_safety(_session.track, shortcut)
+	if bool(safety.safe) and _has_valid_shortcut_order(original):
+		return _fit_result(&"accepted", "El atajo ya tiene una forma segura.", shortcut)
+	var candidate := _find_any_safe_shape(shortcut, original)
+	if candidate.is_empty():
+		_restore_shortcut_shape(shortcut, original)
+		return _fit_result(
+			&"rejected",
+			"No existe una forma segura para esos anclajes.",
+			shortcut
+		)
+	_apply_shortcut_shape(shortcut, candidate)
+	shortcut.set_meta(&"editor_safety_checked", true)
+	return _fit_result(&"adjusted", "Se restableció una forma segura.", shortcut)
+
+
+func rename_shortcut(selection: RefCounted, display_name: String) -> bool:
+	var shortcut := get_node(selection) as TrackShortcut
+	var normalized_name := display_name.strip_edges()
+	if shortcut == null or normalized_name.is_empty():
+		return false
+	shortcut.display_name = normalized_name
+	return true
+
+
 func _capture_shortcut_shape(shortcut: TrackShortcut) -> Dictionary:
 	return {
-		"longitudinal": shortcut.midpoint_longitudinal_offset,
-		"lateral": shortcut.midpoint_lateral_offset,
-		"height": shortcut.midpoint_height_offset,
+		"entry_progress": shortcut.entry_progress,
+		"exit_progress": shortcut.exit_progress,
+		"midpoint_longitudinal": shortcut.midpoint_longitudinal_offset,
+		"midpoint_lateral": shortcut.midpoint_lateral_offset,
+		"midpoint_height": shortcut.midpoint_height_offset,
 		"entry_handle": shortcut.entry_handle_length,
 		"exit_handle": shortcut.exit_handle_length,
 		"midpoint_in_handle": shortcut.midpoint_in_handle_length,
@@ -296,36 +366,140 @@ func _restore_shortcut_shape(
 	shortcut.exit_handle_length = float(shape.exit_handle)
 	shortcut.midpoint_in_handle_length = float(shape.midpoint_in_handle)
 	shortcut.midpoint_out_handle_length = float(shape.midpoint_out_handle)
-	shortcut.midpoint_longitudinal_offset = float(shape.longitudinal)
-	shortcut.midpoint_lateral_offset = float(shape.lateral)
-	shortcut.midpoint_height_offset = float(shape.height)
+	shortcut.entry_progress = float(shape.entry_progress)
+	shortcut.exit_progress = float(shape.exit_progress)
+	shortcut.midpoint_longitudinal_offset = float(shape.midpoint_longitudinal)
+	shortcut.midpoint_lateral_offset = float(shape.midpoint_lateral)
+	shortcut.midpoint_height_offset = float(shape.midpoint_height)
 	_session.recalculate_route_dependents()
 
 
 func _apply_shortcut_shape(
 	shortcut: TrackShortcut,
-	longitudinal: float,
-	lateral: float,
-	height: float,
-	base_shape: Dictionary,
-	handle_multiplier: float
+	shape: Dictionary
 ) -> void:
-	shortcut.midpoint_longitudinal_offset = longitudinal
-	shortcut.midpoint_lateral_offset = lateral
-	shortcut.midpoint_height_offset = height
-	shortcut.entry_handle_length = (
-		float(base_shape.entry_handle) * handle_multiplier
-	)
-	shortcut.exit_handle_length = (
-		float(base_shape.exit_handle) * handle_multiplier
-	)
-	shortcut.midpoint_in_handle_length = (
-		float(base_shape.midpoint_in_handle) * handle_multiplier
-	)
-	shortcut.midpoint_out_handle_length = (
-		float(base_shape.midpoint_out_handle) * handle_multiplier
-	)
+	shortcut.entry_progress = float(shape.entry_progress)
+	shortcut.exit_progress = float(shape.exit_progress)
+	shortcut.midpoint_longitudinal_offset = float(shape.midpoint_longitudinal)
+	shortcut.midpoint_lateral_offset = float(shape.midpoint_lateral)
+	shortcut.midpoint_height_offset = float(shape.midpoint_height)
+	shortcut.entry_handle_length = float(shape.entry_handle)
+	shortcut.exit_handle_length = float(shape.exit_handle)
+	shortcut.midpoint_in_handle_length = float(shape.midpoint_in_handle)
+	shortcut.midpoint_out_handle_length = float(shape.midpoint_out_handle)
 	_session.recalculate_route_dependents()
+
+
+func _validate_shortcut_shape(shape: Dictionary) -> String:
+	for key in shape:
+		if not shape[key] is float and not shape[key] is int:
+			return "Todos los valores del atajo deben ser numéricos."
+		if not is_finite(float(shape[key])):
+			return "El atajo contiene un valor no finito."
+	for progress_key in [&"entry_progress", &"exit_progress"]:
+		var progress := float(shape[progress_key])
+		if progress < 0.0 or progress > 1.0:
+			return "Los progresos de entrada y salida deben estar entre 0 y 100 %."
+	for handle_key in [
+		&"entry_handle",
+		&"exit_handle",
+		&"midpoint_in_handle",
+		&"midpoint_out_handle",
+	]:
+		var handle_length := float(shape[handle_key])
+		if handle_length < SHORTCUT_HANDLE_MIN or handle_length > SHORTCUT_HANDLE_MAX:
+			return "Las tangentes deben medir entre 0 y 100 m."
+	return ""
+
+
+func _has_valid_shortcut_order(shape: Dictionary) -> bool:
+	var route := _session.track.get_main_route() as Path3D
+	if route == null or route.curve == null:
+		return false
+	var start_progress: float = _session.get_route_progress_for_control_point(
+		_session.track.start_point_index
+	)
+	var entry_from_start := fposmod(
+		float(shape.entry_progress) - start_progress,
+		1.0
+	)
+	var exit_from_start := fposmod(
+		float(shape.exit_progress) - start_progress,
+		1.0
+	)
+	return exit_from_start - entry_from_start >= MIN_SHORTCUT_PROGRESS_GAP
+
+
+func _find_safe_shape_between(
+	shortcut: TrackShortcut,
+	requested: Dictionary,
+	original: Dictionary
+) -> Dictionary:
+	var first_safe := -1.0
+	var previous_weight := 0.0
+	for step_index in range(1, 25):
+		var weight := float(step_index) / 24.0
+		var candidate := _interpolate_shortcut_shape(requested, original, weight)
+		if not _has_valid_shortcut_order(candidate):
+			previous_weight = weight
+			continue
+		_apply_shortcut_shape(shortcut, candidate)
+		if bool(TrackLevelValidator.get_shortcut_safety(_session.track, shortcut).safe):
+			first_safe = weight
+			break
+		previous_weight = weight
+	if first_safe < 0.0:
+		return {}
+	var lower := previous_weight
+	var upper := first_safe
+	var best := _interpolate_shortcut_shape(requested, original, upper)
+	for _iteration in 7:
+		var weight := (lower + upper) * 0.5
+		var candidate := _interpolate_shortcut_shape(requested, original, weight)
+		_apply_shortcut_shape(shortcut, candidate)
+		if bool(TrackLevelValidator.get_shortcut_safety(_session.track, shortcut).safe):
+			upper = weight
+			best = candidate
+		else:
+			lower = weight
+	return best
+
+
+func _interpolate_shortcut_shape(
+	from_shape: Dictionary,
+	to_shape: Dictionary,
+	weight: float
+) -> Dictionary:
+	var result := {}
+	for key in from_shape:
+		result[key] = lerpf(float(from_shape[key]), float(to_shape[key]), weight)
+	return result
+
+
+func _find_any_safe_shape(
+	shortcut: TrackShortcut,
+	base_shape: Dictionary
+) -> Dictionary:
+	if not _has_valid_shortcut_order(base_shape):
+		return {}
+	var lateral_sign := signf(float(base_shape.midpoint_lateral))
+	if is_zero_approx(lateral_sign):
+		lateral_sign = 1.0
+	for side_sign in [lateral_sign, -lateral_sign]:
+		for lateral_distance in [8.0, 12.0, 18.0, 25.0, 34.0, 45.0, 60.0]:
+			for longitudinal in [0.0, -4.0, 4.0, -8.0, 8.0]:
+				for endpoint_handle in [8.0, 12.0, 18.0, 26.0, 36.0]:
+					var candidate := base_shape.duplicate()
+					candidate.midpoint_lateral = side_sign * lateral_distance
+					candidate.midpoint_longitudinal = longitudinal
+					candidate.entry_handle = endpoint_handle
+					candidate.exit_handle = endpoint_handle
+					candidate.midpoint_in_handle = clampf(endpoint_handle * 0.65, 6.0, 24.0)
+					candidate.midpoint_out_handle = candidate.midpoint_in_handle
+					_apply_shortcut_shape(shortcut, candidate)
+					if bool(TrackLevelValidator.get_shortcut_safety(_session.track, shortcut).safe):
+						return candidate
+	return {}
 
 
 func _fit_result(
@@ -336,11 +510,17 @@ func _fit_result(
 	return {
 		"status": status,
 		"message": message,
+		"entry_progress": shortcut.entry_progress if shortcut != null else 0.0,
+		"exit_progress": shortcut.exit_progress if shortcut != null else 0.0,
 		"longitudinal": (
 			shortcut.midpoint_longitudinal_offset if shortcut != null else 0.0
 		),
 		"lateral": shortcut.midpoint_lateral_offset if shortcut != null else 0.0,
 		"height": shortcut.midpoint_height_offset if shortcut != null else 0.0,
+		"entry_handle": shortcut.entry_handle_length if shortcut != null else 0.0,
+		"exit_handle": shortcut.exit_handle_length if shortcut != null else 0.0,
+		"midpoint_in_handle": shortcut.midpoint_in_handle_length if shortcut != null else 0.0,
+		"midpoint_out_handle": shortcut.midpoint_out_handle_length if shortcut != null else 0.0,
 	}
 
 
@@ -447,7 +627,7 @@ func _move_prop(
 	return true
 
 
-func _move_shortcut_midpoint(
+func _move_shortcut_control(
 	selection: RefCounted,
 	track_position: Vector3
 ) -> bool:
@@ -460,6 +640,31 @@ func _move_shortcut_midpoint(
 		return false
 	if not shortcut.route_anchor_enabled:
 		_session.configure_shortcut_anchor(shortcut)
+	var shape := _capture_shortcut_shape(shortcut)
+	if selection.kind == Selection.Kind.SHORTCUT_ENTRY:
+		var entry_anchor: Dictionary = _session.get_route_anchor_for_position(track_position)
+		if entry_anchor.is_empty():
+			return false
+		shape.entry_progress = float(entry_anchor.progress)
+		return _is_fit_success(fit_shortcut_shape(selection, shape))
+	if selection.kind == Selection.Kind.SHORTCUT_EXIT:
+		var exit_anchor: Dictionary = _session.get_route_anchor_for_position(track_position)
+		if exit_anchor.is_empty():
+			return false
+		shape.exit_progress = float(exit_anchor.progress)
+		return _is_fit_success(fit_shortcut_shape(selection, shape))
+	if selection.kind in [
+		Selection.Kind.SHORTCUT_ENTRY_TANGENT,
+		Selection.Kind.SHORTCUT_EXIT_TANGENT,
+		Selection.Kind.SHORTCUT_MIDPOINT_IN_TANGENT,
+		Selection.Kind.SHORTCUT_MIDPOINT_OUT_TANGENT,
+	]:
+		return _move_shortcut_tangent(
+			shortcut,
+			selection,
+			track_position,
+			shape
+		)
 	var entry := shortcut.curve.get_point_position(0)
 	var exit := shortcut.curve.get_point_position(shortcut.curve.point_count - 1)
 	var direct := exit - entry
@@ -471,11 +676,48 @@ func _move_shortcut_midpoint(
 	var base := entry.lerp(exit, 0.5)
 	var local_position := shortcut.transform.affine_inverse() * track_position
 	var delta := local_position - base
-	shortcut.midpoint_longitudinal_offset = delta.dot(horizontal)
-	shortcut.midpoint_lateral_offset = delta.dot(lateral_axis)
-	shortcut.midpoint_height_offset = delta.y
-	_session.recalculate_route_dependents()
-	return true
+	shape.midpoint_longitudinal = delta.dot(horizontal)
+	shape.midpoint_lateral = delta.dot(lateral_axis)
+	shape.midpoint_height = delta.y
+	return _is_fit_success(fit_shortcut_shape(selection, shape))
+
+
+func _move_shortcut_tangent(
+	shortcut: TrackShortcut,
+	selection: RefCounted,
+	track_position: Vector3,
+	shape: Dictionary
+) -> bool:
+	var point_index := 0
+	var tangent := shortcut.curve.get_point_out(0)
+	var shape_key := &"entry_handle"
+	match selection.kind:
+		Selection.Kind.SHORTCUT_EXIT_TANGENT:
+			point_index = shortcut.curve.point_count - 1
+			tangent = shortcut.curve.get_point_in(point_index)
+			shape_key = &"exit_handle"
+		Selection.Kind.SHORTCUT_MIDPOINT_IN_TANGENT:
+			point_index = shortcut.curve.point_count / 2
+			tangent = shortcut.curve.get_point_in(point_index)
+			shape_key = &"midpoint_in_handle"
+		Selection.Kind.SHORTCUT_MIDPOINT_OUT_TANGENT:
+			point_index = shortcut.curve.point_count / 2
+			tangent = shortcut.curve.get_point_out(point_index)
+			shape_key = &"midpoint_out_handle"
+	if tangent.length_squared() <= 0.000001:
+		return false
+	var local_target := shortcut.transform.affine_inverse() * track_position
+	var anchor := shortcut.curve.get_point_position(point_index)
+	shape[shape_key] = clampf(
+		(local_target - anchor).dot(tangent.normalized()),
+		SHORTCUT_HANDLE_MIN,
+		SHORTCUT_HANDLE_MAX
+	)
+	return _is_fit_success(fit_shortcut_shape(selection, shape))
+
+
+func _is_fit_success(result: Dictionary) -> bool:
+	return result.get("status", &"rejected") in [&"accepted", &"adjusted"]
 
 
 func _smooth_curve(curve: Curve3D) -> void:

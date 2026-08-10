@@ -24,6 +24,13 @@ const STEP_LABELS := [
 	"4  OBJETOS",
 	"5  REVISAR",
 ]
+const PANEL_WORKFLOW_ID := 0
+const PANEL_INSPECTOR_ID := 1
+const PANEL_STATUS_ID := 2
+const PANEL_RESET_LAYOUT_ID := 3
+const COMPACT_LAYOUT_BREAKPOINT := 1600.0
+const NEW_DIALOG_PREFERRED_SIZE := Vector2i(480, 340)
+const NEW_DIALOG_CONTENT_WIDTH := 400.0
 
 var session := TrackEditorSession.new()
 var _preview_controller := PreviewController.new()
@@ -43,6 +50,12 @@ var _redo_button: Button
 var _track_picker: OptionButton
 var _navigation_panel: PanelContainer
 var _inspector_panel: PanelContainer
+var _editor_root: VBoxContainer
+var _content_status_split: VSplitContainer
+var _navigation_split: HSplitContainer
+var _inspector_split: HSplitContainer
+var _status_panel: PanelContainer
+var _panels_menu: MenuButton
 var _header_actions_scroll: ScrollContainer
 var _new_button: Button
 var _open_button: Button
@@ -55,6 +68,7 @@ var _new_template_details: Label
 var _open_dialog: FileDialog
 var _unsaved_dialog: ConfirmationDialog
 var _guide_dialog: AcceptDialog
+var _calibration_dialog: ConfirmationDialog
 var _pending_action := ""
 var _pending_path := ""
 var _current_step := 0
@@ -69,6 +83,8 @@ var _is_compact := false
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	theme = _create_workshop_theme()
 	_build_interface()
 	resized.connect(_apply_responsive_layout)
@@ -148,45 +164,73 @@ func _build_interface() -> void:
 	viewport_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(viewport_scroll)
 
-	var root := VBoxContainer.new()
-	root.custom_minimum_size.x = 960.0
-	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 0)
-	viewport_scroll.add_child(root)
+	_editor_root = VBoxContainer.new()
+	_editor_root.name = "EditorLayout"
+	_editor_root.custom_minimum_size.x = 960.0
+	_editor_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_editor_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_editor_root.add_theme_constant_override("separation", 0)
+	viewport_scroll.add_child(_editor_root)
 
-	root.add_child(_build_header())
+	_editor_root.add_child(_build_header())
 
-	var body := HBoxContainer.new()
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 0)
-	root.add_child(body)
+	_content_status_split = VSplitContainer.new()
+	_content_status_split.name = "WorkspaceStatusSplit"
+	_content_status_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content_status_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content_status_split.add_theme_constant_override("separation", 8)
+	_editor_root.add_child(_content_status_split)
+
+	_navigation_split = HSplitContainer.new()
+	_navigation_split.name = "WorkflowWorkspaceSplit"
+	_navigation_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_navigation_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_navigation_split.add_theme_constant_override("separation", 8)
+	_content_status_split.add_child(_navigation_split)
 
 	var navigation := _build_navigation()
-	body.add_child(navigation)
+	_navigation_split.add_child(navigation)
+
+	_inspector_split = HSplitContainer.new()
+	_inspector_split.name = "WorkspaceInspectorSplit"
+	_inspector_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_inspector_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_inspector_split.add_theme_constant_override("separation", 8)
+	_navigation_split.add_child(_inspector_split)
 
 	var workspace := _build_workspace()
 	workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.add_child(workspace)
+	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_inspector_split.add_child(workspace)
 
 	var inspector := _build_inspector()
-	body.add_child(inspector)
+	_inspector_split.add_child(inspector)
+
+	_status_panel = PanelContainer.new()
+	_status_panel.name = "EditorStatusPanel"
+	_status_panel.custom_minimum_size.y = 44.0
+	_status_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content_status_split.add_child(_status_panel)
 
 	_status_label = Label.new()
 	_status_label.name = "EditorStatus"
 	_status_label.text = "● Abre una pista o crea una nueva."
-	_status_label.custom_minimum_size.y = 40.0
+	_status_label.custom_minimum_size.y = 44.0
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_status_label.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
 	_status_label.add_theme_color_override("font_shadow_color", EditorStyle.CANVAS_BACKGROUND)
 	_status_label.add_theme_constant_override("shadow_offset_x", 1)
 	_status_label.add_theme_constant_override("shadow_offset_y", 1)
-	root.add_child(_status_label)
+	_status_panel.add_child(_status_label)
 
 	_build_new_dialog()
 	_build_open_dialog()
 	_build_unsaved_dialog()
 	_build_guide_dialog()
+	_build_calibration_dialog()
+	call_deferred("_reset_panel_layout")
 
 
 func _build_header() -> Control:
@@ -305,6 +349,23 @@ func _build_workspace() -> VBoxContainer:
 	map_label.text = "  MESA DE TRAZADO"
 	map_label.add_theme_color_override("font_color", EditorStyle.TEXT_PRIMARY)
 	view_bar.add_child(map_label)
+	_panels_menu = MenuButton.new()
+	_panels_menu.name = "PanelLayoutMenu"
+	_panels_menu.text = "PANELES"
+	_panels_menu.tooltip_text = "Mostrar, ocultar o restablecer los paneles del editor"
+	_panels_menu.custom_minimum_size = Vector2(104.0, 44.0)
+	_panels_menu.focus_mode = Control.FOCUS_ALL
+	var panels_popup := _panels_menu.get_popup()
+	panels_popup.add_check_item("Ruta de trabajo", PANEL_WORKFLOW_ID)
+	panels_popup.set_item_checked(0, true)
+	panels_popup.add_check_item("Inspector", PANEL_INSPECTOR_ID)
+	panels_popup.set_item_checked(1, true)
+	panels_popup.add_check_item("Estado", PANEL_STATUS_ID)
+	panels_popup.set_item_checked(2, true)
+	panels_popup.add_separator()
+	panels_popup.add_item("Restablecer distribución", PANEL_RESET_LAYOUT_ID)
+	panels_popup.id_pressed.connect(_handle_panel_menu_action)
+	view_bar.add_child(_panels_menu)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	view_bar.add_child(spacer)
@@ -396,7 +457,9 @@ func _build_inspector() -> Control:
 
 
 func _apply_responsive_layout() -> void:
-	_set_compact_mode(size.x < 1440.0)
+	if _editor_root != null:
+		_editor_root.custom_minimum_size.y = maxf(size.y, 480.0)
+	_set_compact_mode(size.x < COMPACT_LAYOUT_BREAKPOINT)
 
 
 func _set_compact_mode(is_compact: bool) -> void:
@@ -410,6 +473,64 @@ func _set_compact_mode(is_compact: bool) -> void:
 	_track_picker.custom_minimum_size.x = 160.0 if is_compact else 220.0
 	_new_button.text = "＋" if is_compact else "＋ NUEVA"
 	_guide_button.text = "?" if is_compact else "? GUÍA"
+
+
+func _handle_panel_menu_action(id: int) -> void:
+	match id:
+		PANEL_WORKFLOW_ID:
+			_navigation_panel.visible = not _navigation_panel.visible
+			_set_panel_menu_checked(PANEL_WORKFLOW_ID, _navigation_panel.visible)
+		PANEL_INSPECTOR_ID:
+			_inspector_panel.visible = not _inspector_panel.visible
+			_set_panel_menu_checked(PANEL_INSPECTOR_ID, _inspector_panel.visible)
+		PANEL_STATUS_ID:
+			_status_panel.visible = not _status_panel.visible
+			_set_panel_menu_checked(PANEL_STATUS_ID, _status_panel.visible)
+		PANEL_RESET_LAYOUT_ID:
+			_navigation_panel.show()
+			_inspector_panel.show()
+			_status_panel.show()
+			_set_panel_menu_checked(PANEL_WORKFLOW_ID, true)
+			_set_panel_menu_checked(PANEL_INSPECTOR_ID, true)
+			_set_panel_menu_checked(PANEL_STATUS_ID, true)
+			call_deferred("_reset_panel_layout")
+
+
+func _set_panel_menu_checked(id: int, is_checked: bool) -> void:
+	if _panels_menu == null:
+		return
+	var item_index := _panels_menu.get_popup().get_item_index(id)
+	if item_index >= 0:
+		_panels_menu.get_popup().set_item_checked(item_index, is_checked)
+
+
+func _reset_panel_layout() -> void:
+	if (
+		_content_status_split == null
+		or _navigation_split == null
+		or _inspector_split == null
+		or _navigation_panel == null
+		or _inspector_panel == null
+		or _status_panel == null
+	):
+		return
+	_navigation_split.split_offset = roundi(
+		_navigation_panel.custom_minimum_size.x
+	)
+	_inspector_split.split_offset = maxi(
+		roundi(
+			_inspector_split.size.x
+			- _inspector_panel.custom_minimum_size.x
+		),
+		0
+	)
+	_content_status_split.split_offset = maxi(
+		roundi(
+			_content_status_split.size.y
+			- _status_panel.custom_minimum_size.y
+		),
+		0
+	)
 
 
 func _connect_session() -> void:
@@ -556,7 +677,12 @@ func _build_shortcut_properties() -> void:
 	panel.configure(session.track, _button, _selection)
 	panel.create_shortcut_requested.connect(_create_shortcut)
 	panel.delete_shortcut_requested.connect(_delete_shortcut)
-	panel.midpoint_changed.connect(_handle_shortcut_midpoint_changed)
+	panel.shortcut_selection_requested.connect(
+		func(selected: RefCounted) -> void: _map_view.set_selection(selected)
+	)
+	panel.shortcut_shape_changed.connect(_handle_shortcut_shape_changed)
+	panel.shortcut_rename_requested.connect(_handle_shortcut_rename_requested)
+	panel.shortcut_reset_requested.connect(_handle_shortcut_reset_requested)
 	_properties.add_child(panel)
 
 
@@ -569,6 +695,12 @@ func _build_object_properties() -> void:
 	panel.anchor_changed.connect(_handle_object_anchor_changed)
 	panel.duplicate_requested.connect(_handle_entity_duplicate_requested)
 	panel.delete_requested.connect(_handle_entity_delete_requested)
+	panel.restore_recommended_requested.connect(
+		_handle_restore_recommended_requested
+	)
+	panel.calibrate_known_requested.connect(
+		func() -> void: _calibration_dialog.popup_centered(Vector2i(520, 220))
+	)
 	_properties.add_child(panel)
 
 
@@ -596,8 +728,7 @@ func _handle_new_pressed() -> void:
 	if session.is_dirty:
 		_show_unsaved_dialog("new", "")
 	else:
-		_update_new_template_details()
-		_new_dialog.popup_centered(Vector2i(480, 340))
+		_popup_new_dialog()
 
 
 func _handle_open_pressed() -> void:
@@ -688,6 +819,8 @@ func _handle_entity_move_requested(
 ) -> void:
 	if session.move_entity(selected, track_position):
 		session.mark_dirty()
+		if selected.is_shortcut_control() and _current_step == 2:
+			_show_step(2)
 
 
 func _handle_entity_delete_requested(selected: RefCounted) -> void:
@@ -801,6 +934,35 @@ func _handle_object_anchor_changed(
 		_complete_entity_edit("Objeto actualizado.")
 
 
+func _handle_restore_recommended_requested(selected: RefCounted) -> void:
+	session.snapshot_track_for_undo()
+	if not session.restore_prop_recommended_scale(selected):
+		session.discard_latest_snapshot()
+		_show_error("No se reconoce este asset; se conservó su tamaño actual.")
+		return
+	session.mark_dirty()
+	_complete_entity_edit("Tamaño recomendado restaurado.")
+
+
+func _calibrate_known_props() -> void:
+	session.snapshot_track_for_undo()
+	var result := session.calibrate_known_props()
+	var affected := int(result.get("affected", 0))
+	var omitted := int(result.get("omitted", 0))
+	if affected == 0:
+		session.discard_latest_snapshot()
+		_show_warning(
+			"No se calibró decoración; %d objeto(s) desconocido(s) quedaron intactos."
+			% omitted
+		)
+		return
+	session.mark_dirty()
+	_complete_entity_edit(
+		"Calibración terminada: %d afectado(s), %d omitido(s)."
+		% [affected, omitted]
+	)
+
+
 func _handle_shortcut_midpoint_changed(
 	selected: RefCounted,
 	longitudinal: float,
@@ -821,6 +983,52 @@ func _handle_shortcut_midpoint_changed(
 		session.discard_latest_snapshot()
 		_rebuild_preview()
 		_refresh_validation()
+		_show_step(2)
+		_show_error(String(result.message))
+
+
+func _handle_shortcut_shape_changed(
+	selected: RefCounted,
+	shape: Dictionary
+) -> void:
+	session.snapshot_track_for_undo()
+	var result := session.fit_shortcut_shape(selected, shape)
+	if result.status in [&"accepted", &"adjusted"]:
+		session.mark_dirty()
+		_complete_entity_edit(String(result.message))
+	else:
+		session.discard_latest_snapshot()
+		_rebuild_preview()
+		_refresh_validation()
+		_show_step(2)
+		_show_error(String(result.message))
+
+
+func _handle_shortcut_rename_requested(
+	selected: RefCounted,
+	display_name: String
+) -> void:
+	session.snapshot_track_for_undo()
+	if not session.rename_shortcut(selected, display_name):
+		session.discard_latest_snapshot()
+		_show_error("El atajo necesita un nombre.")
+		return
+	session.mark_dirty()
+	_complete_entity_edit("Atajo renombrado.")
+
+
+func _handle_shortcut_reset_requested(selected: RefCounted) -> void:
+	session.snapshot_track_for_undo()
+	var result := session.reset_shortcut_safe(selected)
+	if result.status == &"adjusted":
+		session.mark_dirty()
+		_complete_entity_edit(String(result.message))
+	elif result.status == &"accepted":
+		session.discard_latest_snapshot()
+		_show_step(2)
+		_show_success(String(result.message))
+	else:
+		session.discard_latest_snapshot()
 		_show_step(2)
 		_show_error(String(result.message))
 
@@ -1035,6 +1243,8 @@ func _delete_shortcut(shortcut: TrackShortcut) -> void:
 	session.snapshot_track_for_undo()
 	shortcut.get_parent().remove_child(shortcut)
 	shortcut.free()
+	_selection = Selection.none()
+	_map_view.clear_selection()
 	session.mark_dirty()
 	_map_view.queue_redraw()
 	_rebuild_preview()
@@ -1099,6 +1309,7 @@ func _add_asset(
 	instance.rotation_degrees.y = rotation_degrees_y
 	props.add_child(instance)
 	instance.owner = session.track
+	session.set_prop_asset_id(instance, entry.id)
 	session.initialize_prop_scale(instance, base_scale, scale_multiplier)
 	session.anchor_prop(
 		instance,
@@ -1230,16 +1441,20 @@ func _build_new_dialog() -> void:
 	_new_dialog.confirmed.connect(_create_new_track)
 	add_child(_new_dialog)
 	var content := VBoxContainer.new()
+	content.name = "NewTrackDialogContent"
+	content.custom_minimum_size.x = NEW_DIALOG_CONTENT_WIDTH
 	content.add_theme_constant_override("separation", 8)
 	_new_dialog.add_child(content)
 	var instructions := Label.new()
 	instructions.text = "Elige un nombre y un tamaño. Todo lo demás se prepara automáticamente."
+	instructions.custom_minimum_size.x = NEW_DIALOG_CONTENT_WIDTH
 	instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(instructions)
 	_new_name = LineEdit.new()
 	_new_name.placeholder_text = "Ejemplo: Bahía Relámpago"
 	_new_name.custom_minimum_size.y = 44.0
 	content.add_child(_new_name)
+	_new_dialog.register_text_enter(_new_name)
 	_new_size = OptionButton.new()
 	_new_size.add_item("Pequeña · carrera rápida")
 	_new_size.add_item("Mediana · recomendada")
@@ -1252,13 +1467,28 @@ func _build_new_dialog() -> void:
 	content.add_child(_new_size)
 	_new_template_details = Label.new()
 	_new_template_details.name = "NewTemplateDetails"
+	_new_template_details.custom_minimum_size.x = NEW_DIALOG_CONTENT_WIDTH
 	_new_template_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_new_template_details.add_theme_color_override(
 		"font_color",
 		EditorStyle.TEXT_SECONDARY
 	)
 	content.add_child(_new_template_details)
+	for button in [
+		_new_dialog.get_ok_button(),
+		_new_dialog.get_cancel_button(),
+	]:
+		button.custom_minimum_size.y = 44.0
+		button.focus_mode = Control.FOCUS_ALL
 	_update_new_template_details()
+	content.size = Vector2(NEW_DIALOG_CONTENT_WIDTH, 260.0)
+	content.queue_sort()
+
+
+func _popup_new_dialog() -> void:
+	_update_new_template_details()
+	_new_dialog.popup_centered_clamped(NEW_DIALOG_PREFERRED_SIZE, 0.9)
+	_new_name.call_deferred("grab_focus")
 
 
 func _update_new_template_details() -> void:
@@ -1298,6 +1528,19 @@ func _build_unsaved_dialog() -> void:
 			_continue_pending_action()
 	)
 	add_child(_unsaved_dialog)
+
+
+func _build_calibration_dialog() -> void:
+	_calibration_dialog = ConfirmationDialog.new()
+	_calibration_dialog.title = "Calibrar decoración conocida"
+	_calibration_dialog.dialog_text = (
+		"Se restaurará el tamaño recomendado de todos los assets reconocidos. "
+		+ "Los objetos desconocidos no cambiarán."
+	)
+	_calibration_dialog.ok_button_text = "Calibrar"
+	_calibration_dialog.cancel_button_text = "Cancelar"
+	_calibration_dialog.confirmed.connect(_calibrate_known_props)
+	add_child(_calibration_dialog)
 
 
 func _build_open_dialog() -> void:
@@ -1353,8 +1596,7 @@ func _continue_pending_action() -> void:
 		"load":
 			_load_path(_pending_path)
 		"new":
-			_update_new_template_details()
-			_new_dialog.popup_centered(Vector2i(480, 340))
+			_popup_new_dialog()
 	_pending_action = ""
 	_pending_path = ""
 

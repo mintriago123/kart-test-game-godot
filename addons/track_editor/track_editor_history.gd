@@ -201,6 +201,7 @@ func _restore_prop_scale_metadata(node: Node3D, snapshot: Node3D) -> void:
 	for metadata_key in [
 		_session.META_PROP_BASE_SCALE,
 		_session.META_PROP_SCALE_MULTIPLIER,
+		_session.META_ASSET_ID,
 	]:
 		if snapshot.has_meta(metadata_key):
 			node.set_meta(metadata_key, snapshot.get_meta(metadata_key))

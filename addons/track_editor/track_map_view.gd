@@ -30,6 +30,7 @@ const ERROR_COLOR := Color("#ef7656")
 const WARNING_COLOR := Color("#f6c344")
 const MAP_PADDING := 54.0
 const POINT_RADIUS := 9.0
+const CONTROL_HIT_RADIUS := 22.0
 const MIN_ZOOM := 0.5
 const MAX_ZOOM := 8.0
 const ZOOM_FACTOR := 1.15
@@ -64,8 +65,8 @@ func _ready() -> void:
 	clip_contents = true
 	mouse_default_cursor_shape = Control.CURSOR_CROSS
 	tooltip_text = (
-		"Arrastra los puntos para mover la carretera. "
-		+ "También puedes usar las flechas del teclado."
+		"Arrastra carretera, objetos o controles de atajo. "
+		+ "También puedes usar las flechas o los campos numéricos."
 	)
 	resized.connect(_handle_resized)
 
@@ -468,7 +469,7 @@ func _draw_shortcuts() -> void:
 			continue
 		var shortcut_points := PackedVector2Array()
 		for point in shortcut.curve.get_baked_points():
-			shortcut_points.append(_world_to_screen(point))
+			shortcut_points.append(_world_to_screen(shortcut.transform * point))
 		if shortcut_points.size() >= 2:
 			var corridor_width := maxf(
 				_world_distance_to_screen(CoastalTrack.SHORTCUT_WIDTH),
@@ -482,8 +483,7 @@ func _draw_shortcuts() -> void:
 			)
 			_draw_shortcut_junctions(shortcut)
 			draw_polyline(shortcut_points, SHORTCUT_COLOR, 8.0, true)
-			_draw_handle(shortcut_points[0], SHORTCUT_COLOR, false)
-			_draw_handle(shortcut_points[-1], SHORTCUT_COLOR, false)
+			_draw_shortcut_controls(shortcut)
 
 
 func get_shortcut_safety_state(shortcut: TrackShortcut) -> StringName:
@@ -510,15 +510,65 @@ func _get_shortcut_safety_color(shortcut: TrackShortcut) -> Color:
 			return TIGHT_CORRIDOR_COLOR
 		_:
 			return UNSAFE_CORRIDOR_COLOR
-			var middle_index := shortcut.curve.point_count / 2
-			var midpoint := _world_to_screen(
-				shortcut.transform * shortcut.curve.get_point_position(middle_index)
-			)
-			var is_selected: bool = (
-				selection.kind == Selection.Kind.SHORTCUT_MIDPOINT
-				and selection.node_path == track.get_path_to(shortcut)
-			)
-			_draw_handle(midpoint, SHORTCUT_COLOR, is_selected)
+
+
+func _draw_shortcut_controls(shortcut: TrackShortcut) -> void:
+	var control_positions := _get_shortcut_control_positions(shortcut)
+	if control_positions.is_empty():
+		return
+	var entry := _world_to_screen(control_positions[Selection.Kind.SHORTCUT_ENTRY])
+	var exit := _world_to_screen(control_positions[Selection.Kind.SHORTCUT_EXIT])
+	var midpoint := _world_to_screen(control_positions[Selection.Kind.SHORTCUT_MIDPOINT])
+	var entry_tangent := _world_to_screen(
+		control_positions[Selection.Kind.SHORTCUT_ENTRY_TANGENT]
+	)
+	var exit_tangent := _world_to_screen(
+		control_positions[Selection.Kind.SHORTCUT_EXIT_TANGENT]
+	)
+	var midpoint_in := _world_to_screen(
+		control_positions[Selection.Kind.SHORTCUT_MIDPOINT_IN_TANGENT]
+	)
+	var midpoint_out := _world_to_screen(
+		control_positions[Selection.Kind.SHORTCUT_MIDPOINT_OUT_TANGENT]
+	)
+	draw_line(entry, entry_tangent, Color(SHORTCUT_COLOR, 0.65), 2.0, true)
+	draw_line(exit, exit_tangent, Color(SHORTCUT_COLOR, 0.65), 2.0, true)
+	draw_line(midpoint, midpoint_in, Color(SHORTCUT_COLOR, 0.65), 2.0, true)
+	draw_line(midpoint, midpoint_out, Color(SHORTCUT_COLOR, 0.65), 2.0, true)
+	var shortcut_path := track.get_path_to(shortcut)
+	for control_kind in control_positions:
+		var is_selected: bool = (
+			selection.kind == int(control_kind)
+			and selection.node_path == shortcut_path
+		)
+		var is_anchor := int(control_kind) in [
+			Selection.Kind.SHORTCUT_ENTRY,
+			Selection.Kind.SHORTCUT_EXIT,
+			Selection.Kind.SHORTCUT_MIDPOINT,
+		]
+		_draw_handle(
+			_world_to_screen(control_positions[control_kind]),
+			ACCENT_COLOR if is_anchor else SHORTCUT_COLOR,
+			is_selected
+		)
+	draw_string(
+		get_theme_default_font(),
+		entry + Vector2(10.0, -10.0),
+		"E",
+		HORIZONTAL_ALIGNMENT_LEFT,
+		18.0,
+		12,
+		ACCENT_COLOR
+	)
+	draw_string(
+		get_theme_default_font(),
+		exit + Vector2(10.0, -10.0),
+		"S",
+		HORIZONTAL_ALIGNMENT_LEFT,
+		18.0,
+		12,
+		ACCENT_COLOR
+	)
 
 
 func _draw_shortcut_junctions(shortcut: TrackShortcut) -> void:
@@ -845,7 +895,7 @@ func _get_curve() -> Curve3D:
 
 func _find_selection_at(screen_position: Vector2) -> RefCounted:
 	var best := Selection.none()
-	var best_distance := POINT_RADIUS * 2.4
+	var best_distance := CONTROL_HIT_RADIUS
 	var curve := _get_curve()
 	if curve == null:
 		return best
@@ -880,16 +930,17 @@ func _find_selection_at(screen_position: Vector2) -> RefCounted:
 		for shortcut in track.get_shortcuts():
 			if shortcut.curve == null or shortcut.curve.point_count < 3:
 				continue
-			var midpoint := shortcut.transform * shortcut.curve.get_point_position(
-				shortcut.curve.point_count / 2
-			)
-			var distance := screen_position.distance_to(_world_to_screen(midpoint))
-			if distance < best_distance:
-				best_distance = distance
-				best = Selection.node(
-					Selection.Kind.SHORTCUT_MIDPOINT,
-					track.get_path_to(shortcut)
+			var control_positions := _get_shortcut_control_positions(shortcut)
+			for control_kind in control_positions:
+				var distance := screen_position.distance_to(
+					_world_to_screen(control_positions[control_kind])
 				)
+				if distance <= best_distance:
+					best_distance = distance
+					best = Selection.node(
+						int(control_kind),
+						track.get_path_to(shortcut)
+					)
 	return best
 
 
@@ -909,13 +960,46 @@ func _get_selection_position(selected: RefCounted) -> Vector3:
 	var node := track.get_node_or_null(selected.node_path) as Node3D
 	if node == null:
 		return Vector3.ZERO
-	if selected.kind == Selection.Kind.SHORTCUT_MIDPOINT:
+	if selected.is_shortcut_control():
 		var shortcut := node as TrackShortcut
 		if shortcut != null and shortcut.curve != null:
-			return shortcut.transform * shortcut.curve.get_point_position(
-				shortcut.curve.point_count / 2
+			return _get_shortcut_control_positions(shortcut).get(
+				selected.kind,
+				Vector3.ZERO
 			)
 	return _get_node_track_position(node)
+
+
+func _get_shortcut_control_positions(shortcut: TrackShortcut) -> Dictionary:
+	if shortcut == null or shortcut.curve == null or shortcut.curve.point_count < 3:
+		return {}
+	var entry_index := 0
+	var midpoint_index := shortcut.curve.point_count / 2
+	var exit_index := shortcut.curve.point_count - 1
+	var entry := shortcut.curve.get_point_position(entry_index)
+	var midpoint := shortcut.curve.get_point_position(midpoint_index)
+	var exit := shortcut.curve.get_point_position(exit_index)
+	return {
+		Selection.Kind.SHORTCUT_ENTRY: shortcut.transform * entry,
+		Selection.Kind.SHORTCUT_EXIT: shortcut.transform * exit,
+		Selection.Kind.SHORTCUT_MIDPOINT: shortcut.transform * midpoint,
+		Selection.Kind.SHORTCUT_ENTRY_TANGENT: (
+			shortcut.transform
+			* (entry + shortcut.curve.get_point_out(entry_index))
+		),
+		Selection.Kind.SHORTCUT_EXIT_TANGENT: (
+			shortcut.transform
+			* (exit + shortcut.curve.get_point_in(exit_index))
+		),
+		Selection.Kind.SHORTCUT_MIDPOINT_IN_TANGENT: (
+			shortcut.transform
+			* (midpoint + shortcut.curve.get_point_in(midpoint_index))
+		),
+		Selection.Kind.SHORTCUT_MIDPOINT_OUT_TANGENT: (
+			shortcut.transform
+			* (midpoint + shortcut.curve.get_point_out(midpoint_index))
+		),
+	}
 
 
 func _get_node_track_position(node: Node3D) -> Vector3:

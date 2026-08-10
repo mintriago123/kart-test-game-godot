@@ -28,6 +28,7 @@ const META_ANCHOR_HEIGHT := AnchorService.META_ANCHOR_HEIGHT
 const META_ANCHOR_ROTATION := AnchorService.META_ANCHOR_ROTATION
 const META_PROP_BASE_SCALE := EntityService.META_PROP_BASE_SCALE
 const META_PROP_SCALE_MULTIPLIER := EntityService.META_PROP_SCALE_MULTIPLIER
+const META_ASSET_ID := EntityService.META_ASSET_ID
 const MIN_PROP_SCALE_MULTIPLIER := EntityService.MIN_PROP_SCALE_MULTIPLIER
 const MAX_PROP_SCALE_MULTIPLIER := EntityService.MAX_PROP_SCALE_MULTIPLIER
 const HISTORY_LIMIT := HistoryService.HISTORY_LIMIT
@@ -225,6 +226,57 @@ func fit_shortcut_midpoint(
 		lateral,
 		height
 	)
+
+
+func fit_shortcut_shape(
+	selection: RefCounted,
+	requested_shape: Variant,
+	exit_progress: float = NAN,
+	midpoint_longitudinal: float = NAN,
+	midpoint_lateral: float = NAN,
+	midpoint_height: float = NAN,
+	entry_handle: float = NAN,
+	exit_handle: float = NAN,
+	midpoint_in_handle: float = NAN,
+	midpoint_out_handle: float = NAN
+) -> Dictionary:
+	if requested_shape is Dictionary:
+		return _entities.fit_shortcut_shape(selection, requested_shape)
+	return _entities.fit_shortcut_shape(selection, {
+		"entry_progress": float(requested_shape),
+		"exit_progress": exit_progress,
+		"midpoint_longitudinal": midpoint_longitudinal,
+		"midpoint_lateral": midpoint_lateral,
+		"midpoint_height": midpoint_height,
+		"entry_handle": entry_handle,
+		"exit_handle": exit_handle,
+		"midpoint_in_handle": midpoint_in_handle,
+		"midpoint_out_handle": midpoint_out_handle,
+	})
+
+
+func reset_shortcut_safe(selection: RefCounted) -> Dictionary:
+	return _entities.reset_shortcut_safe(selection)
+
+
+func rename_shortcut(selection: RefCounted, display_name: String) -> bool:
+	return _entities.rename_shortcut(selection, display_name)
+
+
+func set_prop_asset_id(prop: Node3D, asset_id: StringName) -> void:
+	_entities.set_prop_asset_id(prop, asset_id)
+
+
+func get_prop_asset_entry(prop: Node3D) -> TrackAssetEntry:
+	return _entities.get_prop_asset_entry(prop)
+
+
+func restore_prop_recommended_scale(selection: RefCounted) -> bool:
+	return _entities.restore_prop_recommended_scale(selection)
+
+
+func calibrate_known_props() -> Dictionary:
+	return _entities.calibrate_known_props()
 
 
 func duplicate_entity(selection: RefCounted) -> RefCounted:
