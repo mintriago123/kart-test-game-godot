@@ -616,6 +616,21 @@ func _test_asset_scale_contracts() -> void:
 		and scaled_prop.scale.is_equal_approx(scale_before_invalid),
 		"Non-finite prop scale values are rejected without mutation."
 	)
+	var transform_before_invalid_anchor := scaled_prop.transform
+	_check(
+		not session.update_prop_anchor(
+			scaled_selection,
+			0.3,
+			INF,
+			1.0,
+			35.0,
+			1.0
+		)
+		and scaled_prop.transform.is_equal_approx(
+			transform_before_invalid_anchor
+		),
+		"Non-finite combined prop edits are rejected atomically."
+	)
 	_check(
 		session.update_prop_scale(scaled_selection, 4.0)
 		and scaled_prop.scale.is_equal_approx(base_scale * 3.0)
