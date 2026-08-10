@@ -54,8 +54,8 @@ func _test_shortcut_junction_geometry() -> void:
 	_check(
 		entry.transition_length >= 12.0
 		and entry.transition_length <= 14.0
-		and exit.transition_length >= 8.0
-		and exit.transition_length <= 10.0
+		and exit.transition_length >= 12.0
+		and exit.transition_length <= 14.0
 		and entry.left_boundary.size() >= 3
 		and entry.left_boundary.size() == entry.right_boundary.size(),
 		"Automatic junctions produce paired curves with a longer entry taper."
@@ -64,6 +64,13 @@ func _test_shortcut_junction_geometry() -> void:
 		_path_moves_toward_finish(entry.left_boundary)
 		and _path_moves_toward_finish(entry.right_boundary),
 		"The entry funnel never doubles back into a hook-shaped barrier."
+	)
+	_check(
+		_path_moves_toward_finish(exit.left_boundary)
+		and _path_moves_toward_finish(exit.right_boundary)
+		and not _open_chain_self_intersects(exit.left_boundary)
+		and not _open_chain_self_intersects(exit.right_boundary),
+		"The longer exit funnel remains progressive on both boundaries."
 	)
 	var shallow_points: Array[Vector3] = [
 		Vector3(-20.0, 0.0, -20.0),
