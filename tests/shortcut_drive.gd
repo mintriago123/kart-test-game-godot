@@ -49,13 +49,18 @@ func _test_track_shortcuts(
 	player.is_control_enabled = true
 
 	for shortcut_definition in track.shortcut_definitions:
-		for lateral_offset in [0.0, -1.5, 1.5]:
+		for approach in [
+			{"lateral_offset": 0.0, "heading_offset": 0.0},
+			{"lateral_offset": -3.0, "heading_offset": 8.0},
+			{"lateral_offset": 3.0, "heading_offset": -8.0},
+		]:
 			await _drive_shortcut(
 				player,
 				track,
 				shortcut_definition,
 				track_definition,
-				lateral_offset
+				float(approach.lateral_offset),
+				float(approach.heading_offset)
 			)
 
 	main.queue_free()
@@ -67,7 +72,8 @@ func _drive_shortcut(
 	track: CoastalTrack,
 	shortcut_definition: Dictionary,
 	track_definition: TrackDefinition,
-	lateral_offset: float
+	lateral_offset: float,
+	heading_offset_degrees: float
 ) -> void:
 	player.set_shortcut_surface_enabled(false)
 	var drive_points := _build_drive_points(
@@ -78,9 +84,16 @@ func _drive_shortcut(
 	var drive_label := (
 		"centro"
 		if is_zero_approx(lateral_offset)
-		else "margen %+.1f m" % lateral_offset
+		else "margen %+.1f m · entrada %+.0f°" % [
+			lateral_offset,
+			heading_offset_degrees,
+		]
 	)
 	var first_forward := (drive_points[1] - drive_points[0]).normalized()
+	first_forward = first_forward.rotated(
+		Vector3.UP,
+		deg_to_rad(heading_offset_degrees)
+	)
 	player.global_transform = Transform3D(
 		Basis.looking_at(first_forward, Vector3.UP),
 		drive_points[0] + Vector3.UP * 0.45
