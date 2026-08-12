@@ -46,7 +46,7 @@ func build_interface() -> void:
 	top_bar.add_child(spacer)
 	time_label = RaceHudStyle.create_chip("00:00.000", 22)
 	top_bar.add_child(time_label)
-	delta_label = RaceHudStyle.create_chip("DELTA  SIN REFERENCIA", 18)
+	delta_label = RaceHudStyle.create_chip("FANTASMA  SIN REFERENCIA", 18)
 	delta_label.visible = false
 	top_bar.add_child(delta_label)
 	speed_label = RaceHudStyle.create_chip("000 km/h", 20)
@@ -204,10 +204,10 @@ func set_game_mode(game_mode: int) -> void:
 
 func update_ghost_delta(delta: float) -> void:
 	if not is_finite(delta):
-		delta_label.text = "DELTA  SIN REFERENCIA"
+		delta_label.text = "FANTASMA  SIN REFERENCIA"
 		delta_label.add_theme_color_override("font_color", Color("#f5d66f"))
 		return
-	delta_label.text = "DELTA  %s%s" % ["-" if delta < 0.0 else "+", RaceHudStyle.format_time(absf(delta))]
+	delta_label.text = "FANTASMA  %s%s" % ["-" if delta < 0.0 else "+", RaceHudStyle.format_time(absf(delta))]
 	delta_label.add_theme_color_override("font_color", Color("#75e6a4") if delta < 0.0 else Color("#ef8b78"))
 
 
@@ -218,7 +218,7 @@ func show_lap_split(lap_number: int, lap_time: float, previous_best: float) -> v
 	var color := Color("#f5d66f")
 	if previous_best > 0.0:
 		var delta := lap_time - previous_best
-		comparison = "%+.3f" % delta
+		comparison = "VS. MEJOR VUELTA  %+.3f s" % delta
 		color = Color("#75e6a4") if delta < 0.0 else Color("#ef8b78")
 	split_label.text = "VUELTA %d · %s\n%s" % [
 		lap_number,

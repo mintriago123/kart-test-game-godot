@@ -159,6 +159,10 @@ func update_ghost_delta(delta: float) -> void:
 	_status_view.update_ghost_delta(delta)
 
 
+func request_resume() -> void:
+	_flow_overlay.request_resume()
+
+
 func _process(_delta: float) -> void:
 	if _player_kart != null:
 		_status_view.update_speed(_player_kart.get_speed_kph())

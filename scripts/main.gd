@@ -343,7 +343,10 @@ func _exit_tree() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"pause") and race_world != null:
-		get_tree().paused = not get_tree().paused
+		if get_tree().paused:
+			race_world._hud.request_resume()
+		else:
+			get_tree().paused = true
 	if event.is_action_pressed(&"reset_kart") and race_world != null and race_world.player_kart != null:
 		race_world.player_kart.reset_to_last_checkpoint()
 

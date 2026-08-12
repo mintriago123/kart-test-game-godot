@@ -2,6 +2,7 @@ class_name RaceFlowOverlay
 extends Control
 
 const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
+const RESUME_DELAY := 0.5
 
 signal retry_requested
 signal menu_requested
@@ -26,6 +27,8 @@ var provisional_panel: Control
 var provisional_title: Label
 var provisional_details: VBoxContainer
 var is_intro_visible := false
+var pause_title: Label
+var _is_resuming := false
 
 
 func build_interface() -> void:
@@ -381,17 +384,14 @@ func _build_pause_overlay() -> Control:
 	var content := VBoxContainer.new()
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
 	card.add_child(content)
-	var label := Label.new()
-	label.text = "CARRERA EN PAUSA"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 34)
-	content.add_child(label)
+	pause_title = Label.new()
+	pause_title.text = "CARRERA EN PAUSA"
+	pause_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pause_title.add_theme_font_size_override("font_size", 34)
+	content.add_child(pause_title)
 	var resume := _pause_action("CONTINUAR", UiTokens.ELECTRIC_YELLOW)
 	resume.name = "Resume"
-	resume.pressed.connect(func() -> void:
-		resume_requested.emit()
-		get_tree().paused = false
-	)
+	resume.pressed.connect(request_resume)
 	content.add_child(resume)
 	var restart := _pause_action("REINICIAR CARRERA", UiTokens.WARM_WHITE)
 	restart.pressed.connect(func() -> void: _show_confirmation("¿REINICIAR LA CARRERA?", restart_requested))
@@ -540,6 +540,24 @@ func _toggle_pause() -> void:
 	var resume := pause_overlay.find_child("Resume", true, false) as Button
 	if resume != null:
 		resume.grab_focus.call_deferred()
+
+
+func request_resume() -> void:
+	if _is_resuming or not get_tree().paused:
+		return
+	_is_resuming = true
+	pause_title.text = "REANUDANDO…"
+	for button in pause_overlay.find_children("*", "Button", true, false):
+		(button as Button).disabled = true
+	await get_tree().create_timer(RESUME_DELAY, true).timeout
+	if not is_inside_tree():
+		return
+	get_tree().paused = false
+	_is_resuming = false
+	pause_title.text = "CARRERA EN PAUSA"
+	for button in pause_overlay.find_children("*", "Button", true, false):
+		(button as Button).disabled = false
+	resume_requested.emit()
 
 
 func _request_intro_skip() -> void:

@@ -61,7 +61,7 @@ func _test_pause_contract() -> void:
 	_check(paused and overlay.pause_overlay.visible, "Touching pause immediately pauses and opens its menu.")
 	var resume := overlay.pause_overlay.find_child("Resume", true, false) as Button
 	resume.pressed.emit()
-	await process_frame
+	await create_timer(RaceFlowOverlay.RESUME_DELAY + 0.05, true).timeout
 	_check(not paused, "Continue releases the paused scene tree.")
 	overlay.queue_free()
 	await process_frame

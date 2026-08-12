@@ -141,7 +141,7 @@ func _run() -> void:
 			"Resume", true, false
 		) as Button
 		resume_button.pressed.emit()
-		await process_frame
+		await create_timer(RaceFlowOverlay.RESUME_DELAY + 0.05, true).timeout
 		_check(not paused, "Resume restarts race processing.")
 		hud.set_mobile_controls_enabled(true)
 		await process_frame
