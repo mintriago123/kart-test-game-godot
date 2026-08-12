@@ -14,6 +14,10 @@ var _player: Node3D
 func _ready() -> void:
 	super._ready()
 	clip_contents = true
+	background_color = Color.TRANSPARENT
+	grid_visible = false
+	map_padding = 8.0
+	queue_redraw()
 
 
 func configure_track(track: TrackLevel) -> void:
