@@ -127,6 +127,22 @@ func _run() -> void:
 		var track: CoastalTrack = main.race_world._track
 		var manager: RaceManager = main.race_world.race_manager
 		var hud: RaceHud = main.race_world._hud
+		var paused_time := manager.race_time
+		var paused_player_position := player.global_position
+		hud._flow_overlay.get_node("PauseButton").pressed.emit()
+		await create_timer(0.2, true).timeout
+		_check(
+			paused
+			and is_equal_approx(manager.race_time, paused_time)
+			and player.global_position.is_equal_approx(paused_player_position),
+			"Pause freezes race time and kart simulation."
+		)
+		var resume_button := hud._pause_overlay.find_child(
+			"Resume", true, false
+		) as Button
+		resume_button.pressed.emit()
+		await process_frame
+		_check(not paused, "Resume restarts race processing.")
 		hud.set_mobile_controls_enabled(true)
 		await process_frame
 		_check(hud._touch_controls.visible, "Mobile controls can be enabled on a touch device.")

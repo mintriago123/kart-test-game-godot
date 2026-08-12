@@ -32,6 +32,12 @@ var racing_line: RacingLine
 var session: RaceSessionConfig
 
 
+func _init() -> void:
+	# Main stays active to receive the unpause shortcut, so the race must opt
+	# back into pausable processing instead of inheriting Main's ALWAYS mode.
+	process_mode = Node.PROCESS_MODE_PAUSABLE
+
+
 func setup(value: RaceSessionConfig) -> void:
 	session = value
 	track_definition = value.track
