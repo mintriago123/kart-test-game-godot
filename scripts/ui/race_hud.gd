@@ -190,9 +190,10 @@ func set_mobile_controls_enabled(enabled: bool) -> void:
 
 func _build_interface() -> void:
 	var root := Control.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.theme = UiTokens.create_theme()
 	add_child(root)
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.resized.connect(_update_responsive_layout)
 
 	_status_view = RaceStatusView.new()
 	_status_view.name = "RaceStatus"
@@ -202,8 +203,8 @@ func _build_interface() -> void:
 	_minimap = RaceMinimap.new()
 	_minimap.name = "RaceMinimap"
 	_minimap.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_minimap.position = Vector2(-226, 94)
-	_minimap.size = Vector2(202, 142)
+	_minimap.position = Vector2(-244, 104)
+	_minimap.size = Vector2(220, 156)
 	root.add_child(_minimap)
 	_race_elements.append(_minimap)
 
@@ -233,6 +234,25 @@ func _build_interface() -> void:
 	_flow_overlay.controls_requested.connect(func() -> void: controls_requested.emit())
 	_flow_overlay.quit_requested.connect(func() -> void: quit_requested.emit())
 	_bind_flow_references()
+	_update_responsive_layout()
+
+
+func _update_responsive_layout() -> void:
+	if _minimap == null or _flow_overlay == null:
+		return
+	var viewport_size := get_viewport().get_visible_rect().size
+	var compact := viewport_size.x < 900.0 or viewport_size.y < 500.0
+	var map_size := Vector2(150.0, 106.0) if compact else Vector2(220.0, 156.0)
+	_minimap.offset_left = -map_size.x - 16.0 if compact else -map_size.x - 24.0
+	_minimap.offset_right = -16.0 if compact else -24.0
+	_minimap.offset_top = 82.0 if compact else 104.0
+	_minimap.offset_bottom = _minimap.offset_top + map_size.y
+	var pause_button := _flow_overlay.get_node_or_null("PauseButton") as Button
+	if pause_button != null:
+		pause_button.offset_left = -76.0 if compact else -88.0
+		pause_button.offset_right = -12.0 if compact else -24.0
+		pause_button.offset_top = 198.0 if compact else 278.0
+		pause_button.offset_bottom = pause_button.offset_top + 64.0
 
 
 func _bind_status_references() -> void:

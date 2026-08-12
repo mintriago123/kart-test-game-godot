@@ -5,10 +5,15 @@ const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
 
 const PLAYER_COLOR := UiTokens.ELECTRIC_YELLOW
 const RIVAL_COLOR := UiTokens.CORAL
-const MARKER_RADIUS := 5.0
+const MARKER_RADIUS := 4.0
 
 var _racers: Array[Node3D] = []
 var _player: Node3D
+
+
+func _ready() -> void:
+	super._ready()
+	clip_contents = true
 
 
 func configure_track(track: TrackLevel) -> void:

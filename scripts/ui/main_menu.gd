@@ -99,14 +99,14 @@ func apply_settings(
 
 func _build_interface() -> void:
 	var root := Control.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.theme = UiTokens.create_theme()
 	add_child(root)
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var background := ColorRect.new()
 	background.color = UiTokens.GRAPHITE
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(background)
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var sun := ColorRect.new()
 	sun.color = UiTokens.ELECTRIC_YELLOW
@@ -129,11 +129,13 @@ func _build_interface() -> void:
 	root.add_child(stripe)
 
 	var content := VBoxContainer.new()
+	content.name = "MainContent"
 	content.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	content.position = Vector2(72.0, -210.0)
 	content.size = Vector2(610.0, 420.0)
 	content.add_theme_constant_override("separation", 15)
 	root.add_child(content)
+	root.resized.connect(func() -> void: _update_menu_layout(root, content, sun, stripe))
 
 	var eyebrow := Label.new()
 	eyebrow.text = "PROTOTIPO DE CARRERAS ARCADE"
@@ -221,6 +223,36 @@ func _build_interface() -> void:
 	root.add_child(_settings_panel)
 	_select_track(_selected_track_id, false)
 	_play_button.grab_focus.call_deferred()
+	_update_menu_layout(root, content, sun, stripe)
+
+
+func _update_menu_layout(
+	root: Control,
+	content: Control,
+	sun: Control,
+	stripe: Control
+) -> void:
+	var compact := root.size.x < 900.0 or root.size.y < 560.0
+	if compact:
+		var scale_factor := minf(0.78, (root.size.x - 40.0) / 760.0)
+		content.scale = Vector2.ONE * scale_factor
+		var desired_y := maxf(18.0, (root.size.y - content.size.y * scale_factor) * 0.5)
+		content.offset_left = 24.0
+		content.offset_right = 24.0 + content.size.x
+		content.offset_top = desired_y - root.size.y * 0.5
+		content.offset_bottom = content.offset_top + content.size.y
+		sun.offset_left = -220.0
+		stripe.offset_left = -244.0
+		stripe.offset_right = -219.0
+	else:
+		content.scale = Vector2.ONE
+		content.offset_left = 72.0
+		content.offset_right = 682.0
+		content.offset_top = -210.0
+		content.offset_bottom = 210.0
+		sun.offset_left = -330.0
+		stripe.offset_left = -365.0
+		stripe.offset_right = -329.0
 
 
 func _build_garage_panel() -> Control:

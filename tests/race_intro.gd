@@ -452,6 +452,8 @@ func _test_hud_resolution(viewport_size: Vector2i) -> void:
 	var controls_fit := true
 	for control in controls:
 		var control_rect := control.get_global_rect()
+		if not viewport_rect.encloses(control_rect):
+			print("INFO: HUD control outside %s: %s %s" % [viewport_size, control.name, control_rect])
 		controls_fit = (
 			controls_fit
 			and viewport_rect.encloses(control_rect)

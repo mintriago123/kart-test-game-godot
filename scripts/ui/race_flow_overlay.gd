@@ -39,7 +39,7 @@ func build_interface() -> void:
 	pause_button.tooltip_text = "Pausa"
 	pause_button.custom_minimum_size = Vector2(64.0, 64.0)
 	pause_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	pause_button.position = Vector2(-86.0, 106.0)
+	pause_button.position = Vector2(-88.0, 278.0)
 	pause_button.size = Vector2(64.0, 64.0)
 	pause_button.pressed.connect(_toggle_pause)
 	RaceHudStyle.apply_button_style(
@@ -533,7 +533,13 @@ func _build_provisional_panel() -> Control:
 
 
 func _toggle_pause() -> void:
-	get_tree().paused = not get_tree().paused
+	if results_panel.visible or is_intro_visible:
+		return
+	get_tree().paused = true
+	update_pause_visibility(true)
+	var resume := pause_overlay.find_child("Resume", true, false) as Button
+	if resume != null:
+		resume.grab_focus.call_deferred()
 
 
 func _request_intro_skip() -> void:
