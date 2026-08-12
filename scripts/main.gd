@@ -44,6 +44,8 @@ func start_game(
 	race_world.play_intro = should_play_intro
 	race_world.track_definition = track_definition
 	race_world.race_class = RaceClassDefinition.get_by_id(settings.selected_cc_id)
+	race_world.previous_best_time = settings.get_best_time(track_definition.id, settings.selected_cc_id)
+	race_world.previous_best_lap_time = settings.get_best_lap_time(track_definition.id, settings.selected_cc_id)
 	race_world.retry_requested.connect(_restart_game)
 	race_world.menu_requested.connect(_return_to_menu)
 	race_world.race_completed.connect(_register_race_time)
@@ -123,12 +125,8 @@ func _apply_master_volume(value: float) -> void:
 	AudioServer.set_bus_volume_db(0, linear_to_db(value) if value > 0.0 else -80.0)
 
 
-func _register_race_time(race_time: float) -> void:
-	if settings.register_race_time(
-		race_time,
-		settings.selected_track_id,
-		settings.selected_cc_id
-	):
+func _register_race_time(result: RaceResult) -> void:
+	if settings.register_race_result(result):
 		settings.save_to_disk()
 
 

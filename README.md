@@ -72,6 +72,7 @@ godot --headless --path . --script tests/track_editor.gd
 godot --headless --path . --script tests/track_barriers.gd
 godot --headless --path . --script tests/track_minimap.gd
 godot --headless --path . --script tests/race_intro.gd
+godot --headless --path . --script tests/race_telemetry.gd
 godot --headless --path . --script tests/driving_physics.gd
 godot --headless --path . --script tests/shortcut_drive.gd
 godot --headless --path . --script tests/race_stability.gd

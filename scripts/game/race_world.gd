@@ -7,7 +7,7 @@ const DEFAULT_ITEM_CATALOG: ItemCatalog = preload(
 
 signal retry_requested
 signal menu_requested
-signal race_completed(time: float)
+signal race_completed(result: RaceResult)
 
 var graphics_profile := "medium"
 var vibration_enabled := true
@@ -17,6 +17,8 @@ var race_class: RaceClassDefinition = RaceClassDefinition.get_default()
 var race_manager: RaceManager
 var player_kart: Kart
 var item_catalog: ItemCatalog = DEFAULT_ITEM_CATALOG
+var previous_best_time := -1.0
+var previous_best_lap_time := -1.0
 
 var _track: CoastalTrack
 var _hud: RaceHud
@@ -111,6 +113,10 @@ func _build_race() -> void:
 	add_child(race_manager)
 	if track_definition != null:
 		race_manager.total_laps = track_definition.laps
+		race_manager.track_id = track_definition.id
+	race_manager.cc_id = race_class.id
+	race_manager.previous_best_time = previous_best_time
+	race_manager.previous_best_lap_time = previous_best_lap_time
 	race_manager.configure(_track.route_points)
 	_track.shortcut_completed.connect(race_manager.complete_shortcut)
 	race_manager.shortcut_accepted.connect(_handle_shortcut_accepted)
@@ -148,11 +154,12 @@ func _build_race() -> void:
 		var grid_slot := 3 if slot == 0 else slot - 1
 		kart.global_transform = _track.get_spawn_transform(grid_slot)
 		kart.set_respawn_transform(kart.global_transform)
-		race_manager.register_kart(kart, slot == 0)
+		race_manager.register_kart(kart, slot == 0, grid_slot + 1)
 		kart.item_use_requested.connect(
 			_handle_item_use_requested.bind(kart)
 		)
 		kart.hit_blocked.connect(_handle_shield_blocked.bind(kart))
+		kart.recovered.connect(race_manager.record_recovery.bind(kart))
 		if slot == 0:
 			player_kart = kart
 			_add_camera(kart)
@@ -190,8 +197,8 @@ func _build_race() -> void:
 	race_manager.countdown_changed.connect(_hud.show_countdown)
 	race_manager.countdown_changed.connect(_sound.play_countdown)
 	race_manager.race_info_changed.connect(_hud.update_race_info)
-	race_manager.player_finished.connect(_hud.show_results)
-	race_manager.player_finished.connect(_handle_player_finished)
+	race_manager.lap_completed.connect(_handle_lap_completed)
+	race_manager.race_completed.connect(_handle_race_completed)
 	race_manager.race_started.connect(_handle_race_started)
 	_start_pre_race.call_deferred()
 
@@ -282,6 +289,7 @@ func _handle_race_started() -> void:
 
 
 func _handle_item_collected(kart: Node) -> void:
+	race_manager.record_item_collected(kart)
 	_sound.play_pickup()
 	if kart == player_kart and vibration_enabled:
 		Input.vibrate_handheld(35, 0.35)
@@ -309,8 +317,9 @@ func _handle_item_use_requested(
 
 func _handle_item_activated(
 	item: ItemDefinition,
-	_source_kart: Kart
+	source_kart: Kart
 ) -> void:
+	race_manager.record_item_used(source_kart)
 	match item.category:
 		ItemDefinition.ItemCategory.PROJECTILE:
 			_sound.play_item_launch()
@@ -322,9 +331,11 @@ func _handle_item_activated(
 
 func _handle_item_hit(
 	_item: ItemDefinition,
-	_kart: Node3D,
+	source_kart: Kart,
+	kart: Node3D,
 	result: int
 ) -> void:
+	race_manager.record_item_hit(source_kart, kart, result)
 	if result != Kart.HitResult.BLOCKED:
 		_sound.play_item_impact()
 
@@ -375,12 +386,18 @@ func _handle_shortcut_accepted(kart: Node) -> void:
 		Input.vibrate_handheld(70, 0.42)
 
 
-func _handle_player_finished(_position: int, time: float) -> void:
+func _handle_lap_completed(racer: Node, lap_number: int, lap_time: float) -> void:
+	if racer == player_kart:
+		_hud.show_lap_split(lap_number, lap_time, previous_best_lap_time)
+
+
+func _handle_race_completed(result: RaceResult) -> void:
 	_clear_active_items()
 	_sound.play_finish()
 	if vibration_enabled:
 		Input.vibrate_handheld(220, 0.6)
-	race_completed.emit(time)
+	_hud.show_results(result)
+	race_completed.emit(result)
 
 
 func shutdown() -> void:

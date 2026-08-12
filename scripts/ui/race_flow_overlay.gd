@@ -13,6 +13,7 @@ var intro_skip_button: Button
 var pause_overlay: Control
 var results_panel: Control
 var results_title: Label
+var results_details: VBoxContainer
 var retry_button: Button
 var is_intro_visible := false
 
@@ -79,14 +80,89 @@ func hide_intro() -> void:
 	set_intro_skip_enabled(false)
 
 
-func show_results(position: int, race_time: float) -> void:
-	results_title.text = "%s\n%s · %s" % [
-		"¡PODIO!" if position <= 3 else "¡META!",
-		"%dº LUGAR" % position,
-		RaceHudStyle.format_time(race_time),
+func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> void:
+	var result: RaceResult = null
+	if result_or_position is RaceResult:
+		result = result_or_position
+	elif result_or_position is int:
+		result = _build_legacy_result(int(result_or_position), legacy_time)
+	if result == null or result.player_result == null:
+		return
+	var player := result.player_result
+	results_title.text = "%s · %dº LUGAR\n%s" % [
+		"¡PODIO!" if player.finish_position <= 3 else "¡META!",
+		player.finish_position,
+		RaceHudStyle.format_time(player.finish_time),
 	]
+	for child in results_details.get_children():
+		child.queue_free()
+	_add_result_label(
+		("NUEVO RÉCORD · " if result.is_new_best_time else "TIEMPO · ")
+		+ RaceHudStyle.format_time(player.finish_time),
+		26,
+		Color("#75e6a4") if result.is_new_best_time else Color("#fff1b5")
+	)
+	_add_result_label(
+		("MEJOR VUELTA · " if result.is_new_best_lap else "VUELTA RÁPIDA · ")
+		+ RaceHudStyle.format_time(player.best_lap_time),
+		20,
+		Color("#75e6a4") if result.is_new_best_lap else Color("#d8f4e8")
+	)
+	var laps := ""
+	for index in player.lap_times.size():
+		laps += "%sV%d  %s" % [
+			"  ·  " if index > 0 else "",
+			index + 1,
+			RaceHudStyle.format_time(player.lap_times[index]),
+		]
+	_add_result_label(laps, 16, Color("#b9ddd6"))
+	_add_result_label(
+		"Posiciones %s%d  ·  Objetos %d/%d  ·  Aciertos %d  ·  Bloqueos %d" % [
+			"+" if player.get_position_delta() >= 0 else "",
+			player.get_position_delta(), player.items_collected, player.items_used,
+			player.hits_landed, player.hits_blocked,
+		], 16, Color("#d8f4e8")
+	)
+	_add_result_label(
+		"Atajos %d  ·  Recuperaciones %d" % [player.shortcuts_used, player.recoveries],
+		16, Color("#d8f4e8")
+	)
+	_add_result_label("CLASIFICACIÓN", 18, Color("#f5d66f"))
+	for standing in result.standings:
+		_add_result_label(
+			"%dº  %-12s  %s" % [
+				standing.finish_position,
+				standing.racer_name,
+				RaceHudStyle.format_time(standing.finish_time)
+				if standing.finish_time > 0.0 else "EN CARRERA",
+			], 17, Color("#fff1b5") if standing.is_player else Color("#c5e4de")
+		)
 	results_panel.visible = true
 	retry_button.grab_focus()
+
+
+func _build_legacy_result(position: int, race_time: float) -> RaceResult:
+	var result := RaceResult.new()
+	var player := RacerRaceResult.new()
+	player.racer_name = "Piloto"
+	player.is_player = true
+	player.start_position = position
+	player.finish_position = position
+	player.finish_time = race_time
+	player.best_lap_time = race_time
+	player.lap_times = [race_time]
+	result.player_result = player
+	result.standings = [player]
+	return result
+
+
+func _add_result_label(text: String, size: int, color: Color) -> void:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_color_override("font_color", color)
+	results_details.add_child(label)
 
 
 func update_pause_visibility(is_paused: bool) -> void:
@@ -221,8 +297,12 @@ func _build_results_panel() -> Control:
 	var card := VBoxContainer.new()
 	card.name = "Card"
 	card.set_anchors_preset(Control.PRESET_CENTER)
-	card.position = Vector2(-260.0, -150.0)
-	card.size = Vector2(520.0, 300.0)
+	card.set_anchors_preset(Control.PRESET_FULL_RECT)
+	card.offset_left = 20.0
+	card.offset_top = 15.0
+	card.offset_right = -20.0
+	card.offset_bottom = -15.0
+	card.custom_minimum_size = Vector2(0.0, 0.0)
 	card.alignment = BoxContainer.ALIGNMENT_CENTER
 	card.add_theme_constant_override("separation", 22)
 	card.add_theme_stylebox_override(
@@ -246,6 +326,16 @@ func _build_results_panel() -> Control:
 		Color("#fff1b5")
 	)
 	card.add_child(results_title)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0.0, 100.0)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	card.add_child(scroll)
+	results_details = VBoxContainer.new()
+	results_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	results_details.add_theme_constant_override("separation", 8)
+	scroll.add_child(results_details)
 
 	var actions := HBoxContainer.new()
 	actions.name = "Actions"

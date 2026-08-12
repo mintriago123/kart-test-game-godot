@@ -12,6 +12,7 @@ var best_time := -1.0
 var selected_track_id: StringName = DEFAULT_TRACK_ID
 var selected_cc_id: StringName = DEFAULT_CC_ID
 var best_times: Dictionary = {}
+var best_lap_times: Dictionary = {}
 var is_persistence_enabled := true
 var settings_path := SETTINGS_PATH
 
@@ -38,6 +39,10 @@ func load_from_disk() -> void:
 	best_times = migrate_best_times(
 		loaded_best_times if loaded_best_times is Dictionary else {}
 	)
+	var loaded_best_laps: Variant = config.get_value("progress", "best_lap_times", {})
+	best_lap_times = migrate_best_times(
+		loaded_best_laps if loaded_best_laps is Dictionary else {}
+	)
 	var legacy_best_time := maxf(
 		float(config.get_value("progress", "best_time", -1.0)),
 		-1.0
@@ -63,6 +68,7 @@ func save_to_disk() -> void:
 		get_best_time(DEFAULT_TRACK_ID, DEFAULT_CC_ID)
 	)
 	config.set_value("progress", "best_times", best_times)
+	config.set_value("progress", "best_lap_times", best_lap_times)
 	var error := config.save(settings_path)
 	if error != OK:
 		push_warning("Could not save MichiKart xd settings: %s" % error_string(error))
@@ -99,6 +105,30 @@ func register_race_time(
 	if track_id == selected_track_id and cc_id == selected_cc_id:
 		best_time = race_time
 	return true
+
+
+func get_best_lap_time(
+	track_id: StringName = selected_track_id,
+	cc_id: StringName = selected_cc_id
+) -> float:
+	return maxf(float(best_lap_times.get(get_record_key(track_id, cc_id), -1.0)), -1.0)
+
+
+func register_race_result(result: RaceResult) -> bool:
+	if result == null or result.player_result == null:
+		return false
+	var changed := register_race_time(
+		result.player_result.finish_time,
+		result.track_id,
+		result.cc_id
+	)
+	var lap_time := result.player_result.best_lap_time
+	var record_key := get_record_key(result.track_id, result.cc_id)
+	var current_best := get_best_lap_time(result.track_id, result.cc_id)
+	if lap_time > 0.0 and (current_best <= 0.0 or lap_time < current_best):
+		best_lap_times[record_key] = lap_time
+		changed = true
+	return changed
 
 
 static func get_record_key(track_id: StringName, cc_id: StringName) -> StringName:

@@ -15,6 +15,9 @@ var shield_bar: ProgressBar
 var countdown_label: Label
 var drift_bar: ProgressBar
 var race_elements: Array[CanvasItem] = []
+var split_panel: PanelContainer
+var split_label: Label
+var _split_generation := 0
 
 
 func build_interface() -> void:
@@ -79,6 +82,7 @@ func build_interface() -> void:
 	item_row.add_child(item_label)
 
 	_build_shield_status()
+	_build_split_status()
 
 	drift_bar = ProgressBar.new()
 	drift_bar.min_value = 0.0
@@ -179,6 +183,28 @@ func show_boost(charge_ratio: float) -> void:
 	drift_bar.value = charge_ratio
 
 
+func show_lap_split(lap_number: int, lap_time: float, previous_best: float) -> void:
+	_split_generation += 1
+	var generation := _split_generation
+	var comparison := "PRIMER REGISTRO"
+	var color := Color("#f5d66f")
+	if previous_best > 0.0:
+		var delta := lap_time - previous_best
+		comparison = "%+.3f" % delta
+		color = Color("#75e6a4") if delta < 0.0 else Color("#ef8b78")
+	split_label.text = "VUELTA %d · %s\n%s" % [
+		lap_number,
+		RaceHudStyle.format_time(lap_time),
+		comparison,
+	]
+	split_label.add_theme_color_override("font_color", color)
+	split_panel.visible = true
+	get_tree().create_timer(2.5).timeout.connect(func() -> void:
+		if generation == _split_generation and is_instance_valid(split_panel):
+			split_panel.visible = false
+	)
+
+
 func set_race_elements_visible(
 	is_visible: bool,
 	has_active_shield: bool
@@ -239,3 +265,22 @@ func _build_shield_status() -> void:
 		RaceHudStyle.style(Color("#77d9df"), 6)
 	)
 	details.add_child(shield_bar)
+
+
+func _build_split_status() -> void:
+	split_panel = PanelContainer.new()
+	split_panel.name = "LapSplit"
+	split_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	split_panel.position = Vector2(-155.0, 228.0)
+	split_panel.size = Vector2(310.0, 80.0)
+	split_panel.visible = false
+	split_panel.add_theme_stylebox_override(
+		"panel", RaceHudStyle.style(Color(0.02, 0.12, 0.14, 0.94), 14)
+	)
+	add_child(split_panel)
+	race_elements.append(split_panel)
+	split_label = Label.new()
+	split_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	split_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	split_label.add_theme_font_size_override("font_size", 18)
+	split_panel.add_child(split_label)

@@ -106,9 +106,14 @@ func hide_intro() -> void:
 	_countdown_label.visible = not _countdown_label.text.is_empty()
 
 
-func show_results(position: int, race_time: float) -> void:
-	_flow_overlay.show_results(position, race_time)
+func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> void:
+	_flow_overlay.show_results(result_or_position, legacy_time)
 	_set_touch_controls_visible(false)
+	_set_race_elements_visible(false)
+
+
+func show_lap_split(lap_number: int, lap_time: float, previous_best: float) -> void:
+	_status_view.show_lap_split(lap_number, lap_time, previous_best)
 
 
 func _process(_delta: float) -> void:

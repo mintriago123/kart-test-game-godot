@@ -2,7 +2,7 @@ class_name ItemExecutor
 extends Node
 
 signal item_activated(item: ItemDefinition, source_kart: Kart)
-signal kart_hit(item: ItemDefinition, kart: Node3D, result: int)
+signal kart_hit(item: ItemDefinition, source_kart: Kart, kart: Node3D, result: int)
 signal projectile_bounced(bounce_count: int)
 
 var race_manager: RaceManager
@@ -104,7 +104,7 @@ func _spawn_projectile(
 	)
 	projectile.kart_hit.connect(
 		func(kart: Node3D, result: int) -> void:
-			kart_hit.emit(item, kart, result)
+			kart_hit.emit(item, source_kart, kart, result)
 	)
 	projectiles.add_child(projectile)
 	projectile.global_position = (
@@ -126,7 +126,7 @@ func _spawn_trap(
 	trap.setup(source_kart, item)
 	trap.kart_hit.connect(
 		func(kart: Node3D, result: int) -> void:
-			kart_hit.emit(item, kart, result)
+			kart_hit.emit(item, source_kart, kart, result)
 	)
 	traps.add_child(trap)
 	trap.place(
@@ -166,7 +166,7 @@ func _execute_area_effect(
 			if raw_result != null
 			else Kart.HitResult.APPLIED
 		)
-		kart_hit.emit(item, target, hit_result)
+		kart_hit.emit(item, source_kart, target, hit_result)
 	_spawn_effect(item, source_kart, false)
 
 
