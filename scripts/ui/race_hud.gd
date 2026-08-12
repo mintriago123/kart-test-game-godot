@@ -44,6 +44,7 @@ var mobile_controls_enabled := (
 	or DisplayServer.is_touchscreen_available()
 )
 var vibration_enabled := true
+var vibration_intensity := 1.0
 
 
 func _ready() -> void:
@@ -79,6 +80,7 @@ func update_race_info(
 
 func show_countdown(text: String) -> void:
 	_status_view.show_countdown(text, _is_intro_visible)
+	_touch_view.show_launch_button(not text.is_empty() and text != "¡YA!")
 
 
 func show_intro(track_name: String, total_laps: int) -> void:
@@ -112,8 +114,33 @@ func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> voi
 	_set_race_elements_visible(false)
 
 
+func show_provisional(standings: Array[RacerRaceResult], remaining: float) -> void:
+	_flow_overlay.show_provisional(standings, remaining)
+	_set_touch_controls_visible(false)
+	_set_race_elements_visible(false)
+	_release_auto_acceleration()
+
+
+func update_provisional_standings(standings: Array[RacerRaceResult]) -> void:
+	_flow_overlay.update_provisional_standings(standings)
+
+
+func update_results_countdown(remaining: float) -> void:
+	if _flow_overlay.provisional_panel.visible:
+		_flow_overlay.provisional_title.text = "RESULTADOS EN %d…" % ceili(maxf(remaining, 0.0))
+
+
 func show_lap_split(lap_number: int, lap_time: float, previous_best: float) -> void:
 	_status_view.show_lap_split(lap_number, lap_time, previous_best)
+
+
+func set_game_mode(game_mode: int) -> void:
+	_status_view.set_game_mode(game_mode)
+	_touch_view.item_button.visible = game_mode != GameModeDefinition.TIME_TRIAL
+
+
+func update_ghost_delta(delta: float) -> void:
+	_status_view.update_ghost_delta(delta)
 
 
 func _process(_delta: float) -> void:

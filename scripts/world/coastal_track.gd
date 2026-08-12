@@ -24,6 +24,7 @@ const BARRIER_VERTICES_PER_POINT := TrackBarrierBuilder.BARRIER_VERTICES_PER_POI
 const PORTAL_MIN_WIDTH := TrackBarrierBuilder.PORTAL_MIN_WIDTH
 const PORTAL_MAX_WIDTH := TrackBarrierBuilder.PORTAL_MAX_WIDTH
 const SHORTCUT_HEIGHT_ALIGNMENT_BLEND_DISTANCE := 4.0
+const SHORTCUT_JUNCTION_SURFACE_OVERLAP := 1.5
 const MAIN_COLLISION_LAYER := PhysicsLayers.WORLD
 const SHORTCUT_COLLISION_LAYER := PhysicsLayers.SHORTCUTS
 const MAIN_BARRIER_COLLISION_LAYER := PhysicsLayers.MAIN_BARRIERS
@@ -226,6 +227,11 @@ func _build_shortcuts() -> void:
 			entry_junction,
 			exit_junction
 		)
+		var collision_shortcut_points := _get_shortcut_collision_points(
+			shortcut_points,
+			entry_junction,
+			exit_junction
+		)
 		TrackSurfaceBuilder.create_shortcut_drivable_surface(
 			self,
 			trimmed_shortcut_points,
@@ -233,7 +239,7 @@ func _build_shortcuts() -> void:
 			_shortcut_material,
 			"Shortcut%d" % shortcut_id,
 			SHORTCUT_COLLISION_LAYER,
-			shortcut_points
+			collision_shortcut_points
 		)
 		for junction_data in [
 			[entry_junction, "Entry"],
@@ -344,7 +350,90 @@ func _get_trimmed_shortcut_points(
 			) > 0.001
 		):
 			trimmed_points.append(exit_junction.shortcut_transition_center)
+	# Keep the collision ribbons slightly interleaved at their hand-off. The
+	# overlap stays well inside the junction transition, so it cannot restore
+	# the old invisible shortcut triangles over the main road.
+	if trimmed_points.size() >= 2:
+		if entry_junction != null and entry_junction.is_valid:
+			var entry_direction := (trimmed_points[0] - trimmed_points[1]).normalized()
+			trimmed_points[0] += entry_direction * SHORTCUT_JUNCTION_SURFACE_OVERLAP
+		if exit_junction != null and exit_junction.is_valid:
+			var last_index := trimmed_points.size() - 1
+			var exit_direction := (
+				trimmed_points[last_index] - trimmed_points[last_index - 1]
+			).normalized()
+			trimmed_points[last_index] += (
+				exit_direction * SHORTCUT_JUNCTION_SURFACE_OVERLAP
+			)
 	return trimmed_points
+
+
+func _get_shortcut_collision_points(
+	shortcut_points: Array[Vector3],
+	entry_junction,
+	exit_junction
+) -> Array[Vector3]:
+	if (
+		entry_junction == null
+		or not entry_junction.is_valid
+		or exit_junction == null
+		or not exit_junction.is_valid
+	):
+		return _get_trimmed_shortcut_points(
+			shortcut_points,
+			entry_junction,
+			exit_junction
+		)
+	var collision_points: Array[Vector3] = [entry_junction.world_position]
+	var first_index := clampi(
+		entry_junction.shortcut_join_index,
+		0,
+		shortcut_points.size() - 1
+	)
+	var last_index := clampi(
+		exit_junction.shortcut_join_index,
+		first_index,
+		shortcut_points.size() - 1
+	)
+	for point_index in range(first_index, last_index + 1):
+		if collision_points[-1].distance_to(shortcut_points[point_index]) > 0.001:
+			collision_points.append(shortcut_points[point_index])
+	if collision_points[-1].distance_to(exit_junction.world_position) > 0.001:
+		collision_points.append(exit_junction.world_position)
+	return collision_points
+
+
+func get_navigation_shortcut_definitions() -> Array[Dictionary]:
+	var navigation_definitions: Array[Dictionary] = []
+	for shortcut in shortcut_definitions:
+		var result := shortcut.duplicate(true)
+		var shortcut_id := int(shortcut.get("id", -1))
+		var junctions: Dictionary = _shortcut_junctions.get(shortcut_id, {})
+		var entry = junctions.get("entry")
+		var exit = junctions.get("exit")
+		var source_points: Array[Vector3] = shortcut.points
+		var points := _get_trimmed_shortcut_points(source_points, entry, exit)
+		if entry != null and entry.is_valid:
+			var entry_centers := _get_junction_centers(entry)
+			for center_index in range(entry_centers.size() - 2, -1, -1):
+				points.push_front(entry_centers[center_index])
+		if exit != null and exit.is_valid:
+			var exit_centers := _get_junction_centers(exit)
+			for center_index in range(exit_centers.size() - 2, -1, -1):
+				if points[-1].distance_to(exit_centers[center_index]) > 0.001:
+					points.append(exit_centers[center_index])
+		result.points = points
+		navigation_definitions.append(result)
+	return navigation_definitions
+
+
+func _get_junction_centers(junction) -> Array[Vector3]:
+	var centers: Array[Vector3] = []
+	if junction == null or junction.left_boundary.size() != junction.right_boundary.size():
+		return centers
+	for point_index in junction.left_boundary.size():
+		centers.append(junction.left_boundary[point_index].lerp(junction.right_boundary[point_index], 0.5))
+	return centers
 
 
 func _create_barrier_builder() -> TrackBarrierBuilder:

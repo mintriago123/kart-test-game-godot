@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SurfaceDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/surface_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"dirt"
+display_name = "Tierra"
+grip_multiplier = 0.82
+drift_grip_multiplier = 0.72
+rolling_resistance_multiplier = 1.35
+acceleration_multiplier = 0.88
+boost_multiplier = 0.90
+color = Color(0.55, 0.31, 0.15, 1)
+audio_pitch = 0.82
+audio_volume = 0.92
+audio_roughness = 0.72
+particle_color = Color(0.62, 0.36, 0.18, 1)

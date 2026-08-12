@@ -2,6 +2,9 @@
 
 [ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_4llsa"]
 [ext_resource type="Resource" path="res://levels/themes/coastal_theme.tres" id="2_pllua"]
+[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="3_surface"]
+[ext_resource type="Resource" path="res://levels/surfaces/sand.tres" id="4_sand"]
+[ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="5_dirt"]
 
 [sub_resource type="Curve3D" id="Curve3D_bgu47"]
 closed = true
@@ -23,6 +26,24 @@ environment_size = Vector2(285.05948, 265.74664)
 curve = SubResource("Curve3D_bgu47")
 
 [node name="Shortcuts" type="Node3D" parent="." unique_id=26707340]
+
+[node name="WaterCurveSand" type="Area3D" parent="."]
+script = ExtResource("3_surface")
+id = &"bay_water_sand"
+surface = ExtResource("4_sand")
+start_progress = 0.12
+end_progress = 0.31
+lateral_offset = 3.5
+width = 2.8
+
+[node name="WaterCurveDirt" type="Area3D" parent="."]
+script = ExtResource("3_surface")
+id = &"bay_water_dirt"
+surface = ExtResource("5_dirt")
+start_progress = 0.55
+end_progress = 0.75
+lateral_offset = -3.5
+width = 2.8
 
 [node name="Props" type="Node3D" parent="." unique_id=1294093065]
 

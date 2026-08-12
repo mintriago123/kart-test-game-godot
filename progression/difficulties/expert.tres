@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DifficultyDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/data/difficulty_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"expert"
+display_name = "Experta"
+description = "Rivales precisos, rápidos y eficaces con objetos."
+precision_multiplier = 1.1
+reaction_time_multiplier = 0.82
+risk_multiplier = 1.08
+item_efficiency_multiplier = 1.12
+sort_order = 2

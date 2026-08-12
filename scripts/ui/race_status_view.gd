@@ -17,7 +17,9 @@ var drift_bar: ProgressBar
 var race_elements: Array[CanvasItem] = []
 var split_panel: PanelContainer
 var split_label: Label
+var delta_label: Label
 var _split_generation := 0
+var _game_mode := GameModeDefinition.RACE
 
 
 func build_interface() -> void:
@@ -44,6 +46,9 @@ func build_interface() -> void:
 	top_bar.add_child(spacer)
 	time_label = RaceHudStyle.create_chip("00:00.000", 22)
 	top_bar.add_child(time_label)
+	delta_label = RaceHudStyle.create_chip("DELTA  SIN REFERENCIA", 18)
+	delta_label.visible = false
+	top_bar.add_child(delta_label)
 	speed_label = RaceHudStyle.create_chip("000 km/h", 20)
 	top_bar.add_child(speed_label)
 
@@ -183,6 +188,23 @@ func show_boost(charge_ratio: float) -> void:
 	drift_bar.value = charge_ratio
 
 
+func set_game_mode(game_mode: int) -> void:
+	_game_mode = GameModeDefinition.sanitize(game_mode)
+	var is_time_trial := game_mode == GameModeDefinition.TIME_TRIAL
+	position_label.visible = not is_time_trial
+	item_chip.visible = not is_time_trial
+	delta_label.visible = is_time_trial
+
+
+func update_ghost_delta(delta: float) -> void:
+	if not is_finite(delta):
+		delta_label.text = "DELTA  SIN REFERENCIA"
+		delta_label.add_theme_color_override("font_color", Color("#f5d66f"))
+		return
+	delta_label.text = "DELTA  %s%s" % ["-" if delta < 0.0 else "+", RaceHudStyle.format_time(absf(delta))]
+	delta_label.add_theme_color_override("font_color", Color("#75e6a4") if delta < 0.0 else Color("#ef8b78"))
+
+
 func show_lap_split(lap_number: int, lap_time: float, previous_best: float) -> void:
 	_split_generation += 1
 	var generation := _split_generation
@@ -211,6 +233,14 @@ func set_race_elements_visible(
 ) -> void:
 	for element in race_elements:
 		element.visible = is_visible
+	# Transient panels must never be resurrected merely by leaving the intro.
+	if is_visible:
+		split_panel.visible = false
+		countdown_label.visible = not countdown_label.text.is_empty()
+	if _game_mode == GameModeDefinition.TIME_TRIAL:
+		position_label.visible = false
+		item_chip.visible = false
+		delta_label.visible = is_visible
 	if is_visible and not has_active_shield:
 		shield_panel.visible = false
 

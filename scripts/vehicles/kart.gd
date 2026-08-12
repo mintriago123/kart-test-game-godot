@@ -3,9 +3,15 @@ extends CharacterBody3D
 
 signal item_changed(item: ItemDefinition)
 signal boost_changed(charge_ratio: float)
+signal drift_charge_changed(level: int, ratio: float, quality: float)
 signal hit_received
-signal hit_blocked
+signal barrier_contact(normal: Vector3, incident_ratio: float, continuing_contact: bool)
+signal hit_blocked(threat: Node)
 signal recovered
+signal presentation_boost_started(power_ratio: float)
+signal presentation_landed(intensity: float)
+signal presentation_launch_bogged
+signal mini_turbo_released(level: int)
 signal item_use_requested(item: ItemDefinition, direction: Vector3)
 signal shield_state_changed(
 	item: ItemDefinition,
@@ -27,7 +33,7 @@ enum DriveState {
 }
 
 const GRAVITY := 22.0
-const DRIFT_LEVEL_TIMES := [0.65, 1.25, 1.9]
+const DRIFT_LEVEL_TIMES := [0.65, 1.25, 1.9] # Compatibilidad con pruebas y HUD antiguos.
 const SHORTCUT_SURFACE_LAYER := PhysicsLayers.SHORTCUTS
 const DRIFT_MINIMUM_SPEED := 7.0
 const DRIFT_HOP_SPEED := 4.2
@@ -40,8 +46,11 @@ const SOFT_LIMIT_RESPONSE := 10.0
 const ROLLING_RESISTANCE_BASE := 0.55
 const ROLLING_RESISTANCE_SPEED_FACTOR := 0.035
 const BARRIER_CONTACT_MEMORY := 0.14
+const COLLISION_SIZE := Vector3(1.5, 0.74, 2.5)
+const VEHICLE_COLORMAP: Texture2D = preload("res://assets/vendor/kenney/car-kit/Textures/colormap.png")
 
 @export var racer_name := "Piloto"
+@export var racer_id: StringName
 @export var is_player := false
 @export var body_color := Color("#ff6b4a")
 
@@ -52,6 +61,9 @@ var held_item: ItemDefinition
 var item_catalog: ItemCatalog
 var item_rng: RandomNumberGenerator
 var race_manager: RaceManager
+var driving_tuning := DrivingTuningDefinition.new()
+var current_surface := SurfaceDefinition.asphalt()
+var _surface_zones := {}
 var recovery_count := 0
 var last_recovery_position := Vector3.ZERO
 var last_recovery_reason := ""
@@ -66,6 +78,12 @@ var _drift_charge := 0.0
 var _drift_side := 0.0
 var _drive_state := DriveState.AIR
 var _boost_remaining := 0.0
+var _boost_power := 0.0
+var _drift_low_quality_time := 0.0
+var _drift_grace_remaining := 0.0
+var _launch_crossing := INF
+var _launch_resolved := false
+var _launch_bog_remaining := 0.0
 var _stun_remaining := 0.0
 var _invulnerable_remaining := 0.0
 var _held_item_elapsed := 0.0
@@ -79,9 +97,11 @@ var _movement_sample_time := 0.0
 var _movement_sample_distance := 0.0
 var _last_motion_position := Vector3.ZERO
 var _visual_root: Node3D
+var visual_variant: KartVariantDefinition
 var _landing_compression_remaining := 0.0
 var _barrier_contact_remaining := 0.0
 var _last_barrier_normal := Vector3.ZERO
+var _presentation_drift_quality := 0.0
 
 
 func _ready() -> void:
@@ -90,6 +110,7 @@ func _ready() -> void:
 		PhysicsLayers.WORLD
 		| PhysicsLayers.MAIN_BARRIERS
 		| PhysicsLayers.SHORTCUT_BARRIERS
+		| PhysicsLayers.KARTS
 	)
 	floor_snap_length = FLOOR_SNAP_DISTANCE
 	floor_max_angle = deg_to_rad(52.0)
@@ -108,7 +129,8 @@ func _physics_process(delta: float) -> void:
 		use_item()
 
 	var can_drive := is_control_enabled and _stun_remaining <= 0.0
-	var throttle := _throttle_input if can_drive else 0.0
+	_capture_launch_input()
+	var throttle := _throttle_input if can_drive and _launch_bog_remaining <= 0.0 else 0.0
 	var brake := _brake_input if can_drive else 0.0
 	var steer := _steer_input if can_drive else 0.0
 	var was_on_floor := is_on_floor()
@@ -135,7 +157,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_apply_air_drive(delta, steer, hop_started)
 	if _drive_state == DriveState.DRIFT and _drift_input:
-		_drift_charge = minf(_drift_charge + delta, DRIFT_LEVEL_TIMES.back())
+		_update_drift_charge(delta, steer)
 
 	_update_floor_snap()
 	var velocity_before_move := velocity
@@ -152,10 +174,12 @@ func _physics_process(delta: float) -> void:
 
 func configure_for_race(
 	base_stats: KartStats,
-	definition: RaceClassDefinition
+	definition: RaceClassDefinition,
+	tuning: DrivingTuningDefinition = null
 ) -> void:
 	race_class = definition if definition != null else RaceClassDefinition.get_default()
 	stats = race_class.apply_to(base_stats)
+	driving_tuning = tuning if tuning != null else DrivingTuningDefinition.new()
 
 
 func get_drive_state() -> DriveState:
@@ -176,6 +200,43 @@ func get_landing_compression_ratio() -> float:
 
 func get_horizontal_speed() -> float:
 	return Vector2(velocity.x, velocity.z).length()
+
+func is_boost_active() -> bool:
+	return _boost_remaining > 0.0
+
+func get_boost_power_ratio() -> float:
+	return clampf(_boost_power / maxf(stats.max_speed * 0.5, 0.1), 0.0, 1.0) if is_boost_active() else 0.0
+
+func get_current_surface() -> SurfaceDefinition:
+	return current_surface
+
+func get_throttle_input() -> float:
+	return _throttle_input
+
+func get_brake_input() -> float:
+	return _brake_input
+
+func is_launch_bogged() -> bool:
+	return _launch_bog_remaining > 0.0
+
+func get_drift_quality() -> float:
+	return _presentation_drift_quality
+
+func get_lateral_speed_ratio() -> float:
+	var local_velocity := global_transform.basis.inverse() * velocity
+	return clampf(absf(local_velocity.x) / maxf(stats.max_speed * 0.3, 0.1), 0.0, 1.0)
+
+func get_surface_audio_pitch() -> float:
+	return current_surface.audio_pitch if current_surface != null else 1.0
+
+func get_surface_audio_volume() -> float:
+	return current_surface.audio_volume if current_surface != null else 0.75
+
+func get_surface_audio_roughness() -> float:
+	return current_surface.audio_roughness if current_surface != null else 0.15
+
+func get_surface_particle_color() -> Color:
+	return current_surface.particle_color if current_surface != null else Color.WHITE
 
 
 static func get_steering_factor(speed: float, maximum_speed: float) -> float:
@@ -241,6 +302,7 @@ func _try_start_drift_hop(steer: float) -> bool:
 		return false
 	_drift_side = 1.0 if steer >= 0.0 else -1.0
 	_drive_state = DriveState.DRIFT_HOP
+	_drift_grace_remaining = driving_tuning.hop_grace
 	velocity.y = DRIFT_HOP_SPEED
 	floor_snap_length = 0.0
 	return true
@@ -270,7 +332,7 @@ func _apply_ground_drive(
 			forward_speed,
 			stats.max_speed
 		)
-		velocity += forward * stats.acceleration * acceleration_factor * throttle * delta
+		velocity += forward * stats.acceleration * current_surface.acceleration_multiplier * acceleration_factor * throttle * delta
 
 	var speed := Vector2(velocity.x, velocity.z).length()
 	var steering_factor := get_steering_factor(speed, stats.max_speed)
@@ -305,11 +367,14 @@ func _apply_ground_drive(
 			-yaw_change * tire_response
 		)
 	var lateral_velocity := horizontal_velocity - forward * horizontal_velocity.dot(forward)
-	var traction := stats.drift_grip if is_drifting else stats.grip
+	var traction := (
+		stats.drift_grip * current_surface.drift_grip_multiplier
+		if is_drifting else stats.grip * current_surface.grip_multiplier
+	)
 	horizontal_velocity -= lateral_velocity * minf(traction * delta, 1.0)
 
 	var resistance_scale := 0.35 if throttle > 0.0 and brake <= 0.0 else 1.0
-	var resistance := get_rolling_resistance(horizontal_velocity.length()) * resistance_scale
+	var resistance := get_rolling_resistance(horizontal_velocity.length()) * resistance_scale * current_surface.rolling_resistance_multiplier
 	horizontal_velocity = horizontal_velocity.move_toward(Vector3.ZERO, resistance * delta)
 	horizontal_velocity = _apply_soft_speed_limit(horizontal_velocity, delta)
 	velocity.x = horizontal_velocity.x
@@ -342,7 +407,7 @@ func _apply_soft_speed_limit(
 ) -> Vector3:
 	var speed_limit := stats.max_speed
 	if _boost_remaining > 0.0:
-		speed_limit += stats.boost_power
+		speed_limit += _boost_power
 	var forward := -global_transform.basis.z.normalized()
 	var forward_speed := horizontal_velocity.dot(forward)
 	var soft_limit := speed_limit * SOFT_LIMIT_START_RATIO
@@ -379,6 +444,9 @@ func _process_barrier_collisions(incoming_velocity: Vector3) -> void:
 	var resolved_vertical_velocity := velocity.y
 	for collision_index in get_slide_collision_count():
 		var collision := get_slide_collision(collision_index)
+		var collider := collision.get_collider() as CollisionObject3D
+		if collider == null or (collider.collision_layer & PhysicsLayers.BARRIERS) == 0:
+			continue
 		var collision_normal := collision.get_normal()
 		if absf(collision_normal.y) > 0.45:
 			continue
@@ -438,6 +506,11 @@ func _process_barrier_collisions(incoming_velocity: Vector3) -> void:
 			_align_with_barrier_tangent(0.18 if is_continuing_contact else 0.08)
 		_last_barrier_normal = normalized_wall
 		_barrier_contact_remaining = BARRIER_CONTACT_MEMORY
+		barrier_contact.emit(
+			normalized_wall,
+			strongest_incident_ratio,
+			is_continuing_contact
+		)
 
 
 func _align_with_barrier_tangent(weight: float) -> void:
@@ -452,13 +525,17 @@ func _align_with_barrier_tangent(weight: float) -> void:
 func _update_drive_state_after_move(was_on_floor: bool) -> void:
 	if is_on_floor():
 		if not was_on_floor:
+			presentation_landed.emit(clampf(absf(velocity.y) / 12.0, 0.0, 1.0))
+			var landed_from_drift_hop := _drive_state == DriveState.DRIFT_HOP
 			_stabilize_landing()
 			_landing_compression_remaining = LANDING_COMPRESSION_DURATION
-		_drive_state = (
-			DriveState.DRIFT
-			if _drift_input and _drift_side != 0.0
-			else DriveState.GROUND
-		)
+			_drive_state = (
+				DriveState.DRIFT
+				if _drift_input and _drift_side != 0.0
+				else DriveState.GROUND
+			)
+			if landed_from_drift_hop and _drive_state == DriveState.DRIFT:
+				_drift_grace_remaining = driving_tuning.hop_grace
 	elif _drive_state != DriveState.DRIFT_HOP:
 		_drive_state = DriveState.AIR
 
@@ -520,12 +597,12 @@ func use_item() -> void:
 	item_use_requested.emit(item_to_use, direction)
 
 
-func receive_hit(duration: float) -> HitResult:
+func receive_hit(duration: float, threat: Node = null) -> HitResult:
 	if _invulnerable_remaining > 0.0:
 		return HitResult.IGNORED
 	if _shield_remaining > 0.0:
 		_clear_shield()
-		hit_blocked.emit()
+		hit_blocked.emit(threat)
 		return HitResult.BLOCKED
 	_stun_remaining = duration
 	_invulnerable_remaining = duration + 1.0
@@ -536,7 +613,56 @@ func receive_hit(duration: float) -> HitResult:
 
 
 func activate_boost(duration: float, power: float) -> void:
-	_activate_boost(duration, power * _get_boost_multiplier())
+	_activate_boost(duration, power * _get_boost_multiplier() * current_surface.boost_multiplier)
+
+
+func set_surface(value: SurfaceDefinition) -> void:
+	current_surface = value if value != null else SurfaceDefinition.asphalt()
+
+func enter_surface_zone(zone: Node) -> void:
+	_surface_zones[zone.get_instance_id()] = zone
+	_refresh_surface()
+
+func exit_surface_zone(zone: Node) -> void:
+	_surface_zones.erase(zone.get_instance_id())
+	_refresh_surface()
+
+func _refresh_surface() -> void:
+	var selected: Node
+	for value in _surface_zones.values():
+		var zone := value as Node
+		if is_instance_valid(zone) and zone.is_better_than(selected):
+			selected = zone
+	set_surface(selected.get("surface") as SurfaceDefinition if selected != null else null)
+
+
+func resolve_launch_boost(enabled: bool) -> int:
+	if _launch_resolved or not enabled:
+		_launch_resolved = true
+		return 0
+	_launch_resolved = true
+	var crossing := _launch_crossing
+	if crossing < driving_tuning.launch_early_limit:
+		_launch_bog_remaining = driving_tuning.launch_bog_duration
+		presentation_launch_bogged.emit()
+		return -1
+	if crossing >= driving_tuning.launch_perfect_start and crossing <= 0.0:
+		_activate_boost(driving_tuning.launch_perfect_duration, driving_tuning.launch_boost_power)
+		return 2
+	if crossing >= driving_tuning.launch_good_start and crossing < driving_tuning.launch_perfect_start:
+		_activate_boost(driving_tuning.launch_good_duration, driving_tuning.launch_boost_power)
+		return 1
+	return 0
+
+func register_launch_crossing(relative_time: float) -> void:
+	if is_inf(_launch_crossing):
+		_launch_crossing = relative_time
+
+func can_receive_kart_interaction() -> bool:
+	return is_control_enabled and _stun_remaining <= 0.0 and _invulnerable_remaining <= 0.0
+
+func is_braking() -> bool:
+	return _brake_input > 0.05
 
 
 func activate_shield(item: ItemDefinition) -> void:
@@ -579,6 +705,7 @@ func clear_item_effects() -> void:
 	_held_item_elapsed = 0.0
 	_straight_launch_requested = false
 	_boost_remaining = 0.0
+	_boost_power = 0.0
 	_clear_shield()
 	item_changed.emit(null)
 
@@ -603,6 +730,7 @@ func reset_to_last_checkpoint(reason: String = "manual") -> void:
 	_drive_state = DriveState.AIR
 	_drift_side = 0.0
 	_drift_charge = 0.0
+	_drift_low_quality_time = 0.0
 	_previous_drift_input = _drift_input
 	_landing_compression_remaining = 0.0
 	_barrier_contact_remaining = 0.0
@@ -614,6 +742,14 @@ func reset_to_last_checkpoint(reason: String = "manual") -> void:
 	_last_motion_position = global_position
 	recovery_count += 1
 	recovered.emit()
+
+
+func is_drifting_for_ghost() -> bool:
+	return _drive_state == DriveState.DRIFT
+
+
+func is_boosting_for_ghost() -> bool:
+	return _boost_remaining > 0.0
 
 
 func get_speed_kph() -> int:
@@ -631,26 +767,82 @@ func _read_player_input() -> void:
 
 
 func _activate_boost(duration: float, power: float) -> void:
+	var previous_power := _boost_power if _boost_remaining > 0.0 else 0.0
 	_boost_remaining = maxf(_boost_remaining, duration)
+	_boost_power = maxf(_boost_power, power)
 	var forward := -global_transform.basis.z.normalized()
-	velocity += forward * power
+	velocity += forward * maxf(power - previous_power, 0.0)
+	if power > previous_power:
+		presentation_boost_started.emit(clampf(power / maxf(stats.max_speed * 0.5, 0.1), 0.0, 1.0))
 
 
 func _release_drift() -> void:
-	var boost_level := 0
-	for threshold in DRIFT_LEVEL_TIMES:
-		if _drift_charge >= threshold:
-			boost_level += 1
+	var boost_level := _get_drift_level()
 	if boost_level > 0:
 		_activate_boost(
-			0.45 + boost_level * 0.22,
-			(3.5 + boost_level * 2.0) * _get_boost_multiplier()
+			driving_tuning.mini_turbo_durations[boost_level - 1] * stats.mini_turbo_duration_multiplier * _get_boost_multiplier(),
+			driving_tuning.mini_turbo_powers[boost_level - 1] * _get_boost_multiplier() * current_surface.boost_multiplier
 		)
+		mini_turbo_released.emit(boost_level)
 	_drift_charge = 0.0
+	_drift_low_quality_time = 0.0
 	_drift_side = 0.0
+	_presentation_drift_quality = 0.0
 	if _drive_state == DriveState.DRIFT:
 		_drive_state = DriveState.GROUND
 	boost_changed.emit(0.0)
+	drift_charge_changed.emit(0, 0.0, 0.0)
+
+
+func _update_drift_charge(delta: float, steer: float) -> void:
+	var local_velocity := global_transform.basis.inverse() * velocity
+	var steer_quality := clampf(inverse_lerp(0.12, 0.55, absf(steer)), 0.0, 1.0)
+	var slip_quality := clampf(inverse_lerp(0.3, 1.8, absf(local_velocity.x)), 0.0, 1.0)
+	var quality := minf(steer_quality, slip_quality)
+	_presentation_drift_quality = quality
+	if _drift_grace_remaining > 0.0:
+		quality = maxf(quality, driving_tuning.minimum_drift_quality)
+	if quality >= driving_tuning.minimum_drift_quality:
+		_drift_low_quality_time = 0.0
+		var rate := lerpf(0.5, 1.0, inverse_lerp(driving_tuning.minimum_drift_quality, 1.0, quality))
+		_drift_charge = minf(_drift_charge + delta * rate, driving_tuning.drift_level_times[-1])
+	else:
+		_drift_low_quality_time += delta
+		if _drift_low_quality_time > driving_tuning.low_quality_grace:
+			_drift_charge = maxf(_drift_charge - driving_tuning.charge_loss_per_second * delta, 0.0)
+		if _drift_low_quality_time >= driving_tuning.low_quality_cancel:
+			_cancel_drift()
+			return
+	var level := _get_drift_level()
+	var previous := 0.0 if level == 0 else driving_tuning.drift_level_times[level - 1]
+	var next := driving_tuning.drift_level_times[min(level, driving_tuning.drift_level_times.size() - 1)]
+	var ratio := clampf(inverse_lerp(previous, next, _drift_charge), 0.0, 1.0)
+	drift_charge_changed.emit(level, ratio, quality)
+
+
+func _get_drift_level() -> int:
+	var level := 0
+	for threshold in driving_tuning.drift_level_times:
+		if _drift_charge >= threshold:
+			level += 1
+	return level
+
+
+func _cancel_drift() -> void:
+	_drift_charge = 0.0
+	_drift_low_quality_time = 0.0
+	_drift_side = 0.0
+	_presentation_drift_quality = 0.0
+	_drive_state = DriveState.GROUND if is_on_floor() else DriveState.AIR
+	boost_changed.emit(0.0)
+	drift_charge_changed.emit(0, 0.0, 0.0)
+
+
+func _capture_launch_input() -> void:
+	if race_manager == null or race_manager.state != RaceManager.RaceState.COUNTDOWN:
+		return
+	if is_inf(_launch_crossing) and _throttle_input > driving_tuning.launch_throttle_threshold:
+		_launch_crossing = -race_manager.get_countdown_remaining()
 
 
 func _get_boost_multiplier() -> float:
@@ -659,6 +851,10 @@ func _get_boost_multiplier() -> float:
 
 func _update_timers(delta: float) -> void:
 	_boost_remaining = maxf(_boost_remaining - delta, 0.0)
+	if _boost_remaining <= 0.0:
+		_boost_power = 0.0
+	_launch_bog_remaining = maxf(_launch_bog_remaining - delta, 0.0)
+	_drift_grace_remaining = maxf(_drift_grace_remaining - delta, 0.0)
 	_stun_remaining = maxf(_stun_remaining - delta, 0.0)
 	_invulnerable_remaining = maxf(_invulnerable_remaining - delta, 0.0)
 	_landing_compression_remaining = maxf(
@@ -681,7 +877,7 @@ func _update_timers(delta: float) -> void:
 				_shield_item.shield_duration
 			)
 	if _drift_charge > 0.0:
-		boost_changed.emit(_drift_charge / DRIFT_LEVEL_TIMES.back())
+		boost_changed.emit(_drift_charge / driving_tuning.drift_level_times[-1])
 
 
 func _clear_shield() -> void:
@@ -750,15 +946,21 @@ func _animate_visual(delta: float, steer: float, drifting: bool) -> void:
 func _build_collision() -> void:
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(1.55, 0.72, 2.35)
+	shape.size = COLLISION_SIZE
 	collision.shape = shape
-	collision.position.y = 0.55
+	collision.position.y = 0.57
 	add_child(collision)
 
 
 func _build_visual() -> void:
 	_visual_root = Node3D.new()
 	add_child(_visual_root)
+	if visual_variant != null and visual_variant.visual_scene != null:
+		var custom_visual := visual_variant.visual_scene.instantiate() as Node3D
+		if custom_visual != null:
+			_visual_root.add_child(custom_visual)
+			_apply_vehicle_colormap(custom_visual)
+			return
 
 	_add_box(_visual_root, Vector3(1.55, 0.52, 2.2), Vector3(0.0, 0.62, 0.0), body_color)
 	_add_box(_visual_root, Vector3(1.25, 0.48, 0.95), Vector3(0.0, 1.0, 0.28), body_color.lightened(0.12))
@@ -785,6 +987,20 @@ func _build_visual() -> void:
 			wheel.position = Vector3(wheel_x, 0.48, wheel_z)
 			wheel.material_override = _material(Color("#15282b"))
 			_visual_root.add_child(wheel)
+
+
+func _apply_vehicle_colormap(root: Node) -> void:
+	for child in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := child as MeshInstance3D
+		if mesh_instance.mesh == null:
+			continue
+		for surface_index in mesh_instance.mesh.get_surface_count():
+			var source := mesh_instance.mesh.surface_get_material(surface_index) as BaseMaterial3D
+			var material := source.duplicate() as BaseMaterial3D if source != null else StandardMaterial3D.new()
+			material.albedo_texture = VEHICLE_COLORMAP
+			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+			material.roughness = 0.72
+			mesh_instance.set_surface_override_material(surface_index, material)
 
 
 func _add_box(parent: Node, size: Vector3, box_position: Vector3, color: Color) -> void:

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="KartVariantDefinition" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/data/kart_variant_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/vehicles/kart_oozi.tscn" id="2"]
+[resource]
+script = ExtResource("1")
+id = &"kart_oozi"
+display_name = "Kart Oozi"
+visual_scene = ExtResource("2")
+weight = 0.90
+mini_turbo_duration_multiplier = 1.15

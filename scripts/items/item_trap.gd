@@ -89,9 +89,11 @@ func _handle_body_entered(body: Node3D) -> void:
 	if body == owner_kart and _owner_immunity_remaining > 0.0:
 		return
 	_is_consumed = true
-	var raw_result: Variant = body.receive_hit(
-		item_definition.trap_impact_duration
-	)
+	var raw_result: Variant
+	if body is Kart:
+		raw_result = (body as Kart).receive_hit(item_definition.trap_impact_duration, self)
+	else:
+		raw_result = body.receive_hit(item_definition.trap_impact_duration)
 	var hit_result := (
 		int(raw_result)
 		if raw_result != null

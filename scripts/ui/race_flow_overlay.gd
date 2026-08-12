@@ -15,6 +15,9 @@ var results_panel: Control
 var results_title: Label
 var results_details: VBoxContainer
 var retry_button: Button
+var provisional_panel: Control
+var provisional_title: Label
+var provisional_details: VBoxContainer
 var is_intro_visible := false
 
 
@@ -44,6 +47,35 @@ func build_interface() -> void:
 	add_child(pause_overlay)
 	results_panel = _build_results_panel()
 	add_child(results_panel)
+	provisional_panel = _build_provisional_panel()
+	add_child(provisional_panel)
+
+
+func show_provisional(standings: Array[RacerRaceResult], remaining: float) -> void:
+	provisional_title.text = "RESULTADOS EN %d…" % ceili(maxf(remaining, 0.0))
+	update_provisional_standings(standings)
+	provisional_panel.visible = true
+
+
+func update_provisional_standings(standings: Array[RacerRaceResult]) -> void:
+	for child in provisional_details.get_children():
+		child.queue_free()
+	for standing in standings:
+		_add_label_to(
+			provisional_details,
+			"%dº  %-12s  %s" % [
+				standing.finish_position,
+				standing.racer_name,
+				RaceHudStyle.format_time(standing.finish_time)
+				if standing.finish_time >= 0.0 else "EN PISTA",
+			],
+			17,
+			Color("#fff1b5") if standing.is_player else Color("#c5e4de")
+		)
+
+
+func hide_provisional() -> void:
+	provisional_panel.visible = false
 
 
 func show_intro(track_name: String, total_laps: int) -> void:
@@ -81,6 +113,7 @@ func hide_intro() -> void:
 
 
 func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> void:
+	hide_provisional()
 	var result: RaceResult = null
 	if result_or_position is RaceResult:
 		result = result_or_position
@@ -89,6 +122,12 @@ func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> voi
 	if result == null or result.player_result == null:
 		return
 	var player := result.player_result
+	if result.game_mode == GameModeDefinition.TIME_TRIAL:
+		_show_time_trial_results(result)
+		return
+	if result.game_mode == GameModeDefinition.CUP:
+		_show_cup_results(result)
+		return
 	results_title.text = "%s · %dº LUGAR\n%s" % [
 		"¡PODIO!" if player.finish_position <= 3 else "¡META!",
 		player.finish_position,
@@ -133,11 +172,51 @@ func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> voi
 			"%dº  %-12s  %s" % [
 				standing.finish_position,
 				standing.racer_name,
-				RaceHudStyle.format_time(standing.finish_time)
-				if standing.finish_time > 0.0 else "EN CARRERA",
+				"DNF" if standing.is_dnf else RaceHudStyle.format_time(standing.finish_time),
 			], 17, Color("#fff1b5") if standing.is_player else Color("#c5e4de")
 		)
 	results_panel.visible = true
+	retry_button.grab_focus()
+
+
+func _show_cup_results(result: RaceResult) -> void:
+	var completed := bool(result.get_meta("cup_completed", false))
+	results_title.text = "PODIO FINAL" if completed else "CLASIFICACIÓN DE COPA"
+	for child in results_details.get_children():
+		child.queue_free()
+	for row in result.get_meta("cup_standings", []):
+		_add_result_label("%s  ·  %d PTOS  ·  %d VICT." % [str(row.racer_id).to_upper(), int(row.points), int(row.victories)], 19, Color("#fff1b5") if row.racer_id == result.player_result.racer_id else Color("#c5e4de"))
+	if completed:
+		var medal_names := ["SIN MEDALLA", "BRONCE", "PLATA", "ORO"]
+		var medal := int(result.get_meta("cup_medal", 0))
+		_add_result_label("MEDALLA · %s" % medal_names[medal], 26, Color("#f5d66f"))
+		var rewards: Array = result.get_meta("new_reward_ids", [])
+		if not rewards.is_empty():
+			_add_result_label("NUEVOS VEHÍCULOS · %s" % ", ".join(PackedStringArray(rewards)), 17, Color("#75e6a4"))
+		retry_button.text = "MENÚ"
+	else:
+		_add_result_label("Carrera %d/3 completada" % (result.cup_race_index + 1), 18, Color("#7be0d0"))
+		retry_button.text = "SIGUIENTE CARRERA"
+	results_panel.visible = true
+	retry_button.grab_focus()
+
+
+func _show_time_trial_results(result: RaceResult) -> void:
+	var player := result.player_result
+	results_title.text = "CONTRARRELOJ\n%s" % RaceHudStyle.format_time(player.finish_time)
+	for child in results_details.get_children():
+		child.queue_free()
+	_add_result_label(("NUEVO RÉCORD TOTAL · " if result.is_new_best_time else "TIEMPO TOTAL · ") + RaceHudStyle.format_time(player.finish_time), 25, Color("#75e6a4") if result.is_new_best_time else Color("#fff1b5"))
+	if result.previous_best_time > 0.0:
+		var delta := player.finish_time - result.previous_best_time
+		_add_result_label("DIFERENCIA · %+.3f" % delta, 19, Color("#75e6a4") if delta < 0.0 else Color("#ef8b78"))
+	_add_result_label(("NUEVA MEJOR VUELTA · " if result.is_new_best_lap else "MEJOR VUELTA · ") + RaceHudStyle.format_time(player.best_lap_time), 20, Color("#75e6a4") if result.is_new_best_lap else Color("#d8f4e8"))
+	for index in player.lap_times.size():
+		_add_result_label("VUELTA %d · %s" % [index + 1, RaceHudStyle.format_time(player.lap_times[index])], 17, Color("#b9ddd6"))
+	if result.ghost_updated:
+		_add_result_label("FANTASMA ACTUALIZADO", 20, Color("#53e8f2"))
+	results_panel.visible = true
+	retry_button.text = "OTRO INTENTO"
 	retry_button.grab_focus()
 
 
@@ -157,12 +236,16 @@ func _build_legacy_result(position: int, race_time: float) -> RaceResult:
 
 
 func _add_result_label(text: String, size: int, color: Color) -> void:
+	_add_label_to(results_details, text, size, color)
+
+
+func _add_label_to(container: VBoxContainer, text: String, size: int, color: Color) -> void:
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
-	results_details.add_child(label)
+	container.add_child(label)
 
 
 func update_pause_visibility(is_paused: bool) -> void:
@@ -361,6 +444,30 @@ func _build_results_panel() -> Control:
 	RaceHudStyle.apply_button_style(menu, Color("#ef7656"))
 	actions.add_child(menu)
 	return overlay
+
+
+func _build_provisional_panel() -> Control:
+	var panel := PanelContainer.new()
+	panel.name = "ProvisionalResults"
+	panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	panel.position = Vector2(-210.0, 24.0)
+	panel.size = Vector2(420.0, 0.0)
+	panel.add_theme_stylebox_override(
+		"panel", RaceHudStyle.style(Color(0.02, 0.12, 0.14, 0.92), 14)
+	)
+	panel.visible = false
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 5)
+	panel.add_child(content)
+	provisional_title = Label.new()
+	provisional_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	provisional_title.add_theme_font_size_override("font_size", 22)
+	provisional_title.add_theme_color_override("font_color", Color("#f5d66f"))
+	content.add_child(provisional_title)
+	provisional_details = VBoxContainer.new()
+	provisional_details.add_theme_constant_override("separation", 3)
+	content.add_child(provisional_details)
+	return panel
 
 
 func _toggle_pause() -> void:

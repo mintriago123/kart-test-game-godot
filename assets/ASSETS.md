@@ -5,6 +5,21 @@ Todos los recursos enumerados aquí están dedicados al dominio público mediant
 Creative Commons Zero 1.0; la atribución no es obligatoria, pero se mantiene
 el origen para facilitar auditorías y actualizaciones.
 
+## Kenney Car Kit 3.1
+
+- Autor: Kenney
+- Fuente: <https://kenney.nl/assets/car-kit>
+- Licencia: CC0 1.0
+- Versión: 3.1, distribución consultada el 12 de agosto de 2026
+- Archivos utilizados: `sedan.glb`, `suv-luxury.glb`, `taxi.glb`, `van.glb`,
+  los cinco `kart-oo*.glb`, `sedan-sports.glb`, `hatchback-sports.glb`,
+  `race.glb`, `race-future.glb` y `Textures/colormap.png`.
+
+Cada modelo se instancia mediante una escena wrapper que fija orientación,
+escala, sombra y apoyo visual. La colisión y la física siguen perteneciendo a
+`Kart`. El texto original se conserva en
+`assets/vendor/kenney/car-kit/License.txt`.
+
 ## Kenney Nature Kit 2.1
 
 - Autor: Kenney

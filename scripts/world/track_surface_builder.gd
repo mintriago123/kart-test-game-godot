@@ -62,6 +62,8 @@ static func create_shortcut_drivable_surface(
 	path_visual.material_override = material
 	parent.add_child(path_visual)
 
+	# Collision may overlap the junction up to its road-edge crossings. Callers
+	# must keep those points clipped so no invisible triangles cross MainRoad.
 	var collision_points := (
 		collision_path_points
 		if not collision_path_points.is_empty()
@@ -76,7 +78,7 @@ static func create_shortcut_drivable_surface(
 	var path_collision := CollisionShape3D.new()
 	var path_shape := collision_mesh.create_trimesh_shape()
 	if path_shape is ConcavePolygonShape3D:
-		(path_shape as ConcavePolygonShape3D).backface_collision = false
+		(path_shape as ConcavePolygonShape3D).backface_collision = true
 	path_collision.shape = path_shape
 	path_body.add_child(path_collision)
 

@@ -113,6 +113,11 @@ func create_track(template_size: StringName, track_name: String) -> void:
 	new_track.add_child(props)
 	props.owner = new_track
 
+	var surfaces := Node3D.new()
+	surfaces.name = "Surfaces"
+	new_track.add_child(surfaces)
+	surfaces.owner = new_track
+
 	var item_spawns := Node3D.new()
 	item_spawns.name = "ItemSpawns"
 	new_track.add_child(item_spawns)

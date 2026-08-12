@@ -1,10 +1,11 @@
 class_name TrackSelectScreen
 extends Control
 
-signal race_requested(track_id: StringName, cc_id: StringName)
+signal race_requested(track_id: StringName, cc_id: StringName, game_mode: int, difficulty_id: StringName)
 signal back_requested
 signal track_selected(track_id: StringName)
 signal race_class_selected(cc_id: StringName)
+signal game_mode_selected(game_mode: int)
 
 var track_catalog: TrackCatalog
 var track_buttons: Dictionary = {}
@@ -13,10 +14,16 @@ var race_class_buttons: Dictionary = {}
 var _best_times: Dictionary = {}
 var _selected_track_id: StringName
 var _selected_cc_id: StringName = RaceClassDefinition.DEFAULT_ID
+var _selected_game_mode := GameModeDefinition.RACE
+var game_mode_buttons: Dictionary = {}
+var difficulty_buttons: Dictionary = {}
+var _selected_difficulty_id: StringName = &"competitive"
 var _title_label: Label
 var _description_label: Label
 var _details_label: Label
 var _best_time_label: Label
+var _ghost_available_label: Label
+var _ghost_available := false
 var _race_class_description_label: Label
 var _preview_panel: PanelContainer
 var _preview_texture: TextureRect
@@ -34,17 +41,24 @@ func configure(
 	catalog: TrackCatalog,
 	best_times: Dictionary,
 	selected_track_id: StringName,
-	selected_cc_id: StringName = RaceClassDefinition.DEFAULT_ID
+	selected_cc_id: StringName = RaceClassDefinition.DEFAULT_ID,
+	selected_game_mode: int = GameModeDefinition.RACE
 ) -> void:
 	track_catalog = catalog
 	_best_times = best_times.duplicate(true)
 	_build_track_list()
 	select_track(selected_track_id, false)
 	select_cc(selected_cc_id, false)
+	select_game_mode(selected_game_mode, false)
 
 
 func update_best_times(best_times: Dictionary) -> void:
 	_best_times = best_times.duplicate(true)
+	_update_details()
+
+
+func set_ghost_available(available: bool) -> void:
+	_ghost_available = available
 	_update_details()
 
 
@@ -93,6 +107,19 @@ func select_cc(cc_id: StringName, should_emit := true) -> void:
 
 func get_selected_cc_id() -> StringName:
 	return _selected_cc_id
+
+
+func select_game_mode(game_mode: int, should_emit := true) -> void:
+	_selected_game_mode = GameModeDefinition.sanitize(game_mode)
+	for button_mode in game_mode_buttons:
+		(game_mode_buttons[button_mode] as Button).set_pressed_no_signal(button_mode == _selected_game_mode)
+	_update_details()
+	if should_emit:
+		game_mode_selected.emit(_selected_game_mode)
+
+
+func get_selected_game_mode() -> int:
+	return _selected_game_mode
 
 
 func _build_interface() -> void:
@@ -219,6 +246,44 @@ func _build_interface() -> void:
 	_best_time_label.add_theme_font_size_override("font_size", 18)
 	_best_time_label.add_theme_color_override("font_color", Color("#f5d66f"))
 	detail_panel.add_child(_best_time_label)
+	_ghost_available_label = Label.new()
+	_ghost_available_label.text = "FANTASMA DISPONIBLE"
+	_ghost_available_label.add_theme_font_size_override("font_size", 15)
+	_ghost_available_label.add_theme_color_override("font_color", Color("#53e8f2"))
+	_ghost_available_label.visible = false
+	detail_panel.add_child(_ghost_available_label)
+
+	var mode_row := HBoxContainer.new()
+	mode_row.add_theme_constant_override("separation", 8)
+	detail_panel.add_child(mode_row)
+	var mode_group := ButtonGroup.new()
+	for mode_data in [[GameModeDefinition.RACE, "CARRERA"], [GameModeDefinition.TIME_TRIAL, "CONTRARRELOJ"], [GameModeDefinition.CUP, "COPA"]]:
+		var mode_button := _create_button(mode_data[1], Color("#7be0d0"), Vector2(150.0, 44.0))
+		mode_button.toggle_mode = true
+		mode_button.button_group = mode_group
+		mode_button.pressed.connect(select_game_mode.bind(mode_data[0]))
+		mode_row.add_child(mode_button)
+		game_mode_buttons[mode_data[0]] = mode_button
+
+	var difficulty_label := Label.new()
+	difficulty_label.text = "DIFICULTAD DE COPA"
+	difficulty_label.add_theme_font_size_override("font_size", 15)
+	difficulty_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	detail_panel.add_child(difficulty_label)
+	var difficulty_row := HBoxContainer.new()
+	difficulty_row.add_theme_constant_override("separation", 8)
+	detail_panel.add_child(difficulty_row)
+	var difficulty_group := ButtonGroup.new()
+	for difficulty_data in [[&"relaxed", "RELAJADA"], [&"competitive", "COMPETITIVA"], [&"expert", "EXPERTA"]]:
+		var difficulty_button := _create_button(difficulty_data[1], Color("#ef9c64"), Vector2(130.0, 42.0))
+		difficulty_button.toggle_mode = true
+		difficulty_button.button_group = difficulty_group
+		difficulty_button.pressed.connect(func() -> void:
+			_selected_difficulty_id = difficulty_data[0]
+		)
+		difficulty_row.add_child(difficulty_button)
+		difficulty_buttons[difficulty_data[0]] = difficulty_button
+	(difficulty_buttons[_selected_difficulty_id] as Button).set_pressed_no_signal(true)
 
 	var race_class_label := Label.new()
 	race_class_label.text = "CLASE DE MOTOR"
@@ -260,7 +325,7 @@ func _build_interface() -> void:
 	_race_button = _create_button("CORRER", Color("#f5d25f"), Vector2(240.0, 64.0))
 	_race_button.pressed.connect(func() -> void:
 		if not _selected_track_id.is_empty():
-			race_requested.emit(_selected_track_id, _selected_cc_id)
+			race_requested.emit(_selected_track_id, _selected_cc_id, _selected_game_mode, _selected_difficulty_id)
 	)
 	detail_panel.add_child(_race_button)
 
@@ -350,15 +415,18 @@ func _update_details() -> void:
 	_details_label.text = _format_track_details(definition, preview_map)
 	var best_time := _get_best_time(definition.id, _selected_cc_id)
 	_best_time_label.text = (
-		"MEJOR TIEMPO %s  ·  %s" % [
+		"%s %s  ·  %s" % [
+			"RÉCORD CONTRARRELOJ" if _selected_game_mode == GameModeDefinition.TIME_TRIAL else "MEJOR CARRERA",
 			RaceClassDefinition.get_by_id(_selected_cc_id).display_name,
 			_format_time(best_time),
 		]
 		if best_time > 0.0
-		else "MEJOR TIEMPO %s  ·  SIN REGISTRO" % (
+		else "%s %s  ·  SIN REGISTRO" % [
+			"RÉCORD CONTRARRELOJ" if _selected_game_mode == GameModeDefinition.TIME_TRIAL else "MEJOR CARRERA",
 			RaceClassDefinition.get_by_id(_selected_cc_id).display_name
-		)
+		]
 	)
+	_ghost_available_label.visible = _selected_game_mode == GameModeDefinition.TIME_TRIAL and _ghost_available
 	_preview_texture.texture = definition.preview_texture
 	_preview_texture.visible = definition.preview_texture != null
 	_minimap_view.visible = definition.preview_texture == null
@@ -395,9 +463,11 @@ func _update_race_class_description() -> void:
 
 
 func _get_best_time(track_id: StringName, cc_id: StringName) -> float:
-	var record_key := GameSettings.get_record_key(track_id, cc_id)
+	var record_key := GameSettings.get_record_key(track_id, cc_id, _selected_game_mode)
 	if _best_times.has(record_key):
 		return maxf(float(_best_times[record_key]), -1.0)
+	if _selected_game_mode != GameModeDefinition.RACE:
+		return -1.0
 	var legacy_value: Variant = _best_times.get(track_id, -1.0)
 	if legacy_value is Dictionary:
 		return maxf(float(legacy_value.get(cc_id, -1.0)), -1.0)

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://progression/variants/kart_oozi.tres" id="2"]
+[resource]
+script = ExtResource("1")
+id = &"competitive_silver"
+display_name = "Kart Oozi"
+cup_id = &"tropical"
+difficulty_id = &"competitive"
+required_medal = 2
+kart_variant = ExtResource("2")

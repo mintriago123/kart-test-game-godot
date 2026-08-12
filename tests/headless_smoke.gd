@@ -556,6 +556,24 @@ func _barriers_contain_drivable_corridors(
 	query.collide_with_areas = false
 	query.exclude = excluded_rids
 	var space_state := track.get_world_3d().direct_space_state
+	var barrier_builder := TrackBarrierBuilder.new(
+		track,
+		track.route_points,
+		track.shortcut_definitions,
+		track.ROAD_WIDTH,
+		track.SHORTCUT_WIDTH,
+		null,
+		track._get_shortcut_barrier_join_clearance(),
+		track._shortcut_junctions
+	)
+	var route_progresses := PackedFloat32Array()
+	var route_length := track.get_route_length()
+	var accumulated_distance := 0.0
+	for route_point_index in track.route_points.size():
+		route_progresses.append(accumulated_distance / route_length)
+		accumulated_distance += track.route_points[route_point_index].distance_to(
+			track.route_points[(route_point_index + 1) % track.route_points.size()]
+		)
 	for route_index in range(0, track.route_points.size(), 2):
 		var route_forward := (
 			track.route_points[(route_index + 1) % track.route_points.size()]
@@ -566,6 +584,11 @@ func _barriers_contain_drivable_corridors(
 		route_forward.y = 0.0
 		var route_right := Vector3.UP.cross(route_forward.normalized())
 		for side in [-1.0, 1.0]:
+			var portal_intervals := barrier_builder.build_main_barrier_portals(
+			side * (track.ROAD_WIDTH * 0.5 - track.BARRIER_PATH_INSET)
+			)
+			if _progress_is_inside_portal(route_progresses[route_index], portal_intervals):
+				continue
 			if not _motion_hits_barrier(
 				space_state,
 				query,
@@ -615,6 +638,16 @@ func _barriers_contain_drivable_corridors(
 					)
 					return false
 	return true
+
+
+func _progress_is_inside_portal(
+	progress: float,
+	portal_intervals: Array[Vector2]
+) -> bool:
+	for interval in portal_intervals:
+		if progress >= interval.x and progress <= interval.y:
+			return true
+	return false
 
 
 func _shortcut_surface_is_continuous(

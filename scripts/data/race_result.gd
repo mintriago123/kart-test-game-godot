@@ -3,12 +3,17 @@ extends RefCounted
 
 var track_id: StringName
 var cc_id: StringName
+var game_mode := GameModeDefinition.RACE
+var run_id: StringName
+var cup_id: StringName
+var cup_race_index := -1
 var standings: Array[RacerRaceResult] = []
 var player_result: RacerRaceResult
 var previous_best_time := -1.0
 var previous_best_lap_time := -1.0
 var is_new_best_time := false
 var is_new_best_lap := false
+var ghost_updated := false
 
 
 func finalize_records() -> void:

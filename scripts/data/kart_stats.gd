@@ -9,6 +9,8 @@ extends Resource
 @export var grip: float = 9.0
 @export var drift_grip: float = 2.8
 @export var boost_power: float = 11.0
+@export var weight: float = 1.0
+@export var mini_turbo_duration_multiplier: float = 1.0
 
 
 static func create(
@@ -35,4 +37,6 @@ func copy() -> KartStats:
 	copied_stats.grip = grip
 	copied_stats.drift_grip = drift_grip
 	copied_stats.boost_power = boost_power
+	copied_stats.weight = weight
+	copied_stats.mini_turbo_duration_multiplier = mini_turbo_duration_multiplier
 	return copied_stats

@@ -19,18 +19,41 @@ const ITEM_IMPACT_SOUND: AudioStream = preload(
 )
 
 var _music_player: AudioStreamPlayer
-var _sfx_player: AudioStreamPlayer
+var _sfx_player: AudioStreamPlayer # Compatibility alias for the most recently used pooled player.
+var _pools: Dictionary = {}
+var _pool_cursor: Dictionary = {}
 var _is_shutdown := false
+
+const POOL_SIZES := {"UI": 4, "Impacts": 6, "Items": 6}
 
 
 func _ready() -> void:
 	_is_shutdown = false
+	_ensure_buses()
 	_music_player = AudioStreamPlayer.new()
+	_music_player.bus = &"Music"
 	_music_player.volume_db = -11.0
 	add_child(_music_player)
-	_sfx_player = AudioStreamPlayer.new()
-	_sfx_player.volume_db = -5.0
-	add_child(_sfx_player)
+	for bus_name in POOL_SIZES:
+		var players: Array[AudioStreamPlayer] = []
+		for _index in int(POOL_SIZES[bus_name]):
+			var player := AudioStreamPlayer.new()
+			player.bus = StringName(bus_name)
+			player.volume_db = -5.0
+			add_child(player)
+			players.append(player)
+		_pools[bus_name] = players
+		_pool_cursor[bus_name] = 0
+	var ui_players: Array = _pools["UI"]
+	_sfx_player = ui_players[0] as AudioStreamPlayer
+
+func _ensure_buses() -> void:
+	for bus_name in [&"Music", &"Engine", &"Tires", &"Impacts", &"Items", &"UI"]:
+		if AudioServer.get_bus_index(bus_name) < 0:
+			AudioServer.add_bus()
+			var index := AudioServer.bus_count - 1
+			AudioServer.set_bus_name(index, bus_name)
+			AudioServer.set_bus_send(index, &"Master")
 
 
 func _exit_tree() -> void:
@@ -42,7 +65,11 @@ func shutdown() -> void:
 		return
 	_is_shutdown = true
 	_release_player(_music_player)
-	_release_player(_sfx_player)
+	for players in _pools.values():
+		for player in players:
+			_release_player(player as AudioStreamPlayer)
+	_pools.clear()
+	_pool_cursor.clear()
 	_music_player = null
 	_sfx_player = null
 
@@ -67,7 +94,7 @@ func play_pickup() -> void:
 
 
 func play_hit() -> void:
-	_play_tone(145.0, 0.24, 0.35)
+	_play_tone(145.0, 0.24, 0.35, "Impacts")
 
 
 func play_projectile_bounce(bounce_count: int) -> void:
@@ -76,43 +103,59 @@ func play_projectile_bounce(bounce_count: int) -> void:
 
 
 func play_item_activation() -> void:
-	_play_stream(ITEM_ACTIVATION_SOUND)
+	_play_stream(ITEM_ACTIVATION_SOUND, "Items")
 
 
 func play_shield_block() -> void:
-	_play_stream(ITEM_BLOCK_SOUND)
+	_play_stream(ITEM_BLOCK_SOUND, "Impacts")
 
 
 func play_item_deploy() -> void:
-	_play_stream(ITEM_DEPLOY_SOUND)
+	_play_stream(ITEM_DEPLOY_SOUND, "Items")
 
 
 func play_item_launch() -> void:
-	_play_stream(ITEM_LAUNCH_SOUND)
+	_play_stream(ITEM_LAUNCH_SOUND, "Items")
 
 
 func play_item_impact() -> void:
-	_play_stream(ITEM_IMPACT_SOUND)
+	_play_stream(ITEM_IMPACT_SOUND, "Impacts")
 
 
 func play_finish() -> void:
 	_play_tone(783.99, 0.48, 0.35)
 
 
-func _play_stream(stream: AudioStream) -> void:
-	if _is_shutdown or _sfx_player == null:
+func _play_stream(stream: AudioStream, bus_name := "UI") -> void:
+	var player := _acquire_player(bus_name)
+	if player == null:
 		return
-	_sfx_player.stream = stream
+	player.stream = stream
 	if _can_play_audio():
-		_sfx_player.play()
+		player.play()
 
 
-func _play_tone(frequency: float, duration: float, volume: float) -> void:
-	if _is_shutdown or _sfx_player == null:
+func _play_tone(frequency: float, duration: float, volume: float, bus_name := "UI") -> void:
+	var player := _acquire_player(bus_name)
+	if player == null:
 		return
-	_sfx_player.stream = _create_tone(frequency, duration, volume)
+	player.stream = _create_tone(frequency, duration, volume)
 	if _can_play_audio():
-		_sfx_player.play()
+		player.play()
+
+func _acquire_player(bus_name: String) -> AudioStreamPlayer:
+	if _is_shutdown or not _pools.has(bus_name):
+		return null
+	var players: Array = _pools[bus_name]
+	for raw_player in players:
+		var player := raw_player as AudioStreamPlayer
+		if not player.playing:
+			_sfx_player = player
+			return player
+	var cursor := int(_pool_cursor[bus_name]) % players.size()
+	_pool_cursor[bus_name] = cursor + 1
+	_sfx_player = players[cursor] as AudioStreamPlayer
+	return _sfx_player
 
 
 func _release_player(player: AudioStreamPlayer) -> void:

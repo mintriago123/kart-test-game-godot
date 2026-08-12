@@ -47,6 +47,9 @@ func _run() -> void:
 		manager.register_kart(rival, false, index + 1)
 		rivals.append(rival)
 	manager.state = RaceManager.RaceState.RACING
+	player.is_control_enabled = true
+	for rival in rivals:
+		rival.is_control_enabled = true
 	manager.record_item_collected(player)
 	manager.record_item_used(player)
 	manager.record_item_hit(player, rivals[0], Kart.HitResult.APPLIED)
@@ -72,8 +75,12 @@ func _run() -> void:
 			manager._update_racers()
 	_check(completed_laps.size() == 3, "Exactly three lap splits are emitted.")
 	_check(_approx_array(completed_laps, [10.0, 11.5, 12.5]), "Lap splits use elapsed differences.")
+	_check(manager.state == RaceManager.RaceState.WAITING_FOR_RIVALS, "Player finish starts the rival waiting phase.")
+	_check(result_box.is_empty(), "Final results wait while rivals remain on track.")
+	_check(not player.is_control_enabled and rivals[0].is_control_enabled, "Only the player is disabled during the wait.")
+	manager._process(RaceManager.RESULTS_WAIT_DURATION + 0.1)
 	var final_result: RaceResult = result_box[0] if not result_box.is_empty() else null
-	_check(final_result != null, "Finishing the player emits a final result.")
+	_check(final_result != null, "The wait limit emits a final result.")
 	if final_result != null:
 		var data := final_result.player_result
 		_check(data.finish_time == 34.0 and data.best_lap_time == 10.0, "Final and best-lap times are correct.")
@@ -82,10 +89,10 @@ func _run() -> void:
 		_check(data.shortcuts_used == 1 and data.recoveries == 1, "Shortcuts and recoveries are counted.")
 		_check(data.get_position_delta() == 3, "Grid-to-finish position gain is calculated.")
 		_check(final_result.standings.size() == 4, "The result snapshots all racers.")
-		_check(final_result.standings[1].finish_time < 0.0, "Unfinished rivals remain marked in-race.")
+		_check(final_result.standings[1].finish_time < 0.0 and final_result.standings[1].is_dnf, "Unfinished rivals are marked DNF.")
 		_check(final_result.is_new_best_time and final_result.is_new_best_lap, "Record flags compare previous marks.")
-	_check(manager.state == RaceManager.RaceState.FINISHED, "Player finish ends the global race immediately.")
-	_check(not rivals[0].is_control_enabled, "All rivals are disabled at player finish.")
+	_check(manager.state == RaceManager.RaceState.FINISHED, "The wait limit ends the global race.")
+	_check(not rivals[0].is_control_enabled, "All rivals are disabled when final results close.")
 
 	if final_result != null:
 		var settings := GameSettings.new()
