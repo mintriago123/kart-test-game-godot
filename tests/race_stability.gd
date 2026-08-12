@@ -1,7 +1,8 @@
 extends SceneTree
 
 const TRACK_CATALOG: TrackCatalog = preload("res://levels/track_catalog.tres")
-const SIMULATION_SECONDS_PER_TRACK := 30.0
+const BASE_SIMULATION_SECONDS_PER_TRACK := 45.0
+const RACE_CLASS_IDS := [&"50", &"100", &"150", &"200"]
 const MAX_ALLOWED_RECOVERIES := 4
 
 var _has_failed := false
@@ -19,36 +20,50 @@ func _run() -> void:
 		_finish(1)
 		return
 
-	for track_definition in TRACK_CATALOG.tracks:
-		await _test_track_stability(packed_scene, track_definition)
+	for cc_id in RACE_CLASS_IDS:
+		for track_definition in TRACK_CATALOG.tracks:
+			await _test_track_stability(packed_scene, track_definition, cc_id)
 
 	_finish(1 if _has_failed else 0)
 
 
 func _test_track_stability(
 	packed_scene: PackedScene,
-	track_definition: TrackDefinition
+	track_definition: TrackDefinition,
+	cc_id: StringName
 ) -> void:
 	var main := packed_scene.instantiate()
 	root.add_child(main)
 	await process_frame
 	main.settings.is_persistence_enabled = false
+	main.settings.select_cc(cc_id)
 	main.start_game(track_definition.id, false)
 	await process_frame
 	var manager: RaceManager = main.race_world.race_manager
+	var race_class := RaceClassDefinition.get_by_id(cc_id)
+	var race_label := "%s / %s" % [
+		track_definition.display_name,
+		race_class.display_name,
+	]
 	for racer_index in range(1, manager.racers.size()):
 		var observed_racer: Kart = manager.racers[racer_index]
 		observed_racer.recovered.connect(
-			_log_recovery.bind(observed_racer, manager, track_definition)
+			_log_recovery.bind(observed_racer, manager, race_label)
 		)
-	await create_timer(SIMULATION_SECONDS_PER_TRACK).timeout
+	var simulation_seconds := maxf(
+		BASE_SIMULATION_SECONDS_PER_TRACK,
+		BASE_SIMULATION_SECONDS_PER_TRACK
+		* RaceClassDefinition.get_default().speed_multiplier
+		/ race_class.speed_multiplier
+	)
+	await create_timer(simulation_seconds).timeout
 
 	for racer_index in range(1, manager.racers.size()):
 		var racer: Kart = manager.racers[racer_index]
 		var completed_checkpoints := manager.get_completed_checkpoint_count(racer)
 		print(
 			"INFO: %s / %s progress=%d/%d recoveries=%d speed=%.1f" % [
-				track_definition.display_name,
+				race_label,
 				racer.racer_name,
 				completed_checkpoints,
 				manager.route_points.size(),
@@ -59,17 +74,17 @@ func _test_track_stability(
 		_check(
 			completed_checkpoints >= manager.route_points.size(),
 			"%s / %s completes at least one lap without getting stuck."
-			% [track_definition.display_name, racer.racer_name]
+			% [race_label, racer.racer_name]
 		)
 		_check(
 			racer.recovery_count <= MAX_ALLOWED_RECOVERIES,
 			"%s / %s does not enter a recovery loop."
-			% [track_definition.display_name, racer.racer_name]
+			% [race_label, racer.racer_name]
 		)
 		_check(
 			racer.global_position.y > -2.5,
 			"%s / %s remains on a recoverable driving surface."
-			% [track_definition.display_name, racer.racer_name]
+			% [race_label, racer.racer_name]
 		)
 
 	main.queue_free()
@@ -88,11 +103,11 @@ func _check(condition: bool, message: String) -> void:
 func _log_recovery(
 	racer: Kart,
 	manager: RaceManager,
-	track_definition: TrackDefinition
+	race_label: String
 ) -> void:
 	print(
 		"RECOVERY: %s / %s checkpoint=%d from=%s reason=%s" % [
-			track_definition.display_name,
+			race_label,
 			racer.racer_name,
 			manager.get_next_checkpoint_index(racer),
 			racer.last_recovery_position,

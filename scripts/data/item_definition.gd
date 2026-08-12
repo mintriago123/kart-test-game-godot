@@ -44,6 +44,9 @@ const TROPICAL_WAVE_PATH := "res://items/definitions/tropical_wave.tres"
 @export var icon: Texture2D
 @export var hud_color := Color("#77d0c2")
 @export var visual_scene: PackedScene
+@export_range(0.0, 20.0, 0.01) var world_visual_diameter := 0.0
+@export var show_ground_shadow := false
+@export var show_motion_trail := false
 
 @export_group("Distribution")
 @export var position_weights := PackedInt32Array([25, 25, 25, 25])

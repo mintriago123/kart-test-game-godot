@@ -3,6 +3,8 @@
 Prototipo original de carreras arcade para Android creado con Godot 4.7. Incluye
 dos pistas seleccionables, tres atajos físicos, barreras continuas, assets
 low-poly CC0, tres rivales, derrape con miniturbo y seis objetos tropicales.
+Las carreras ofrecen 50, 100, 150 y 200 CC con física, cámara, IA y récords
+independientes; 150 CC es la selección inicial.
 
 El catálogo incluye Impulso, Coco turbo, Burbuja marina, Cáscara resbalosa,
 Piña perseguidora y Onda tropical. Todos usan la misma ranura y el mismo botón;
@@ -70,6 +72,7 @@ godot --headless --path . --script tests/track_editor.gd
 godot --headless --path . --script tests/track_barriers.gd
 godot --headless --path . --script tests/track_minimap.gd
 godot --headless --path . --script tests/race_intro.gd
+godot --headless --path . --script tests/driving_physics.gd
 godot --headless --path . --script tests/shortcut_drive.gd
 godot --headless --path . --script tests/race_stability.gd
 godot --headless --path . --script tests/item_physics.gd

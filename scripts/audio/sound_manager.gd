@@ -20,9 +20,11 @@ const ITEM_IMPACT_SOUND: AudioStream = preload(
 
 var _music_player: AudioStreamPlayer
 var _sfx_player: AudioStreamPlayer
+var _is_shutdown := false
 
 
 func _ready() -> void:
+	_is_shutdown = false
 	_music_player = AudioStreamPlayer.new()
 	_music_player.volume_db = -11.0
 	add_child(_music_player)
@@ -32,19 +34,25 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if _music_player != null:
-		_music_player.stop()
-		_music_player.stream = null
-	if _sfx_player != null:
-		_sfx_player.stop()
-		_sfx_player.stream = null
+	shutdown()
+
+
+func shutdown() -> void:
+	if _is_shutdown:
+		return
+	_is_shutdown = true
+	_release_player(_music_player)
+	_release_player(_sfx_player)
+	_music_player = null
+	_sfx_player = null
 
 
 func start_music() -> void:
-	if _music_player.playing:
+	if _is_shutdown or _music_player == null or _music_player.playing:
 		return
 	_music_player.stream = _create_music_loop()
-	_music_player.play()
+	if _can_play_audio():
+		_music_player.play()
 
 
 func play_countdown(text: String) -> void:
@@ -92,13 +100,31 @@ func play_finish() -> void:
 
 
 func _play_stream(stream: AudioStream) -> void:
+	if _is_shutdown or _sfx_player == null:
+		return
 	_sfx_player.stream = stream
-	_sfx_player.play()
+	if _can_play_audio():
+		_sfx_player.play()
 
 
 func _play_tone(frequency: float, duration: float, volume: float) -> void:
+	if _is_shutdown or _sfx_player == null:
+		return
 	_sfx_player.stream = _create_tone(frequency, duration, volume)
-	_sfx_player.play()
+	if _can_play_audio():
+		_sfx_player.play()
+
+
+func _release_player(player: AudioStreamPlayer) -> void:
+	if player == null:
+		return
+	player.stop()
+	player.stream = null
+	player.queue_free()
+
+
+func _can_play_audio() -> bool:
+	return AudioServer.get_driver_name() != "Dummy"
 
 
 func _create_music_loop() -> AudioStreamWAV:

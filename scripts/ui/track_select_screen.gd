@@ -1,19 +1,23 @@
 class_name TrackSelectScreen
 extends Control
 
-signal race_requested(track_id: StringName)
+signal race_requested(track_id: StringName, cc_id: StringName)
 signal back_requested
 signal track_selected(track_id: StringName)
+signal race_class_selected(cc_id: StringName)
 
 var track_catalog: TrackCatalog
 var track_buttons: Dictionary = {}
+var race_class_buttons: Dictionary = {}
 
 var _best_times: Dictionary = {}
 var _selected_track_id: StringName
+var _selected_cc_id: StringName = RaceClassDefinition.DEFAULT_ID
 var _title_label: Label
 var _description_label: Label
 var _details_label: Label
 var _best_time_label: Label
+var _race_class_description_label: Label
 var _preview_panel: PanelContainer
 var _preview_texture: TextureRect
 var _minimap_view: TrackMinimapView
@@ -29,12 +33,14 @@ func _ready() -> void:
 func configure(
 	catalog: TrackCatalog,
 	best_times: Dictionary,
-	selected_track_id: StringName
+	selected_track_id: StringName,
+	selected_cc_id: StringName = RaceClassDefinition.DEFAULT_ID
 ) -> void:
 	track_catalog = catalog
 	_best_times = best_times.duplicate(true)
 	_build_track_list()
 	select_track(selected_track_id, false)
+	select_cc(selected_cc_id, false)
 
 
 func update_best_times(best_times: Dictionary) -> void:
@@ -74,6 +80,21 @@ func get_selected_track_id() -> StringName:
 	return _selected_track_id
 
 
+func select_cc(cc_id: StringName, should_emit := true) -> void:
+	_selected_cc_id = RaceClassDefinition.get_by_id(cc_id).id
+	for button_id in race_class_buttons:
+		var race_class_button := race_class_buttons[button_id] as Button
+		race_class_button.set_pressed_no_signal(button_id == _selected_cc_id)
+	_update_race_class_description()
+	_update_details()
+	if should_emit:
+		race_class_selected.emit(_selected_cc_id)
+
+
+func get_selected_cc_id() -> StringName:
+	return _selected_cc_id
+
+
 func _build_interface() -> void:
 	var background := ColorRect.new()
 	background.color = Color("#082d37")
@@ -101,7 +122,7 @@ func _build_interface() -> void:
 	page.offset_top = 30.0
 	page.offset_right = -48.0
 	page.offset_bottom = -34.0
-	page.add_theme_constant_override("separation", 18)
+	page.add_theme_constant_override("separation", 14)
 	add_child(page)
 
 	var header := HBoxContainer.new()
@@ -133,7 +154,7 @@ func _build_interface() -> void:
 	page.add_child(body)
 
 	var list_panel := PanelContainer.new()
-	list_panel.custom_minimum_size.x = 390.0
+	list_panel.custom_minimum_size.x = 370.0
 	list_panel.add_theme_stylebox_override("panel", _style(Color("#12404a"), 22))
 	body.add_child(list_panel)
 	var list_margin := MarginContainer.new()
@@ -155,11 +176,11 @@ func _build_interface() -> void:
 
 	var detail_panel := VBoxContainer.new()
 	detail_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	detail_panel.add_theme_constant_override("separation", 11)
+	detail_panel.add_theme_constant_override("separation", 8)
 	body.add_child(detail_panel)
 
 	_preview_panel = PanelContainer.new()
-	_preview_panel.custom_minimum_size = Vector2(0.0, 190.0)
+	_preview_panel.custom_minimum_size = Vector2(0.0, 150.0)
 	_preview_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_preview_panel.clip_contents = true
 	detail_panel.add_child(_preview_panel)
@@ -199,10 +220,47 @@ func _build_interface() -> void:
 	_best_time_label.add_theme_color_override("font_color", Color("#f5d66f"))
 	detail_panel.add_child(_best_time_label)
 
-	_race_button = _create_button("CORRER", Color("#f5d25f"), Vector2(240.0, 72.0))
+	var race_class_label := Label.new()
+	race_class_label.text = "CLASE DE MOTOR"
+	race_class_label.add_theme_font_size_override("font_size", 15)
+	race_class_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	detail_panel.add_child(race_class_label)
+
+	var race_class_row := HBoxContainer.new()
+	race_class_row.add_theme_constant_override("separation", 8)
+	detail_panel.add_child(race_class_row)
+	var race_class_group := ButtonGroup.new()
+	race_class_group.allow_unpress = false
+	for definition in RaceClassDefinition.get_all():
+		var race_class_button := _create_button(
+			str(definition.id),
+			Color("#74d3c4"),
+			Vector2(78.0, 48.0)
+		)
+		race_class_button.toggle_mode = true
+		race_class_button.button_group = race_class_group
+		race_class_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		race_class_button.tooltip_text = "%s: %s" % [
+			definition.display_name,
+			definition.description,
+		]
+		race_class_button.pressed.connect(select_cc.bind(definition.id))
+		race_class_row.add_child(race_class_button)
+		race_class_buttons[definition.id] = race_class_button
+
+	_race_class_description_label = Label.new()
+	_race_class_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_race_class_description_label.add_theme_font_size_override("font_size", 15)
+	_race_class_description_label.add_theme_color_override(
+		"font_color",
+		Color("#d8f4e8")
+	)
+	detail_panel.add_child(_race_class_description_label)
+
+	_race_button = _create_button("CORRER", Color("#f5d25f"), Vector2(240.0, 64.0))
 	_race_button.pressed.connect(func() -> void:
 		if not _selected_track_id.is_empty():
-			race_requested.emit(_selected_track_id)
+			race_requested.emit(_selected_track_id, _selected_cc_id)
 	)
 	detail_panel.add_child(_race_button)
 
@@ -290,11 +348,16 @@ func _update_details() -> void:
 	)
 	var preview_map := _resolve_preview_map(definition)
 	_details_label.text = _format_track_details(definition, preview_map)
-	var best_time := maxf(float(_best_times.get(definition.id, -1.0)), -1.0)
+	var best_time := _get_best_time(definition.id, _selected_cc_id)
 	_best_time_label.text = (
-		"MEJOR TIEMPO  ·  " + _format_time(best_time)
+		"MEJOR TIEMPO %s  ·  %s" % [
+			RaceClassDefinition.get_by_id(_selected_cc_id).display_name,
+			_format_time(best_time),
+		]
 		if best_time > 0.0
-		else "MEJOR TIEMPO  ·  SIN REGISTRO"
+		else "MEJOR TIEMPO %s  ·  SIN REGISTRO" % (
+			RaceClassDefinition.get_by_id(_selected_cc_id).display_name
+		)
 	)
 	_preview_texture.texture = definition.preview_texture
 	_preview_texture.visible = definition.preview_texture != null
@@ -319,6 +382,28 @@ func _update_details() -> void:
 		_style(definition.preview_color.darkened(0.28), 24, 3, definition.preview_color)
 	)
 	_race_button.disabled = false
+
+
+func _update_race_class_description() -> void:
+	if _race_class_description_label == null:
+		return
+	var definition := RaceClassDefinition.get_by_id(_selected_cc_id)
+	_race_class_description_label.text = "%s - %s" % [
+		definition.display_name,
+		definition.description,
+	]
+
+
+func _get_best_time(track_id: StringName, cc_id: StringName) -> float:
+	var record_key := GameSettings.get_record_key(track_id, cc_id)
+	if _best_times.has(record_key):
+		return maxf(float(_best_times[record_key]), -1.0)
+	var legacy_value: Variant = _best_times.get(track_id, -1.0)
+	if legacy_value is Dictionary:
+		return maxf(float(legacy_value.get(cc_id, -1.0)), -1.0)
+	if cc_id == RaceClassDefinition.DEFAULT_ID:
+		return maxf(float(legacy_value), -1.0)
+	return -1.0
 
 
 func _resolve_preview_map(

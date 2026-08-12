@@ -63,6 +63,7 @@ func _test_authored_track(track_definition: TrackDefinition) -> void:
 		track.get_node_or_null("MainRoadCollision") != null,
 		"%s generates its continuous road collision." % track_definition.display_name
 	)
+	_test_official_tree_calibration(track)
 	var source_child_count := track.get_child_count()
 	track.clear_generated_track()
 	_check(
@@ -82,6 +83,46 @@ func _test_authored_track(track_definition: TrackDefinition) -> void:
 	)
 	track.queue_free()
 	await process_frame
+
+
+func _test_official_tree_calibration(track: TrackLevel) -> void:
+	var expected_prefix := "Palm" if track.track_id == &"coastal" else "Oak"
+	var expected_asset_id := &"palm_tree" if track.track_id == &"coastal" else &"oak_tree"
+	var expected_scale := 5.203778 if track.track_id == &"coastal" else 5.436674
+	var expected_count := 6 if track.track_id == &"coastal" else 3
+	var observed_count := 0
+	var all_trees_are_calibrated := true
+	var props := track.get_node_or_null("Props")
+	if props != null:
+		for child in props.get_children():
+			var tree := child as Node3D
+			if tree == null or not String(tree.name).begins_with(expected_prefix):
+				continue
+			observed_count += 1
+			var bounds_result := TrackAssetEntry.get_node_aabb(tree)
+			var measured_height := (
+				(bounds_result.aabb as AABB).size.y
+				if bool(bounds_result.valid)
+				else 0.0
+			)
+			all_trees_are_calibrated = (
+				all_trees_are_calibrated
+				and absf(measured_height - 10.0) <= 1.0
+				and tree.scale.is_equal_approx(Vector3.ONE * expected_scale)
+				and StringName(tree.get_meta(
+					TrackEditorSession.META_ASSET_ID,
+					&""
+				)) == expected_asset_id
+				and is_equal_approx(float(tree.get_meta(
+					TrackEditorSession.META_PROP_SCALE_MULTIPLIER,
+					0.0
+				)), 1.0)
+			)
+	_check(
+		observed_count == expected_count and all_trees_are_calibrated,
+		"%s keeps its %d official trees within 10%% of 10 m with explicit metadata."
+		% [track.display_name, expected_count]
+	)
 
 
 func _check(condition: bool, message: String) -> void:

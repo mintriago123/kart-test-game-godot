@@ -21,7 +21,7 @@ func _run() -> void:
 func _test_official_minimaps() -> void:
 	var expected_shortcuts := {
 		&"coastal": 2,
-		&"garden": 1,
+		&"garden": 2,
 	}
 	for definition in TRACK_CATALOG.tracks:
 		var preview_map := definition.preview_map

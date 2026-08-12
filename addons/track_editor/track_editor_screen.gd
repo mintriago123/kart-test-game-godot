@@ -5,7 +5,18 @@ extends Control
 signal play_requested(scene_path: String, track_id: StringName, laps: int)
 
 const CATALOG_PATH := "res://levels/track_catalog.tres"
-const ASSET_LIBRARY_PATH := "res://assets/track/track_asset_library.tres"
+const PreviewController := preload(
+	"res://addons/track_editor/track_editor_preview_controller.gd"
+)
+const SetupPanel := preload("res://addons/track_editor/track_setup_panel.gd")
+const RoutePanel := preload("res://addons/track_editor/track_route_panel.gd")
+const ShortcutPanel := preload("res://addons/track_editor/track_shortcut_panel.gd")
+const ObjectPanel := preload("res://addons/track_editor/track_object_panel.gd")
+const ReviewPanel := preload("res://addons/track_editor/track_review_panel.gd")
+const EditorStyle := preload("res://addons/track_editor/track_editor_style.gd")
+const Selection := preload(
+	"res://addons/track_editor/track_editor_selection.gd"
+)
 const STEP_LABELS := [
 	"1  CONFIGURACIÓN",
 	"2  CARRETERA",
@@ -13,8 +24,16 @@ const STEP_LABELS := [
 	"4  OBJETOS",
 	"5  REVISAR",
 ]
+const PANEL_WORKFLOW_ID := 0
+const PANEL_INSPECTOR_ID := 1
+const PANEL_STATUS_ID := 2
+const PANEL_RESET_LAYOUT_ID := 3
+const COMPACT_LAYOUT_BREAKPOINT := 1600.0
+const NEW_DIALOG_PREFERRED_SIZE := Vector2i(480, 340)
+const NEW_DIALOG_CONTENT_WIDTH := 400.0
 
 var session := TrackEditorSession.new()
+var _preview_controller := PreviewController.new()
 
 var _title_label: Label
 var _dirty_label: Label
@@ -29,28 +48,92 @@ var _view_toggle: Button
 var _undo_button: Button
 var _redo_button: Button
 var _track_picker: OptionButton
+var _navigation_panel: PanelContainer
+var _inspector_panel: PanelContainer
+var _editor_root: VBoxContainer
+var _content_status_split: VSplitContainer
+var _navigation_split: HSplitContainer
+var _inspector_split: HSplitContainer
+var _status_panel: PanelContainer
+var _panels_menu: MenuButton
+var _header_actions_scroll: ScrollContainer
+var _new_button: Button
+var _open_button: Button
+var _save_button: Button
+var _guide_button: Button
 var _new_dialog: ConfirmationDialog
 var _new_name: LineEdit
 var _new_size: OptionButton
+var _new_template_details: Label
 var _open_dialog: FileDialog
 var _unsaved_dialog: ConfirmationDialog
 var _guide_dialog: AcceptDialog
+var _calibration_dialog: ConfirmationDialog
 var _pending_action := ""
 var _pending_path := ""
 var _current_step := 0
 var _laps := 3
 var _description := ""
 var _is_showing_preview := false
+var _selection: RefCounted = Selection.none()
+var _pending_test_token := ""
+var _test_result_path := ""
+var _is_compact := false
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	theme = _create_workshop_theme()
 	_build_interface()
+	resized.connect(_apply_responsive_layout)
+	_apply_responsive_layout()
 	_connect_session()
 	_reload_track_picker()
 	if _track_picker.item_count > 0:
 		_load_selected_track()
+
+
+func _process(_delta: float) -> void:
+	if (
+		_pending_test_token.is_empty()
+		or _test_result_path.is_empty()
+		or not FileAccess.file_exists(_test_result_path)
+	):
+		return
+	var result := ConfigFile.new()
+	if result.load(_test_result_path) != OK:
+		return
+	if str(result.get_value("result", "token", "")) != _pending_test_token:
+		return
+	_show_test_result(result)
+	_pending_test_token = ""
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(_test_result_path))
+
+
+func track_test_started(token: String, result_path: String) -> void:
+	_pending_test_token = token
+	_test_result_path = result_path
+	_show_success("Prueba iniciada. Usa F8 o VOLVER AL EDITOR para regresar.")
+
+
+func _show_test_result(result: ConfigFile) -> void:
+	var elapsed := float(result.get_value("result", "elapsed_time", 0.0))
+	var minutes := floori(elapsed / 60.0)
+	var seconds := fmod(elapsed, 60.0)
+	var completed := bool(result.get_value("result", "completed", false))
+	_show_success(
+		"Última prueba%s · %02d:%06.3f · %d recuperaciones · %d fuera de ruta · %d atajos."
+		% [
+			" completada" if completed else "",
+			minutes,
+			seconds,
+			int(result.get_value("result", "recovery_count", 0)),
+			int(result.get_value("result", "off_route_count", 0)),
+			int(result.get_value("result", "shortcut_count", 0)),
+		]
+	)
 
 
 func _shortcut_input(event: InputEvent) -> void:
@@ -74,43 +157,80 @@ func _shortcut_input(event: InputEvent) -> void:
 
 
 func _build_interface() -> void:
-	var root := VBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 0)
-	add_child(root)
+	var viewport_scroll := ScrollContainer.new()
+	viewport_scroll.name = "EditorViewportScroll"
+	viewport_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	viewport_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	viewport_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(viewport_scroll)
 
-	root.add_child(_build_header())
+	_editor_root = VBoxContainer.new()
+	_editor_root.name = "EditorLayout"
+	_editor_root.custom_minimum_size.x = 960.0
+	_editor_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_editor_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_editor_root.add_theme_constant_override("separation", 0)
+	viewport_scroll.add_child(_editor_root)
 
-	var body := HBoxContainer.new()
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 0)
-	root.add_child(body)
+	_editor_root.add_child(_build_header())
+
+	_content_status_split = VSplitContainer.new()
+	_content_status_split.name = "WorkspaceStatusSplit"
+	_content_status_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content_status_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content_status_split.add_theme_constant_override("separation", 8)
+	_editor_root.add_child(_content_status_split)
+
+	_navigation_split = HSplitContainer.new()
+	_navigation_split.name = "WorkflowWorkspaceSplit"
+	_navigation_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_navigation_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_navigation_split.add_theme_constant_override("separation", 8)
+	_content_status_split.add_child(_navigation_split)
 
 	var navigation := _build_navigation()
-	body.add_child(navigation)
+	_navigation_split.add_child(navigation)
+
+	_inspector_split = HSplitContainer.new()
+	_inspector_split.name = "WorkspaceInspectorSplit"
+	_inspector_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_inspector_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_inspector_split.add_theme_constant_override("separation", 8)
+	_navigation_split.add_child(_inspector_split)
 
 	var workspace := _build_workspace()
 	workspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.add_child(workspace)
+	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_inspector_split.add_child(workspace)
 
 	var inspector := _build_inspector()
-	body.add_child(inspector)
+	_inspector_split.add_child(inspector)
+
+	_status_panel = PanelContainer.new()
+	_status_panel.name = "EditorStatusPanel"
+	_status_panel.custom_minimum_size.y = 44.0
+	_status_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_content_status_split.add_child(_status_panel)
 
 	_status_label = Label.new()
 	_status_label.name = "EditorStatus"
 	_status_label.text = "● Abre una pista o crea una nueva."
-	_status_label.custom_minimum_size.y = 40.0
+	_status_label.custom_minimum_size.y = 44.0
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_status_label.add_theme_color_override("font_color", Color("#aab5b9"))
-	_status_label.add_theme_color_override("font_shadow_color", Color("#151b1f"))
+	_status_label.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
+	_status_label.add_theme_color_override("font_shadow_color", EditorStyle.CANVAS_BACKGROUND)
 	_status_label.add_theme_constant_override("shadow_offset_x", 1)
 	_status_label.add_theme_constant_override("shadow_offset_y", 1)
-	root.add_child(_status_label)
+	_status_panel.add_child(_status_label)
 
 	_build_new_dialog()
 	_build_open_dialog()
 	_build_unsaved_dialog()
 	_build_guide_dialog()
+	_build_calibration_dialog()
+	call_deferred("_reset_panel_layout")
 
 
 func _build_header() -> Control:
@@ -122,39 +242,56 @@ func _build_header() -> Control:
 	_title_label = Label.new()
 	_title_label.text = "PISTAS  /  SIN PISTA"
 	_title_label.custom_minimum_size.x = 280.0
-	_title_label.add_theme_font_size_override("font_size", 20)
-	_title_label.add_theme_color_override("font_color", Color("#f6c344"))
+	_title_label.add_theme_font_size_override("font_size", EditorStyle.TITLE_FONT_SIZE)
+	_title_label.add_theme_color_override("font_color", EditorStyle.FOCUS)
 	header.add_child(_title_label)
 
-	var new_button := _button("＋ NUEVA", _handle_new_pressed)
-	header.add_child(new_button)
-	header.add_child(_button("ABRIR", _handle_open_pressed))
+	_header_actions_scroll = ScrollContainer.new()
+	_header_actions_scroll.name = "HeaderActionsScroll"
+	_header_actions_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_header_actions_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_header_actions_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	header.add_child(_header_actions_scroll)
+	var header_actions := HBoxContainer.new()
+	header_actions.add_theme_constant_override("separation", 8)
+	_header_actions_scroll.add_child(header_actions)
+
+	_new_button = _button("＋ NUEVA", _handle_new_pressed, "Crear una pista nueva")
+	_new_button.name = "NewTrackButton"
+	header_actions.add_child(_new_button)
+	_open_button = _button("ABRIR", _handle_open_pressed, "Abrir una pista o borrador")
+	_open_button.name = "OpenTrackButton"
+	header_actions.add_child(_open_button)
 
 	_track_picker = OptionButton.new()
 	_track_picker.name = "TrackPicker"
 	_track_picker.custom_minimum_size = Vector2(220.0, 44.0)
 	_track_picker.item_selected.connect(func(_index: int) -> void: _request_load_selected())
-	header.add_child(_track_picker)
+	header_actions.add_child(_track_picker)
 
-	header.add_child(_button("GUARDAR", _handle_save_pressed))
+	_save_button = _button("GUARDAR", _handle_save_pressed, "Guardar borrador")
+	_save_button.name = "SaveTrackButton"
+	header_actions.add_child(_save_button)
 
 	_undo_button = _button("↶", session.undo_route, "Deshacer cambio de carretera")
 	_undo_button.custom_minimum_size.x = 48.0
-	header.add_child(_undo_button)
+	header_actions.add_child(_undo_button)
 	_redo_button = _button("↷", session.redo_route, "Rehacer cambio de carretera")
 	_redo_button.custom_minimum_size.x = 48.0
-	header.add_child(_redo_button)
+	header_actions.add_child(_redo_button)
 
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(spacer)
+	header_actions.add_child(spacer)
 
-	header.add_child(_button("? GUÍA", _show_guide))
+	_guide_button = _button("? GUÍA", _show_guide, "Abrir guía del editor")
+	_guide_button.name = "EditorGuideButton"
+	header_actions.add_child(_guide_button)
 
 	_dirty_label = Label.new()
 	_dirty_label.text = "GUARDADO"
-	_dirty_label.add_theme_color_override("font_color", Color("#42c7b9"))
-	header.add_child(_dirty_label)
+	_dirty_label.add_theme_color_override("font_color", EditorStyle.SUCCESS)
+	header_actions.add_child(_dirty_label)
 
 	header.add_child(_button("▶ PROBAR", _handle_test_pressed))
 	header.add_child(_button("PUBLICAR", _handle_publish_pressed, "", true))
@@ -162,15 +299,16 @@ func _build_header() -> Control:
 
 
 func _build_navigation() -> Control:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size.x = 210.0
+	_navigation_panel = PanelContainer.new()
+	_navigation_panel.name = "WorkflowNavigation"
+	_navigation_panel.custom_minimum_size.x = 210.0
 	var navigation := VBoxContainer.new()
 	navigation.add_theme_constant_override("separation", 8)
-	panel.add_child(navigation)
+	_navigation_panel.add_child(navigation)
 
 	var label := Label.new()
 	label.text = "RUTA DE TRABAJO"
-	label.add_theme_color_override("font_color", Color("#7f8c92"))
+	label.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
 	navigation.add_child(label)
 
 	var group := ButtonGroup.new()
@@ -196,9 +334,9 @@ func _build_navigation() -> Control:
 		+ "No necesitas usar el árbol de nodos ni el Inspector."
 	)
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	help.add_theme_color_override("font_color", Color("#aab5b9"))
+	help.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
 	navigation.add_child(help)
-	return panel
+	return _navigation_panel
 
 
 func _build_workspace() -> VBoxContainer:
@@ -209,11 +347,73 @@ func _build_workspace() -> VBoxContainer:
 	view_bar.custom_minimum_size.y = 48.0
 	var map_label := Label.new()
 	map_label.text = "  MESA DE TRAZADO"
-	map_label.add_theme_color_override("font_color", Color("#f4f1e8"))
+	map_label.add_theme_color_override("font_color", EditorStyle.TEXT_PRIMARY)
 	view_bar.add_child(map_label)
+	_panels_menu = MenuButton.new()
+	_panels_menu.name = "PanelLayoutMenu"
+	_panels_menu.text = "PANELES"
+	_panels_menu.tooltip_text = "Mostrar, ocultar o restablecer los paneles del editor"
+	_panels_menu.custom_minimum_size = Vector2(104.0, 44.0)
+	_panels_menu.focus_mode = Control.FOCUS_ALL
+	var panels_popup := _panels_menu.get_popup()
+	panels_popup.add_check_item("Ruta de trabajo", PANEL_WORKFLOW_ID)
+	panels_popup.set_item_checked(0, true)
+	panels_popup.add_check_item("Inspector", PANEL_INSPECTOR_ID)
+	panels_popup.set_item_checked(1, true)
+	panels_popup.add_check_item("Estado", PANEL_STATUS_ID)
+	panels_popup.set_item_checked(2, true)
+	panels_popup.add_separator()
+	panels_popup.add_item("Restablecer distribución", PANEL_RESET_LAYOUT_ID)
+	panels_popup.id_pressed.connect(_handle_panel_menu_action)
+	view_bar.add_child(_panels_menu)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	view_bar.add_child(spacer)
+	var grid_picker := OptionButton.new()
+	grid_picker.name = "GridStep"
+	grid_picker.tooltip_text = "Cuadrícula usada al mantener Ctrl durante el movimiento"
+	grid_picker.custom_minimum_size = Vector2(86.0, 44.0)
+	for grid_value in [1, 2, 5]:
+		grid_picker.add_item("%d m" % grid_value, grid_value)
+	grid_picker.item_selected.connect(func(index: int) -> void:
+		_map_view.set_grid_step(float(grid_picker.get_item_id(index)))
+	)
+	view_bar.add_child(grid_picker)
+	var layers := MenuButton.new()
+	layers.name = "MapLayers"
+	layers.text = "CAPAS"
+	layers.custom_minimum_size = Vector2(92.0, 44.0)
+	layers.focus_mode = Control.FOCUS_ALL
+	var layer_labels := {
+		&"direction": "Sentido",
+		&"objects": "Objetos",
+		&"shortcuts": "Atajos y portales",
+		&"errors": "Errores",
+		&"slope": "Pendiente",
+		&"curvature": "Curvatura",
+		&"barriers": "Barreras",
+	}
+	for layer_name in layer_labels:
+		var layer_index := layers.get_popup().item_count
+		layers.get_popup().add_check_item(layer_labels[layer_name])
+		layers.get_popup().set_item_metadata(layer_index, layer_name)
+		layers.get_popup().set_item_checked(
+			layer_index,
+			layer_name in [&"direction", &"objects", &"shortcuts", &"errors"]
+		)
+	layers.get_popup().index_pressed.connect(func(index: int) -> void:
+		var popup := layers.get_popup()
+		var enabled := not popup.is_item_checked(index)
+		popup.set_item_checked(index, enabled)
+		_map_view.set_layer_enabled(
+			StringName(popup.get_item_metadata(index)),
+			enabled
+		)
+	)
+	view_bar.add_child(layers)
+	view_bar.add_child(_button("−", func() -> void: _map_view.zoom_out(), "Alejar mapa"))
+	view_bar.add_child(_button("＋", func() -> void: _map_view.zoom_in(), "Acercar mapa"))
+	view_bar.add_child(_button("ENCUADRAR", func() -> void: _map_view.frame_all(), "Mostrar la pista completa"))
 	_view_toggle = _button("VISTA 3D", _toggle_view)
 	view_bar.add_child(_view_toggle)
 	workspace.add_child(view_bar)
@@ -229,61 +429,108 @@ func _build_workspace() -> VBoxContainer:
 	_map_view.route_edited.connect(_handle_route_edited)
 	_map_view.edit_finished.connect(_handle_route_edit_finished)
 	_map_view.point_selected.connect(_handle_point_selected)
+	_map_view.selection_changed.connect(_handle_selection_changed)
+	_map_view.entity_move_requested.connect(_handle_entity_move_requested)
+	_map_view.entity_delete_requested.connect(_handle_entity_delete_requested)
+	_map_view.entity_duplicate_requested.connect(_handle_entity_duplicate_requested)
 	view_stack.add_child(_map_view)
 
-	_preview_container = SubViewportContainer.new()
-	_preview_container.name = "TrackPreview3D"
-	_preview_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_preview_container.stretch = true
-	_preview_container.visible = false
-	view_stack.add_child(_preview_container)
-	_preview_viewport = SubViewport.new()
-	_preview_viewport.own_world_3d = true
-	_preview_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_preview_container.add_child(_preview_viewport)
-	_build_preview_world()
+	_preview_container = _preview_controller.build(view_stack)
+	_preview_viewport = _preview_controller.viewport
+	_preview_camera = _preview_controller.camera
 	return workspace
 
 
 func _build_inspector() -> Control:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size.x = 320.0
+	_inspector_panel = PanelContainer.new()
+	_inspector_panel.name = "TrackInspector"
+	_inspector_panel.custom_minimum_size.x = 320.0
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	panel.add_child(scroll)
+	_inspector_panel.add_child(scroll)
 	_properties = VBoxContainer.new()
 	_properties.custom_minimum_size.x = 292.0
 	_properties.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_properties.add_theme_constant_override("separation", 10)
 	scroll.add_child(_properties)
-	return panel
+	return _inspector_panel
 
 
-func _build_preview_world() -> void:
-	var environment_node := WorldEnvironment.new()
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#22343a")
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#d8ece6")
-	environment.ambient_light_energy = 0.8
-	environment_node.environment = environment
-	_preview_viewport.add_child(environment_node)
+func _apply_responsive_layout() -> void:
+	if _editor_root != null:
+		_editor_root.custom_minimum_size.y = maxf(size.y, 480.0)
+	_set_compact_mode(size.x < COMPACT_LAYOUT_BREAKPOINT)
 
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-55.0, -35.0, 0.0)
-	light.light_energy = 1.25
-	light.shadow_enabled = true
-	_preview_viewport.add_child(light)
 
-	_preview_camera = Camera3D.new()
-	_preview_camera.position = Vector3(135.0, 150.0, 135.0)
-	_preview_camera.fov = 58.0
-	_preview_camera.look_at_from_position(
-		_preview_camera.position,
-		Vector3.ZERO
+func _set_compact_mode(is_compact: bool) -> void:
+	_is_compact = is_compact
+	if _navigation_panel == null or _inspector_panel == null:
+		return
+	_navigation_panel.custom_minimum_size.x = 180.0 if is_compact else 210.0
+	_inspector_panel.custom_minimum_size.x = 280.0 if is_compact else 320.0
+	_properties.custom_minimum_size.x = 252.0 if is_compact else 292.0
+	_title_label.custom_minimum_size.x = 220.0 if is_compact else 280.0
+	_track_picker.custom_minimum_size.x = 160.0 if is_compact else 220.0
+	_new_button.text = "＋" if is_compact else "＋ NUEVA"
+	_guide_button.text = "?" if is_compact else "? GUÍA"
+
+
+func _handle_panel_menu_action(id: int) -> void:
+	match id:
+		PANEL_WORKFLOW_ID:
+			_navigation_panel.visible = not _navigation_panel.visible
+			_set_panel_menu_checked(PANEL_WORKFLOW_ID, _navigation_panel.visible)
+		PANEL_INSPECTOR_ID:
+			_inspector_panel.visible = not _inspector_panel.visible
+			_set_panel_menu_checked(PANEL_INSPECTOR_ID, _inspector_panel.visible)
+		PANEL_STATUS_ID:
+			_status_panel.visible = not _status_panel.visible
+			_set_panel_menu_checked(PANEL_STATUS_ID, _status_panel.visible)
+		PANEL_RESET_LAYOUT_ID:
+			_navigation_panel.show()
+			_inspector_panel.show()
+			_status_panel.show()
+			_set_panel_menu_checked(PANEL_WORKFLOW_ID, true)
+			_set_panel_menu_checked(PANEL_INSPECTOR_ID, true)
+			_set_panel_menu_checked(PANEL_STATUS_ID, true)
+			call_deferred("_reset_panel_layout")
+
+
+func _set_panel_menu_checked(id: int, is_checked: bool) -> void:
+	if _panels_menu == null:
+		return
+	var item_index := _panels_menu.get_popup().get_item_index(id)
+	if item_index >= 0:
+		_panels_menu.get_popup().set_item_checked(item_index, is_checked)
+
+
+func _reset_panel_layout() -> void:
+	if (
+		_content_status_split == null
+		or _navigation_split == null
+		or _inspector_split == null
+		or _navigation_panel == null
+		or _inspector_panel == null
+		or _status_panel == null
+	):
+		return
+	_navigation_split.split_offset = roundi(
+		_navigation_panel.custom_minimum_size.x
 	)
-	_preview_viewport.add_child(_preview_camera)
+	_inspector_split.split_offset = maxi(
+		roundi(
+			_inspector_split.size.x
+			- _inspector_panel.custom_minimum_size.x
+		),
+		0
+	)
+	_content_status_split.split_offset = maxi(
+		roundi(
+			_content_status_split.size.y
+			- _status_panel.custom_minimum_size.y
+		),
+		0
+	)
 
 
 func _connect_session() -> void:
@@ -349,16 +596,12 @@ func _load_path(path: String) -> void:
 
 
 func _handle_track_changed(track: TrackLevel) -> void:
-	for child in _preview_viewport.get_children():
-		if child is TrackLevel:
-			_preview_viewport.remove_child(child)
-			child.queue_free()
-	if track.get_parent() != null:
-		track.get_parent().remove_child(track)
-	_preview_viewport.add_child(track)
+	_selection = Selection.none()
+	_preview_controller.set_track(track)
 	_map_view.set_track(track)
 	_title_label.text = "PISTAS  /  %s" % track.display_name.to_upper()
 	_rebuild_preview()
+	_refresh_validation()
 	_show_step(_current_step)
 
 
@@ -366,12 +609,13 @@ func _handle_dirty_changed(is_dirty: bool) -> void:
 	_dirty_label.text = "● SIN GUARDAR" if is_dirty else "✓ GUARDADO"
 	_dirty_label.add_theme_color_override(
 		"font_color",
-		Color("#f6c344") if is_dirty else Color("#42c7b9")
+		EditorStyle.FOCUS if is_dirty else EditorStyle.SUCCESS
 	)
 
 
 func _handle_session_route_changed() -> void:
 	_map_view.set_track(session.track)
+	_restore_selection_after_history()
 	_rebuild_preview()
 	if _current_step == 1:
 		_show_step(1)
@@ -387,7 +631,6 @@ func _show_step(step_index: int) -> void:
 	_step_buttons[_current_step].set_pressed_no_signal(true)
 	for child in _properties.get_children():
 		child.queue_free()
-	_add_section_title(STEP_LABELS[_current_step])
 	if session.track == null:
 		_add_help("Abre o crea una pista para comenzar.")
 		return
@@ -405,228 +648,87 @@ func _show_step(step_index: int) -> void:
 
 
 func _build_setup_properties() -> void:
-	_add_help("Ponle identidad a la pista. Las opciones técnicas se configuran solas.")
-	_add_field_label("Nombre visible")
-	var name_edit := LineEdit.new()
-	name_edit.text = session.track.display_name
-	name_edit.custom_minimum_size.y = 44.0
-	name_edit.text_changed.connect(func(value: String) -> void:
-		session.track.display_name = value
-		session.track.start_banner_text = value.to_upper()
-		_title_label.text = "PISTAS  /  %s" % value.to_upper()
-		session.mark_dirty()
+	var panel := SetupPanel.new()
+	panel.name = "TrackSetupPanel"
+	panel.configure(session.track, _laps, _description, _button)
+	panel.name_changed.connect(_handle_track_name_changed)
+	panel.laps_changed.connect(func(value: int) -> void: _laps = value)
+	panel.description_changed.connect(
+		func(value: String) -> void: _description = value
 	)
-	_properties.add_child(name_edit)
-	_add_field_label("Identificador")
-	var id_label := Label.new()
-	id_label.text = str(session.track.track_id)
-	id_label.add_theme_color_override("font_color", Color("#aab5b9"))
-	_properties.add_child(id_label)
-	_add_field_label("Vueltas")
-	var laps := SpinBox.new()
-	laps.min_value = 1.0
-	laps.max_value = 9.0
-	laps.value = _laps
-	laps.custom_minimum_size.y = 44.0
-	laps.value_changed.connect(func(value: float) -> void: _laps = int(value))
-	_properties.add_child(laps)
-	_add_field_label("Descripción para el menú")
-	var description := TextEdit.new()
-	description.text = _description
-	description.custom_minimum_size.y = 100.0
-	description.text_changed.connect(func() -> void: _description = description.text)
-	_properties.add_child(description)
+	_properties.add_child(panel)
 
 
 func _build_route_properties() -> void:
-	_add_help(
-		"Selecciona un punto blanco y arrástralo. Las flechas del teclado "
-		+ "también lo mueven con precisión."
-	)
-	var selected := _map_view.selected_point
-	var selected_label := Label.new()
-	selected_label.text = (
-		"Punto seleccionado: %d" % (selected + 1)
-		if selected >= 0
-		else "Selecciona un punto en el mapa"
-	)
-	selected_label.add_theme_color_override("font_color", Color("#f6c344"))
-	_properties.add_child(selected_label)
-	var add_button := _button("＋ AÑADIR PUNTO DESPUÉS", _handle_add_point)
-	add_button.disabled = selected < 0
-	_properties.add_child(add_button)
-	var delete_button := _button("ELIMINAR PUNTO", _handle_delete_point)
-	delete_button.disabled = selected < 0 or _route_point_count() <= 4
-	_properties.add_child(delete_button)
-	_add_field_label("Altura del punto")
-	var height := SpinBox.new()
-	height.min_value = 0.0
-	height.max_value = 12.0
-	height.step = 0.25
-	height.custom_minimum_size.y = 44.0
-	height.editable = selected >= 0
-	if selected >= 0:
-		height.value = session.track.get_main_route().curve.get_point_position(selected).y
-	height.value_changed.connect(func(value: float) -> void:
-		if height.editable:
-			_map_view.set_selected_height(value)
-	)
-	_properties.add_child(height)
-	var start_button := _button("MARCAR COMO SALIDA", _handle_mark_start)
-	start_button.disabled = selected < 0
-	_properties.add_child(start_button)
+	var panel := RoutePanel.new()
+	panel.name = "TrackRoutePanel"
+	panel.configure(session.track, _map_view.selected_point, _button)
+	panel.add_point_requested.connect(_handle_add_point)
+	panel.delete_point_requested.connect(_handle_delete_point)
+	panel.height_changed.connect(_map_view.set_selected_height)
+	panel.mark_start_requested.connect(_handle_mark_start)
+	panel.position_changed.connect(_handle_route_position_changed)
+	_properties.add_child(panel)
 
 
 func _build_shortcut_properties() -> void:
-	_add_help(
-		"Elige dos puntos de la carretera. La entrada debe aparecer antes "
-		+ "que la salida siguiendo las flechas."
+	var panel := ShortcutPanel.new()
+	panel.name = "TrackShortcutPanel"
+	panel.configure(session.track, _button, _selection)
+	panel.create_shortcut_requested.connect(_create_shortcut)
+	panel.delete_shortcut_requested.connect(_delete_shortcut)
+	panel.shortcut_selection_requested.connect(
+		func(selected: RefCounted) -> void: _map_view.set_selection(selected)
 	)
-	var entry := OptionButton.new()
-	var exit := OptionButton.new()
-	for point_index in _route_point_count():
-		entry.add_item("Entrada en punto %d" % (point_index + 1))
-		exit.add_item("Salida en punto %d" % (point_index + 1))
-	entry.custom_minimum_size.y = 44.0
-	exit.custom_minimum_size.y = 44.0
-	exit.select(mini(3, maxi(0, exit.item_count - 1)))
-	_properties.add_child(entry)
-	_properties.add_child(exit)
-	_properties.add_child(
-		_button(
-			"＋ CREAR ATAJO",
-			func() -> void: _create_shortcut(entry.selected, exit.selected)
-		)
-	)
-	for shortcut in session.track.get_shortcuts():
-		var row := HBoxContainer.new()
-		var label := Label.new()
-		label.text = "✓ %s" % shortcut.display_name
-		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(label)
-		row.add_child(
-			_button(
-				"Eliminar",
-				_delete_shortcut.bind(shortcut),
-				"Eliminar %s" % shortcut.display_name
-			)
-		)
-		_properties.add_child(row)
+	panel.shortcut_shape_changed.connect(_handle_shortcut_shape_changed)
+	panel.shortcut_rename_requested.connect(_handle_shortcut_rename_requested)
+	panel.shortcut_reset_requested.connect(_handle_shortcut_reset_requested)
+	_properties.add_child(panel)
 
 
 func _build_object_properties() -> void:
-	_add_help(
-		"Elige un punto y un lado. El editor coloca la decoración fuera "
-		+ "de la carretera para no bloquear los karts."
+	var panel := ObjectPanel.new()
+	panel.name = "TrackObjectPanel"
+	panel.configure(session.track, _button, _selection)
+	panel.add_item_requested.connect(_add_item_spawn)
+	panel.add_asset_requested.connect(_add_asset)
+	panel.anchor_changed.connect(_handle_object_anchor_changed)
+	panel.duplicate_requested.connect(_handle_entity_duplicate_requested)
+	panel.delete_requested.connect(_handle_entity_delete_requested)
+	panel.restore_recommended_requested.connect(
+		_handle_restore_recommended_requested
 	)
-	_add_field_label("Cajas de objetos")
-	var route_point := OptionButton.new()
-	for point_index in _route_point_count():
-		route_point.add_item("Punto %d" % (point_index + 1))
-	route_point.custom_minimum_size.y = 44.0
-	_properties.add_child(route_point)
-	_properties.add_child(
-		_button(
-			"＋ AÑADIR CAJA",
-			func() -> void: _add_item_spawn(route_point.selected)
-		)
+	panel.calibrate_known_requested.connect(
+		func() -> void: _calibration_dialog.popup_centered(Vector2i(520, 220))
 	)
-	_add_field_label("Decoración CC0")
-	var asset_picker := OptionButton.new()
-	var asset_entries: Array[TrackAssetEntry] = []
-	var library := load(ASSET_LIBRARY_PATH) as TrackAssetLibrary
-	if library != null:
-		asset_entries = library.get_valid_entries()
-		for entry in asset_entries:
-			asset_picker.add_item("%s  ·  %s" % [entry.category, entry.display_name])
-	asset_picker.custom_minimum_size.y = 44.0
-	asset_picker.disabled = asset_entries.is_empty()
-	_properties.add_child(asset_picker)
-	var side_picker := OptionButton.new()
-	side_picker.add_item("Lado izquierdo")
-	side_picker.add_item("Lado derecho")
-	side_picker.custom_minimum_size.y = 44.0
-	_properties.add_child(side_picker)
-	_add_field_label("Distancia desde el centro")
-	var asset_distance := SpinBox.new()
-	asset_distance.min_value = 12.0
-	asset_distance.max_value = 35.0
-	asset_distance.step = 1.0
-	asset_distance.value = 15.0
-	asset_distance.suffix = " m"
-	asset_distance.custom_minimum_size.y = 44.0
-	_properties.add_child(asset_distance)
-	_add_field_label("Rotación")
-	var asset_rotation := SpinBox.new()
-	asset_rotation.min_value = -180.0
-	asset_rotation.max_value = 180.0
-	asset_rotation.step = 15.0
-	asset_rotation.suffix = "°"
-	asset_rotation.custom_minimum_size.y = 44.0
-	_properties.add_child(asset_rotation)
-	var add_asset := _button(
-		"＋ COLOCAR DECORACIÓN",
-		func() -> void:
-			if asset_picker.selected >= 0:
-				_add_asset(
-					asset_entries[asset_picker.selected],
-					route_point.selected,
-					-1.0 if side_picker.selected == 0 else 1.0,
-					asset_distance.value,
-					asset_rotation.value
-				)
-	)
-	add_asset.disabled = asset_entries.is_empty()
-	_properties.add_child(add_asset)
-	var counts := Label.new()
-	var props := session.track.get_node_or_null("Props")
-	var items := session.track.get_node_or_null("ItemSpawns")
-	counts.text = "Decoración: %d\nCajas: %d" % [
-		props.get_child_count() if props != null else 0,
-		items.get_child_count() if items != null else 0,
-	]
-	counts.add_theme_color_override("font_color", Color("#aab5b9"))
-	_properties.add_child(counts)
+	_properties.add_child(panel)
 
 
 func _build_review_properties() -> void:
-	_add_help(
-		"El editor revisa carretera, salida, cajas y atajos. "
-		+ "Puedes guardar un borrador aunque todavía tenga errores."
-	)
 	var issues := _deduplicate_issues(session.track.inspect_track())
-	if issues.is_empty():
-		var ready := Label.new()
-		ready.text = "✓ PISTA LISTA PARA PROBAR"
-		ready.add_theme_color_override("font_color", Color("#42c7b9"))
-		ready.add_theme_font_size_override("font_size", 17)
-		_properties.add_child(ready)
-	else:
-		for issue in issues:
-			var issue_button := _button(
-				"⚠  " + issue.message,
-				_focus_issue.bind(issue),
-				"Ir al elemento con este problema"
-			)
-			issue_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			issue_button.add_theme_color_override("font_color", Color("#ffd3c8"))
-			_properties.add_child(issue_button)
-	_properties.add_child(_button("VALIDAR DE NUEVO", _handle_validate_pressed))
-	_properties.add_child(_button("GUARDAR BORRADOR", _handle_save_pressed))
-	var test_button := _button("▶ PROBAR CON EL KART", _handle_test_pressed)
-	test_button.disabled = not issues.is_empty()
-	_properties.add_child(test_button)
-	var publish_button := _button("PUBLICAR EN EL JUEGO", _handle_publish_pressed, "", true)
-	publish_button.disabled = not issues.is_empty()
-	_properties.add_child(publish_button)
+	var panel := ReviewPanel.new()
+	panel.name = "TrackReviewPanel"
+	panel.configure(issues, _button)
+	panel.issue_focus_requested.connect(_focus_issue)
+	panel.validate_requested.connect(_handle_validate_pressed)
+	panel.save_requested.connect(_handle_save_pressed)
+	panel.test_requested.connect(_handle_test_pressed)
+	panel.publish_requested.connect(_handle_publish_pressed)
+	_properties.add_child(panel)
+
+
+func _handle_track_name_changed(value: String) -> void:
+	session.track.display_name = value
+	session.track.start_banner_text = value.to_upper()
+	_title_label.text = "PISTAS  /  %s" % value.to_upper()
+	session.mark_dirty()
 
 
 func _handle_new_pressed() -> void:
 	if session.is_dirty:
 		_show_unsaved_dialog("new", "")
 	else:
-		_new_dialog.popup_centered(Vector2i(460, 280))
+		_popup_new_dialog()
 
 
 func _handle_open_pressed() -> void:
@@ -653,7 +755,7 @@ func _handle_save_pressed() -> void:
 
 func _handle_publish_pressed() -> void:
 	var issues := session.track.inspect_track() if session.track != null else []
-	if not issues.is_empty():
+	if _has_blocking_issues(issues):
 		_show_error("Corrige los problemas indicados antes de publicar.")
 		_show_step(4)
 		return
@@ -695,12 +797,240 @@ func _handle_route_edited() -> void:
 func _handle_route_edit_finished() -> void:
 	session.recalculate_route_dependents()
 	_rebuild_preview()
+	_refresh_validation()
+	_show_step(_current_step)
 	_show_success("Carretera actualizada.")
 
 
 func _handle_point_selected(_point_index: int) -> void:
-	if _current_step == 1:
-		_show_step(1)
+	pass
+
+
+func _handle_selection_changed(new_selection: RefCounted) -> void:
+	_selection = new_selection
+	var step := int(_selection.workflow_step())
+	if step >= 0:
+		_show_step(step)
+
+
+func _handle_entity_move_requested(
+	selected: RefCounted,
+	track_position: Vector3
+) -> void:
+	if session.move_entity(selected, track_position):
+		session.mark_dirty()
+		if selected.is_shortcut_control() and _current_step == 2:
+			_show_step(2)
+
+
+func _handle_entity_delete_requested(selected: RefCounted) -> void:
+	if selected == null or selected.is_empty():
+		return
+	session.snapshot_track_for_undo()
+	if not session.delete_entity(selected):
+		_show_error("Este elemento no se puede eliminar.")
+		return
+	_selection = Selection.none()
+	_map_view.clear_selection()
+	session.mark_dirty()
+	session.recalculate_route_dependents()
+	_complete_entity_edit("Elemento eliminado.")
+
+
+func _handle_entity_duplicate_requested(selected: RefCounted) -> void:
+	if selected == null or selected.is_empty():
+		return
+	session.snapshot_track_for_undo()
+	var duplicated := session.duplicate_entity(selected)
+	if duplicated == null or duplicated.is_empty():
+		_show_error("Este elemento no se puede duplicar.")
+		return
+	_selection = duplicated
+	_map_view.set_selection(_selection)
+	session.mark_dirty()
+	_complete_entity_edit("Elemento duplicado.")
+
+
+func _complete_entity_edit(message: String) -> void:
+	_map_view.refresh_view_bounds()
+	_rebuild_preview()
+	_refresh_validation()
+	_show_step(_current_step)
+	_show_success(message)
+
+
+func _restore_selection_after_history() -> void:
+	if _selection == null or _selection.is_empty():
+		return
+	if (
+		_selection.kind != Selection.Kind.ROUTE_POINT
+		and session.track.get_node_or_null(_selection.node_path) == null
+	):
+		_selection = Selection.none()
+	_map_view.set_selection(_selection)
+
+
+func _refresh_validation() -> void:
+	if session.track == null:
+		return
+	var issues := _deduplicate_issues(session.track.inspect_track())
+	_map_view.set_issues(issues)
+	_update_step_badges(issues)
+
+
+func _update_step_badges(issues: Array[TrackValidationIssue]) -> void:
+	var counts := [0, 0, 0, 0, 0]
+	for issue in issues:
+		var path_text := str(issue.target_path)
+		if path_text.begins_with("Shortcuts"):
+			counts[2] += 1
+		elif path_text.begins_with("ItemSpawns") or path_text.begins_with("Props"):
+			counts[3] += 1
+		elif path_text == ".":
+			counts[0] += 1
+		else:
+			counts[1] += 1
+	for step_index in STEP_LABELS.size():
+		_step_buttons[step_index].text = (
+			"%s  ⚠ %d" % [STEP_LABELS[step_index], counts[step_index]]
+			if counts[step_index] > 0
+			else STEP_LABELS[step_index]
+		)
+
+
+func _handle_route_position_changed(position: Vector3) -> void:
+	if _selection.kind != Selection.Kind.ROUTE_POINT:
+		return
+	session.snapshot_track_for_undo()
+	if session.update_route_point(_selection.point_index, position):
+		session.mark_dirty()
+		session.recalculate_route_dependents()
+		_complete_entity_edit("Punto de carretera actualizado.")
+
+
+func _handle_object_anchor_changed(
+	selected: RefCounted,
+	progress: float,
+	lateral: float,
+	height: float,
+	rotation: float,
+	scale_multiplier: float
+) -> void:
+	session.snapshot_track_for_undo()
+	var changed := (
+		session.update_item_progress(selected, progress)
+		if selected.kind == Selection.Kind.ITEM
+		else session.update_prop_anchor(
+			selected,
+			progress,
+			lateral,
+			height,
+			rotation,
+			scale_multiplier
+		)
+	)
+	if changed:
+		session.mark_dirty()
+		_complete_entity_edit("Objeto actualizado.")
+
+
+func _handle_restore_recommended_requested(selected: RefCounted) -> void:
+	session.snapshot_track_for_undo()
+	if not session.restore_prop_recommended_scale(selected):
+		session.discard_latest_snapshot()
+		_show_error("No se reconoce este asset; se conservó su tamaño actual.")
+		return
+	session.mark_dirty()
+	_complete_entity_edit("Tamaño recomendado restaurado.")
+
+
+func _calibrate_known_props() -> void:
+	session.snapshot_track_for_undo()
+	var result := session.calibrate_known_props()
+	var affected := int(result.get("affected", 0))
+	var omitted := int(result.get("omitted", 0))
+	if affected == 0:
+		session.discard_latest_snapshot()
+		_show_warning(
+			"No se calibró decoración; %d objeto(s) desconocido(s) quedaron intactos."
+			% omitted
+		)
+		return
+	session.mark_dirty()
+	_complete_entity_edit(
+		"Calibración terminada: %d afectado(s), %d omitido(s)."
+		% [affected, omitted]
+	)
+
+
+func _handle_shortcut_midpoint_changed(
+	selected: RefCounted,
+	longitudinal: float,
+	lateral: float,
+	height: float
+) -> void:
+	session.snapshot_track_for_undo()
+	var result := session.fit_shortcut_midpoint(
+		selected,
+		longitudinal,
+		lateral,
+		height
+	)
+	if result.status == &"accepted" or result.status == &"adjusted":
+		session.mark_dirty()
+		_complete_entity_edit(String(result.message))
+	else:
+		session.discard_latest_snapshot()
+		_rebuild_preview()
+		_refresh_validation()
+		_show_step(2)
+		_show_error(String(result.message))
+
+
+func _handle_shortcut_shape_changed(
+	selected: RefCounted,
+	shape: Dictionary
+) -> void:
+	session.snapshot_track_for_undo()
+	var result := session.fit_shortcut_shape(selected, shape)
+	if result.status in [&"accepted", &"adjusted"]:
+		session.mark_dirty()
+		_complete_entity_edit(String(result.message))
+	else:
+		session.discard_latest_snapshot()
+		_rebuild_preview()
+		_refresh_validation()
+		_show_step(2)
+		_show_error(String(result.message))
+
+
+func _handle_shortcut_rename_requested(
+	selected: RefCounted,
+	display_name: String
+) -> void:
+	session.snapshot_track_for_undo()
+	if not session.rename_shortcut(selected, display_name):
+		session.discard_latest_snapshot()
+		_show_error("El atajo necesita un nombre.")
+		return
+	session.mark_dirty()
+	_complete_entity_edit("Atajo renombrado.")
+
+
+func _handle_shortcut_reset_requested(selected: RefCounted) -> void:
+	session.snapshot_track_for_undo()
+	var result := session.reset_shortcut_safe(selected)
+	if result.status == &"adjusted":
+		session.mark_dirty()
+		_complete_entity_edit(String(result.message))
+	elif result.status == &"accepted":
+		session.discard_latest_snapshot()
+		_show_step(2)
+		_show_success(String(result.message))
+	else:
+		session.discard_latest_snapshot()
+		_show_step(2)
+		_show_error(String(result.message))
 
 
 func _handle_add_point() -> void:
@@ -732,36 +1062,31 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 		_show_error("La salida debe estar al menos dos puntos después de la entrada.")
 		return
 	var curve := session.track.get_main_route().curve
+	var start := curve.get_point_position(entry_index)
+	var finish := curve.get_point_position(exit_index)
+	var entry_forward := _get_route_forward_at_position(curve, start)
+	var exit_forward := _get_route_forward_at_position(curve, finish)
+	var shortcut_curve := _find_clear_shortcut_curve(
+		start,
+		finish,
+		entry_forward,
+		exit_forward
+	)
+	if shortcut_curve == null:
+		_show_error(
+			"No hay espacio seguro para ese atajo. Elige otra entrada o salida."
+		)
+		return
+	session.snapshot_track_for_undo()
 	var shortcut := TrackShortcut.new()
 	shortcut.name = "Shortcut%d" % (session.track.get_shortcuts().size() + 1)
 	shortcut.shortcut_id = session.track.get_shortcuts().size()
 	shortcut.display_name = "Atajo %d" % (shortcut.shortcut_id + 1)
-	shortcut.curve = Curve3D.new()
-	var start := curve.get_point_position(entry_index)
-	var finish := curve.get_point_position(exit_index)
-	var midpoint := start.lerp(finish, 0.5)
-	var direct := Vector2(finish.x - start.x, finish.z - start.z).normalized()
-	midpoint += Vector3(-direct.y, 0.0, direct.x) * 12.0
-	var entry_forward := (
-		curve.get_point_position((entry_index + 1) % curve.point_count)
-		- curve.get_point_position(
-			(entry_index - 1 + curve.point_count) % curve.point_count
-		)
-	).normalized()
-	var exit_forward := (
-		curve.get_point_position((exit_index + 1) % curve.point_count)
-		- curve.get_point_position(
-			(exit_index - 1 + curve.point_count) % curve.point_count
-		)
-	).normalized()
-	var middle_tangent := (finish - start) / 7.0
-	shortcut.curve.add_point(start, Vector3.ZERO, entry_forward * 10.0)
-	shortcut.curve.add_point(midpoint, -middle_tangent, middle_tangent)
-	shortcut.curve.add_point(finish, -exit_forward * 10.0)
+	shortcut.curve = shortcut_curve
 	var shortcuts := session.track.get_node_or_null("Shortcuts")
 	shortcuts.add_child(shortcut)
 	shortcut.owner = session.track
-	session.configure_shortcut_anchor(shortcut)
+	session.configure_shortcut_anchor(shortcut, true)
 	session.mark_dirty()
 	_map_view.queue_redraw()
 	_rebuild_preview()
@@ -773,11 +1098,153 @@ func _create_shortcut(entry_index: int, exit_index: int) -> void:
 		_show_error("Atajo creado. Revisa su dirección y conexiones.")
 
 
+func _get_route_forward_at_position(
+	route_curve: Curve3D,
+	position: Vector3
+) -> Vector3:
+	var route_length := route_curve.get_baked_length()
+	if route_length <= 0.001:
+		return Vector3.FORWARD
+	var offset := route_curve.get_closest_offset(position)
+	var sample_distance := minf(1.0, route_length * 0.01)
+	var previous_offset := offset - sample_distance
+	var next_offset := offset + sample_distance
+	if route_curve.closed:
+		previous_offset = fposmod(previous_offset, route_length)
+		next_offset = fposmod(next_offset, route_length)
+	else:
+		previous_offset = maxf(previous_offset, 0.0)
+		next_offset = minf(next_offset, route_length)
+	var forward := (
+		route_curve.sample_baked(next_offset)
+		- route_curve.sample_baked(previous_offset)
+	)
+	forward.y = 0.0
+	return forward.normalized() if forward.length_squared() > 0.0001 else Vector3.FORWARD
+
+
+func _find_clear_shortcut_curve(
+	start: Vector3,
+	finish: Vector3,
+	entry_forward: Vector3,
+	exit_forward: Vector3
+) -> Curve3D:
+	var direct_2d := Vector2(finish.x - start.x, finish.z - start.z)
+	if direct_2d.length_squared() <= 0.001:
+		return null
+	var lateral_2d := Vector2(-direct_2d.y, direct_2d.x).normalized()
+	var lateral := Vector3(lateral_2d.x, 0.0, lateral_2d.y)
+	var route_points := session.track._sample_path(
+		session.track.get_main_route(),
+		true
+	)
+	var required_clearance := TrackLevelValidator.SHORTCUT_ROUTE_CLEARANCE + 2.0
+	var base_offset := required_clearance + 2.0
+	for offset_multiplier in [1.0, 1.45, 2.0, 2.8, 3.8]:
+		var best_curve: Curve3D = null
+		var best_score := -INF
+		for side in [-1.0, 1.0]:
+			var midpoint := start.lerp(finish, 0.5)
+			midpoint += lateral * base_offset * offset_multiplier * side
+			for tangent_ratio in [0.14, 0.2, 0.26, 0.32]:
+				var candidate := _build_shortcut_curve(
+					start,
+					finish,
+					midpoint,
+					entry_forward,
+					exit_forward,
+					tangent_ratio
+				)
+				var candidate_points := _sample_shortcut_curve(candidate)
+				if TrackLevelValidator.has_shortcut_route_crossing(
+					candidate_points,
+					route_points
+				):
+					continue
+				if not TrackLevelValidator.shortcut_follows_route_direction(
+					candidate_points,
+					route_points
+				):
+					continue
+				var clearance := TrackLevelValidator.get_shortcut_corridor_clearance(
+					candidate_points,
+					route_points
+				)
+				var turn_radius := TrackLevelValidator.get_shortcut_minimum_turn_radius(
+					candidate_points,
+					route_points
+				)
+				if (
+					clearance < required_clearance
+					or turn_radius < TrackLevelValidator.SHORTCUT_MINIMUM_TURN_RADIUS
+				):
+					continue
+				var score := minf(turn_radius, 40.0) + clearance * 0.1
+				if score > best_score:
+					best_curve = candidate
+					best_score = score
+		if best_curve != null:
+			return best_curve
+	return null
+
+
+func _sample_shortcut_curve(shortcut_curve: Curve3D) -> Array[Vector3]:
+	var points: Array[Vector3] = []
+	var segment_count := shortcut_curve.point_count - 1
+	for segment_index in segment_count:
+		for subdivision in session.track.shortcut_subdivisions:
+			points.append(
+				shortcut_curve.sample(
+					segment_index,
+					float(subdivision) / session.track.shortcut_subdivisions
+				)
+			)
+	points.append(shortcut_curve.sample(segment_count - 1, 1.0))
+	return points
+
+
+func _build_shortcut_curve(
+	start: Vector3,
+	finish: Vector3,
+	midpoint: Vector3,
+	entry_forward: Vector3,
+	exit_forward: Vector3,
+	tangent_ratio := 0.22
+) -> Curve3D:
+	var shortcut_curve := Curve3D.new()
+	var endpoint_distance := minf(
+		start.distance_to(midpoint),
+		midpoint.distance_to(finish)
+	)
+	var endpoint_tangent_length := clampf(
+		endpoint_distance * tangent_ratio,
+		8.0,
+		28.0
+	)
+	var middle_direction := (finish - start).normalized()
+	var middle_tangent_length := clampf(endpoint_distance * 0.24, 6.0, 18.0)
+	var middle_tangent := middle_direction * middle_tangent_length
+	shortcut_curve.add_point(
+		start,
+		Vector3.ZERO,
+		entry_forward * endpoint_tangent_length
+	)
+	shortcut_curve.add_point(midpoint, -middle_tangent, middle_tangent)
+	shortcut_curve.add_point(
+		finish,
+		-exit_forward * endpoint_tangent_length
+	)
+	return shortcut_curve
+
+
 func _delete_shortcut(shortcut: TrackShortcut) -> void:
 	if not is_instance_valid(shortcut):
 		return
+	session.snapshot_track_for_undo()
 	shortcut.get_parent().remove_child(shortcut)
 	shortcut.free()
+	_selection = Selection.none()
+	_map_view.clear_selection()
 	session.mark_dirty()
 	_map_view.queue_redraw()
 	_rebuild_preview()
@@ -790,6 +1257,7 @@ func _add_item_spawn(point_index: int) -> void:
 	if item_root == null or route == null or route.curve == null:
 		_show_error("La pista no tiene un contenedor de cajas válido.")
 		return
+	session.snapshot_track_for_undo()
 	var marker := Marker3D.new()
 	marker.name = "ItemSpawn%d" % (item_root.get_child_count() + 1)
 	marker.position = route.curve.get_point_position(point_index)
@@ -810,7 +1278,8 @@ func _add_asset(
 	point_index: int,
 	side_sign: float,
 	distance: float,
-	rotation_degrees_y: float
+	rotation_degrees_y: float,
+	scale_multiplier: float = 1.0
 ) -> void:
 	var props := session.track.get_node_or_null("Props")
 	var route := session.track.get_main_route()
@@ -821,6 +1290,9 @@ func _add_asset(
 	if instance == null:
 		_show_error("El asset seleccionado no es un modelo 3D.")
 		return
+	var scale_result := entry.resolve_base_scale()
+	var base_scale: Vector3 = scale_result.scale
+	session.snapshot_track_for_undo()
 	instance.name = entry.display_name.validate_node_name()
 	var previous_index := (
 		point_index - 1 + route.curve.point_count
@@ -835,9 +1307,10 @@ func _add_asset(
 	var side := Vector3(-forward.z, 0.0, forward.x) * side_sign
 	instance.position = route.curve.get_point_position(point_index) + side * distance
 	instance.rotation_degrees.y = rotation_degrees_y
-	instance.scale = entry.default_scale
 	props.add_child(instance)
 	instance.owner = session.track
+	session.set_prop_asset_id(instance, entry.id)
+	session.initialize_prop_scale(instance, base_scale, scale_multiplier)
 	session.anchor_prop(
 		instance,
 		session.get_route_progress_for_control_point(point_index),
@@ -848,27 +1321,37 @@ func _add_asset(
 	session.mark_dirty()
 	_rebuild_preview()
 	_show_step(3)
-	_show_success("%s colocado junto a la carretera." % entry.display_name)
+	if bool(scale_result.used_fallback):
+		_show_warning(
+			"%s se colocó con su escala predeterminada; no se pudo medir el modelo."
+			% entry.display_name
+		)
+	else:
+		_show_success("%s colocado junto a la carretera." % entry.display_name)
 
 
 func _focus_issue(issue: TrackValidationIssue) -> void:
-	match str(issue.target_path):
-		"Shortcuts":
-			_show_step(2)
-		"ItemSpawns", "Props":
-			_show_step(3)
-		_:
-			_show_step(1)
+	var path_text := str(issue.target_path)
+	if path_text.begins_with("Shortcuts/"):
+		_selection = Selection.node(
+			Selection.Kind.SHORTCUT_MIDPOINT,
+			issue.target_path
+		)
+	elif path_text.begins_with("ItemSpawns/"):
+		_selection = Selection.node(Selection.Kind.ITEM, issue.target_path)
+	elif path_text.begins_with("Props/"):
+		_selection = Selection.node(Selection.Kind.PROP, issue.target_path)
+	else:
+		_selection = Selection.none()
+	if not _selection.is_empty():
+		_map_view.set_selection(_selection, true)
+	else:
+		_show_step(1)
 	_show_error(issue.message)
 
 
 func _rebuild_preview() -> void:
-	if session.track == null or not session.track.is_inside_tree():
-		return
-	session.track.rebuild_preview()
-	_map_view.queue_redraw()
-	if not session.track.route_points.is_empty():
-		_frame_preview_camera()
+	_preview_controller.rebuild(session.track, _map_view)
 
 
 func _deduplicate_issues(
@@ -885,69 +1368,47 @@ func _deduplicate_issues(
 	return unique_issues
 
 
+func _has_blocking_issues(issues: Array[TrackValidationIssue]) -> bool:
+	for issue in issues:
+		if issue.severity == TrackValidationIssue.Severity.ERROR:
+			return true
+	return false
+
+
 func _frame_preview_camera() -> void:
-	var route := session.track.route_points
-	if route.is_empty():
+	if session.track == null:
 		return
-	var maximum_radius := 50.0
-	var center := Vector3.ZERO
-	for point in route:
-		center += point
-	center /= route.size()
-	for point in route:
-		maximum_radius = maxf(maximum_radius, center.distance_to(point))
-	_preview_camera.position = center + Vector3(
-		maximum_radius * 1.25,
-		maximum_radius * 1.15,
-		maximum_radius * 1.25
-	)
-	_preview_camera.look_at(center)
+	_preview_controller.frame_camera(session.track.route_points)
 
 
 func _toggle_view() -> void:
-	_is_showing_preview = not _is_showing_preview
-	_map_view.visible = not _is_showing_preview
-	_preview_container.visible = _is_showing_preview
-	_view_toggle.text = "MAPA AÉREO" if _is_showing_preview else "VISTA 3D"
-	if _is_showing_preview:
-		_rebuild_preview()
-
-
-func _route_point_count() -> int:
-	var route := session.track.get_main_route() if session.track != null else null
-	return route.curve.point_count if route != null and route.curve != null else 0
+	_is_showing_preview = _preview_controller.toggle_view(
+		_map_view,
+		_view_toggle,
+		session.track
+	)
 
 
 func _show_success(message: String) -> void:
 	_status_label.text = "✓  " + message
-	_status_label.add_theme_color_override("font_color", Color("#42c7b9"))
+	_status_label.add_theme_color_override("font_color", EditorStyle.SUCCESS)
 
 
 func _show_error(message: String) -> void:
 	_status_label.text = "⚠  " + message
-	_status_label.add_theme_color_override("font_color", Color("#ffd3c8"))
+	_status_label.add_theme_color_override("font_color", EditorStyle.ERROR)
 
 
-func _add_section_title(text: String) -> void:
-	var label := Label.new()
-	label.text = text
-	label.add_theme_font_size_override("font_size", 18)
-	label.add_theme_color_override("font_color", Color("#f6c344"))
-	_properties.add_child(label)
+func _show_warning(message: String) -> void:
+	_status_label.text = "⚠  " + message
+	_status_label.add_theme_color_override("font_color", EditorStyle.FOCUS)
 
 
 func _add_help(text: String) -> void:
 	var label := Label.new()
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_color_override("font_color", Color("#c4ced1"))
-	_properties.add_child(label)
-
-
-func _add_field_label(text: String) -> void:
-	var label := Label.new()
-	label.text = text
-	label.add_theme_color_override("font_color", Color("#aab5b9"))
+	label.add_theme_color_override("font_color", EditorStyle.TEXT_SECONDARY)
 	_properties.add_child(label)
 
 
@@ -964,8 +1425,8 @@ func _button(
 	button.tooltip_text = tooltip
 	button.pressed.connect(callback)
 	if is_primary:
-		button.add_theme_color_override("font_color", Color("#151b1f"))
-		button.add_theme_stylebox_override("normal", _style_box(Color("#f6c344"), Color("#f6c344")))
+		button.add_theme_color_override("font_color", EditorStyle.CANVAS_BACKGROUND)
+		button.add_theme_stylebox_override("normal", _style_box(EditorStyle.FOCUS, EditorStyle.FOCUS))
 		button.add_theme_stylebox_override("hover", _style_box(Color("#ffd66e"), Color("#ffffff")))
 		button.add_theme_stylebox_override("pressed", _style_box(Color("#d9a72d"), Color("#ffffff")))
 		button.add_theme_stylebox_override("focus", _style_box(Color("#f6c344"), Color("#ffffff"), 3))
@@ -980,23 +1441,77 @@ func _build_new_dialog() -> void:
 	_new_dialog.confirmed.connect(_create_new_track)
 	add_child(_new_dialog)
 	var content := VBoxContainer.new()
+	content.name = "NewTrackDialogContent"
+	content.custom_minimum_size.x = NEW_DIALOG_CONTENT_WIDTH
 	content.add_theme_constant_override("separation", 8)
 	_new_dialog.add_child(content)
 	var instructions := Label.new()
 	instructions.text = "Elige un nombre y un tamaño. Todo lo demás se prepara automáticamente."
+	instructions.custom_minimum_size.x = NEW_DIALOG_CONTENT_WIDTH
 	instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(instructions)
 	_new_name = LineEdit.new()
 	_new_name.placeholder_text = "Ejemplo: Bahía Relámpago"
 	_new_name.custom_minimum_size.y = 44.0
 	content.add_child(_new_name)
+	_new_dialog.register_text_enter(_new_name)
 	_new_size = OptionButton.new()
 	_new_size.add_item("Pequeña · carrera rápida")
 	_new_size.add_item("Mediana · recomendada")
 	_new_size.add_item("Grande · recorrido largo")
 	_new_size.select(1)
 	_new_size.custom_minimum_size.y = 44.0
+	_new_size.item_selected.connect(
+		func(_index: int) -> void: _update_new_template_details()
+	)
 	content.add_child(_new_size)
+	_new_template_details = Label.new()
+	_new_template_details.name = "NewTemplateDetails"
+	_new_template_details.custom_minimum_size.x = NEW_DIALOG_CONTENT_WIDTH
+	_new_template_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_new_template_details.add_theme_color_override(
+		"font_color",
+		EditorStyle.TEXT_SECONDARY
+	)
+	content.add_child(_new_template_details)
+	for button in [
+		_new_dialog.get_ok_button(),
+		_new_dialog.get_cancel_button(),
+	]:
+		button.custom_minimum_size.y = 44.0
+		button.focus_mode = Control.FOCUS_ALL
+	_update_new_template_details()
+	content.size = Vector2(NEW_DIALOG_CONTENT_WIDTH, 260.0)
+	content.queue_sort()
+
+
+func _popup_new_dialog() -> void:
+	_update_new_template_details()
+	_new_dialog.popup_centered_clamped(NEW_DIALOG_PREFERRED_SIZE, 0.9)
+	_new_name.call_deferred("grab_focus")
+
+
+func _update_new_template_details() -> void:
+	if _new_size == null or _new_template_details == null:
+		return
+	var size_ids := [&"small", &"medium", &"large"]
+	var selected_index := clampi(_new_size.selected, 0, size_ids.size() - 1)
+	var metrics := session.get_template_metrics(size_ids[selected_index])
+	var dimensions: Vector2 = metrics.dimensions
+	var environment_size: Vector2 = metrics.environment_size
+	_new_template_details.text = (
+		"Radio base: %d m  ·  %d puntos\n"
+		+ "Circuito: %d × %d m  ·  longitud estimada: %d m\n"
+		+ "Entorno: %d × %d m"
+	) % [
+		roundi(float(metrics.radius)),
+		int(metrics.point_count),
+		roundi(dimensions.x),
+		roundi(dimensions.y),
+		roundi(float(metrics.length)),
+		roundi(environment_size.x),
+		roundi(environment_size.y),
+	]
 
 
 func _build_unsaved_dialog() -> void:
@@ -1013,6 +1528,19 @@ func _build_unsaved_dialog() -> void:
 			_continue_pending_action()
 	)
 	add_child(_unsaved_dialog)
+
+
+func _build_calibration_dialog() -> void:
+	_calibration_dialog = ConfirmationDialog.new()
+	_calibration_dialog.title = "Calibrar decoración conocida"
+	_calibration_dialog.dialog_text = (
+		"Se restaurará el tamaño recomendado de todos los assets reconocidos. "
+		+ "Los objetos desconocidos no cambiarán."
+	)
+	_calibration_dialog.ok_button_text = "Calibrar"
+	_calibration_dialog.cancel_button_text = "Cancelar"
+	_calibration_dialog.confirmed.connect(_calibrate_known_props)
+	add_child(_calibration_dialog)
 
 
 func _build_open_dialog() -> void:
@@ -1068,31 +1596,13 @@ func _continue_pending_action() -> void:
 		"load":
 			_load_path(_pending_path)
 		"new":
-			_new_dialog.popup_centered(Vector2i(460, 280))
+			_popup_new_dialog()
 	_pending_action = ""
 	_pending_path = ""
 
 
 func _create_workshop_theme() -> Theme:
-	var workshop_theme := Theme.new()
-	workshop_theme.set_color("font_color", "Label", Color("#f4f1e8"))
-	workshop_theme.set_color("font_color", "Button", Color("#f4f1e8"))
-	workshop_theme.set_color("font_hover_color", "Button", Color("#ffffff"))
-	workshop_theme.set_color("font_pressed_color", "Button", Color("#ffffff"))
-	workshop_theme.set_color("font_focus_color", "Button", Color("#ffffff"))
-	workshop_theme.set_color("font_disabled_color", "Button", Color("#738087"))
-	workshop_theme.set_stylebox("normal", "PanelContainer", _style_box(Color("#20282d"), Color("#354148")))
-	workshop_theme.set_stylebox("normal", "Button", _style_box(Color("#2a343a"), Color("#46545b")))
-	workshop_theme.set_stylebox("hover", "Button", _style_box(Color("#364249"), Color("#f6c344"), 2))
-	workshop_theme.set_stylebox("pressed", "Button", _style_box(Color("#1c2428"), Color("#f6c344"), 2))
-	workshop_theme.set_stylebox("focus", "Button", _style_box(Color("#2a343a"), Color("#f6c344"), 3))
-	workshop_theme.set_stylebox("disabled", "Button", _style_box(Color("#242c30"), Color("#354148")))
-	workshop_theme.set_stylebox("normal", "LineEdit", _style_box(Color("#151b1f"), Color("#46545b")))
-	workshop_theme.set_stylebox("focus", "LineEdit", _style_box(Color("#151b1f"), Color("#f6c344"), 2))
-	workshop_theme.set_color("font_color", "LineEdit", Color("#f4f1e8"))
-	workshop_theme.set_constant("separation", "VBoxContainer", 8)
-	workshop_theme.set_constant("separation", "HBoxContainer", 8)
-	return workshop_theme
+	return EditorStyle.create_theme()
 
 
 func _style_box(

@@ -10,6 +10,7 @@ const GROUND_PROBE_UP := 1.4
 const GROUND_PROBE_DOWN := 3.6
 const SURFACE_SEPARATION := 0.015
 const MIN_NORMAL_LENGTH_SQUARED := 0.25
+const VisualFactory := preload("res://scripts/items/item_visual_factory.gd")
 
 var owner_kart: Node3D
 var item_definition: ItemDefinition
@@ -254,19 +255,25 @@ func _build_collision() -> void:
 
 
 func _build_visual() -> void:
-	if item_definition.visual_scene != null:
-		var item_visual := item_definition.visual_scene.instantiate() as Node3D
-		if item_visual != null:
-			add_child(item_visual)
-			_build_bounce_flash()
-			return
+	VisualFactory.attach_presentation(
+		self,
+		item_definition,
+		item_definition.projectile_radius,
+		-item_definition.projectile_radius + 0.02,
+		Callable(self, "_create_fallback_visual")
+	)
+	_build_bounce_flash()
+
+
+func _create_fallback_visual() -> Node3D:
+	var visual := Node3D.new()
 	var mesh_instance := MeshInstance3D.new()
 	var mesh := SphereMesh.new()
 	mesh.radius = item_definition.projectile_radius
 	mesh.height = item_definition.projectile_radius * 2.0
 	mesh_instance.mesh = mesh
 	mesh_instance.material_override = _material(Color("#ff784f"))
-	add_child(mesh_instance)
+	visual.add_child(mesh_instance)
 
 	var crown := MeshInstance3D.new()
 	var crown_mesh := CylinderMesh.new()
@@ -276,9 +283,8 @@ func _build_visual() -> void:
 	crown.mesh = crown_mesh
 	crown.position.y = item_definition.projectile_radius * 1.2
 	crown.material_override = _material(Color("#4fbb6a"))
-	add_child(crown)
-
-	_build_bounce_flash()
+	visual.add_child(crown)
+	return visual
 
 
 func _build_bounce_flash() -> void:

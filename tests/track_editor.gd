@@ -1,5 +1,9 @@
 extends SceneTree
 
+const TestDiagnostics := preload(
+	"res://addons/track_editor/track_test_diagnostics.gd"
+)
+
 var _has_failed := false
 
 
@@ -8,11 +12,844 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	_test_validation_contract()
+	_test_all_validation_contracts()
+	await _test_template_size_differences()
+	await _test_asset_scale_contracts()
+	await _test_junction_warning_contract()
 	await _test_guided_screen()
 	await _test_template_and_history()
 	await _test_migration_and_partial_preview()
+	_test_playtest_diagnostics()
 	await _test_track_runner()
 	quit(1 if _has_failed else 0)
+
+
+func _test_validation_contract() -> void:
+	var track := TrackLevel.new()
+	track.track_id = &""
+	track.display_name = "   "
+	var issue_signatures := PackedStringArray()
+	for issue in track.inspect_track():
+		issue_signatures.append(
+			"%s|%s|%s" % [issue.code, issue.target_path, issue.message]
+		)
+	var expected_signatures := PackedStringArray([
+		"track_id_missing|.|La pista necesita un identificador.",
+		"display_name_missing|.|La pista necesita un nombre visible.",
+		"route_missing|MainRoute|Falta el nodo MainRoute de tipo Path3D.",
+		"props_missing|Props|Falta el nodo Props.",
+		"items_missing|ItemSpawns|Falta el nodo ItemSpawns.",
+	])
+	_check(
+		issue_signatures == expected_signatures,
+		"Structured validation preserves issue codes, paths, messages, and order."
+	)
+	_check(
+		track.validate_track() == PackedStringArray([
+			"La pista necesita un identificador.",
+			"La pista necesita un nombre visible.",
+			"Falta el nodo MainRoute de tipo Path3D.",
+			"Falta el nodo Props.",
+			"Falta el nodo ItemSpawns.",
+		]),
+		"Legacy validation preserves the structured issue messages and order."
+	)
+	track.free()
+
+
+func _test_all_validation_contracts() -> void:
+	var cases := [
+		{
+			"code": &"track_id_missing",
+			"message": "La pista necesita un identificador.",
+			"path": NodePath("."),
+		},
+		{
+			"code": &"display_name_missing",
+			"message": "La pista necesita un nombre visible.",
+			"path": NodePath("."),
+		},
+		{
+			"code": &"route_missing",
+			"message": "Falta el nodo MainRoute de tipo Path3D.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"route_point_count",
+			"message": "MainRoute necesita al menos cuatro puntos.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"route_not_closed",
+			"message": "MainRoute debe ser una curva cerrada.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"route_too_short",
+			"message": "La ruta principal debe medir al menos 120 metros.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"start_point_invalid",
+			"message": "La salida apunta a un punto que ya no existe.",
+			"path": NodePath("MainRoute"),
+		},
+		{
+			"code": &"shortcut_name_missing",
+			"message": "El atajo 0 necesita un nombre.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_id_duplicate",
+			"message": "El identificador de atajo 0 está repetido.",
+			"path": NodePath("Shortcuts/CorteCanon"),
+		},
+		{
+			"code": &"shortcut_point_count",
+			"message": "Paso Laguna necesita al menos tres puntos.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_not_open",
+			"message": "Paso Laguna debe ser una curva abierta.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_connection",
+			"message": "Paso Laguna debe comenzar y terminar sobre MainRoute.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_order",
+			"message": "Paso Laguna cruza la línea de meta o sale antes de entrar.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_direction",
+			"message": "Paso Laguna entra o sale a contravía.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"shortcut_route_overlap",
+			"message": "Paso Laguna se superpone a MainRoute fuera de sus conexiones.",
+			"path": NodePath("Shortcuts/PasoLaguna"),
+		},
+		{
+			"code": &"props_missing",
+			"message": "Falta el nodo Props.",
+			"path": NodePath("Props"),
+		},
+		{
+			"code": &"items_missing",
+			"message": "Falta el nodo ItemSpawns.",
+			"path": NodePath("ItemSpawns"),
+		},
+		{
+			"code": &"item_count",
+			"message": "ItemSpawns necesita al menos cuatro marcadores.",
+			"path": NodePath("ItemSpawns"),
+		},
+		{
+			"code": &"item_type",
+			"message": "BrokenItem debe ser Marker3D.",
+			"path": NodePath("ItemSpawns/BrokenItem"),
+		},
+		{
+			"code": &"item_off_route",
+			"message": "Norte está fuera de la carretera.",
+			"path": NodePath("ItemSpawns/Norte"),
+		},
+	]
+	var observed_codes: Dictionary = {}
+	for case_data in cases:
+		var expected_code: StringName = case_data.code
+		var track := _create_validation_case_track(expected_code)
+		var issues := track.inspect_track()
+		var matching_issue_count := 0
+		var signatures: Dictionary = {}
+		var ordered_messages := PackedStringArray()
+		for issue in issues:
+			var signature := "%s|%s" % [issue.code, issue.target_path]
+			_check(
+				not signatures.has(signature),
+				"Validation case %s deduplicates code and target."
+				% expected_code
+			)
+			signatures[signature] = true
+			ordered_messages.append(issue.message)
+			if issue.code == expected_code:
+				matching_issue_count += 1
+				_check(
+					issue.message == case_data.message
+					and issue.target_path == case_data.path,
+					"Validation code %s preserves message and target."
+					% expected_code
+				)
+		_check(
+			matching_issue_count == 1,
+			"Validation case %s emits its code exactly once."
+			% expected_code
+		)
+		_check(
+			track.validate_track() == ordered_messages,
+			"Validation case %s preserves issue order in validate_track()."
+			% expected_code
+		)
+		observed_codes[expected_code] = true
+		track.free()
+	_check(
+		observed_codes.size() == 20,
+		"Parameterized validation covers all 20 issue codes."
+	)
+
+
+func _create_validation_case_track(code: StringName) -> TrackLevel:
+	var packed_scene := load("res://levels/coastal_track.tscn") as PackedScene
+	var track := packed_scene.instantiate() as TrackLevel
+	var route := track.get_main_route()
+	route.curve = route.curve.duplicate(true) as Curve3D
+	for shortcut in track.get_shortcuts():
+		shortcut.curve = shortcut.curve.duplicate(true) as Curve3D
+	var primary_shortcut := track.get_shortcuts()[0]
+	match code:
+		&"track_id_missing":
+			track.track_id = &""
+		&"display_name_missing":
+			track.display_name = "   "
+		&"route_missing":
+			route.free()
+		&"route_point_count":
+			while route.curve.point_count > 3:
+				route.curve.remove_point(route.curve.point_count - 1)
+		&"route_not_closed":
+			route.curve.closed = false
+		&"route_too_short":
+			var short_curve := Curve3D.new()
+			for point in [
+				Vector3(-10.0, 0.0, -10.0),
+				Vector3(10.0, 0.0, -10.0),
+				Vector3(10.0, 0.0, 10.0),
+				Vector3(-10.0, 0.0, 10.0),
+			]:
+				short_curve.add_point(point)
+			short_curve.closed = true
+			route.curve = short_curve
+		&"start_point_invalid":
+			track.start_point_index = route.curve.point_count
+		&"shortcut_name_missing":
+			primary_shortcut.display_name = " "
+		&"shortcut_id_duplicate":
+			track.get_shortcuts()[1].shortcut_id = primary_shortcut.shortcut_id
+		&"shortcut_point_count":
+			while primary_shortcut.curve.point_count > 2:
+				primary_shortcut.curve.remove_point(1)
+		&"shortcut_not_open":
+			primary_shortcut.curve.closed = true
+		&"shortcut_connection":
+			for point_index in primary_shortcut.curve.point_count:
+				primary_shortcut.curve.set_point_position(
+					point_index,
+					primary_shortcut.curve.get_point_position(point_index)
+					+ Vector3(500.0, 0.0, 500.0)
+				)
+		&"shortcut_order":
+			var final_index := primary_shortcut.curve.point_count - 1
+			var entry := primary_shortcut.curve.get_point_position(0)
+			var exit := primary_shortcut.curve.get_point_position(final_index)
+			primary_shortcut.curve.set_point_position(0, exit)
+			primary_shortcut.curve.set_point_position(final_index, entry)
+		&"shortcut_direction":
+			var sampled_points := track._sample_path(primary_shortcut, false)
+			var valid_forward := (sampled_points[2] - sampled_points[0]).normalized()
+			primary_shortcut.curve.set_point_out(0, -valid_forward * 80.0)
+		&"shortcut_route_overlap":
+			var midpoint_index := primary_shortcut.curve.point_count / 2
+			var midpoint := primary_shortcut.curve.get_point_position(midpoint_index)
+			primary_shortcut.curve.set_point_position(
+				midpoint_index,
+				route.curve.get_closest_point(midpoint)
+			)
+		&"props_missing":
+			track.get_node("Props").free()
+		&"items_missing":
+			track.get_node("ItemSpawns").free()
+		&"item_count":
+			track.get_node("ItemSpawns").get_child(-1).free()
+		&"item_type":
+			var broken_item := Node3D.new()
+			broken_item.name = "BrokenItem"
+			track.get_node("ItemSpawns").add_child(broken_item)
+		&"item_off_route":
+			var marker := track.get_node("ItemSpawns/Norte") as Marker3D
+			marker.position = Vector3(1000.0, 0.0, 1000.0)
+	return track
+
+
+func _test_junction_warning_contract() -> void:
+	var track := _create_shallow_junction_track()
+	var issues := track.inspect_track()
+	var warnings: Array[TrackValidationIssue] = []
+	for issue in issues:
+		if issue.code == &"shortcut_junction_fallback":
+			warnings.append(issue)
+	_check(
+		warnings.size() == 1
+		and warnings[0].severity == TrackValidationIssue.Severity.WARNING
+		and track.validate_track().is_empty(),
+		"Unsafe curved junctions emit one non-blocking fallback warning."
+	)
+	var panel := TrackReviewPanel.new()
+	root.add_child(panel)
+	panel.configure(warnings, Callable(self, "_make_test_button"))
+	var test_button: Button
+	var publish_button: Button
+	for child in panel.get_children():
+		if child is Button and child.text == "▶ PROBAR CON EL KART":
+			test_button = child
+		elif child is Button and child.text == "PUBLICAR EN EL JUEGO":
+			publish_button = child
+	_check(
+		test_button != null
+		and not test_button.disabled
+		and publish_button != null
+		and not publish_button.disabled,
+		"Fallback warnings stay visible without blocking testing or publication."
+	)
+	panel.queue_free()
+	track.free()
+	await process_frame
+
+
+func _create_shallow_junction_track() -> TrackLevel:
+	var track := TrackLevel.new()
+	track.track_id = &"shallow_junction"
+	track.display_name = "Unión rasa"
+	var main_route := Path3D.new()
+	main_route.name = "MainRoute"
+	main_route.curve = Curve3D.new()
+	for route_point in [
+		Vector3(-100.0, 0.25, -20.0),
+		Vector3(100.0, 0.25, -20.0),
+		Vector3(100.0, 0.25, 20.0),
+		Vector3(-100.0, 0.25, 20.0),
+	]:
+		main_route.curve.add_point(route_point)
+	main_route.curve.closed = true
+	track.add_child(main_route)
+	var shortcuts := Node3D.new()
+	shortcuts.name = "Shortcuts"
+	track.add_child(shortcuts)
+	var shortcut := TrackShortcut.new()
+	shortcut.name = "Shallow"
+	shortcut.shortcut_id = 0
+	shortcut.display_name = "Atajo raso"
+	shortcut.curve = Curve3D.new()
+	for shortcut_point in [
+		Vector3(-80.0, 0.27, -20.0),
+		Vector3(0.0, 0.27, -30.0),
+		Vector3(80.0, 0.27, -20.0),
+	]:
+		shortcut.curve.add_point(shortcut_point)
+	shortcuts.add_child(shortcut)
+	var props := Node3D.new()
+	props.name = "Props"
+	track.add_child(props)
+	var items := Node3D.new()
+	items.name = "ItemSpawns"
+	track.add_child(items)
+	for item_index in 4:
+		var marker := Marker3D.new()
+		marker.name = "Item%d" % item_index
+		marker.position = Vector3(-60.0 + item_index * 40.0, 0.25, -20.0)
+		items.add_child(marker)
+	return track
+
+
+func _make_test_button(
+	text: String,
+	callback: Callable,
+	tooltip := "",
+	is_primary := false
+) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.tooltip_text = tooltip
+	button.set_meta(&"primary", is_primary)
+	if callback.is_valid():
+		button.pressed.connect(callback)
+	return button
+
+
+func _test_template_size_differences() -> void:
+	var templates: Array[Dictionary] = [
+		{"id": &"small", "points": 6},
+		{"id": &"medium", "points": 8},
+		{"id": &"large", "points": 12},
+	]
+	var previous_length := 0.0
+	var previous_dimensions := Vector2.ZERO
+	var previous_environment_size := Vector2.ZERO
+	for template_data in templates:
+		var session := TrackEditorSession.new()
+		var template_id: StringName = template_data.id
+		session.create_track(template_id, "Plantilla %s" % template_id)
+		var track: TrackLevel = session.track
+		var curve := track.get_main_route().curve
+		var metrics := session.get_template_metrics(template_id)
+		var dimensions: Vector2 = metrics.dimensions
+		_check(
+			curve.closed and curve.point_count == int(template_data.points),
+			"%s template creates its closed %d-point silhouette."
+			% [String(template_id).capitalize(), int(template_data.points)]
+		)
+		var handles_are_smooth := true
+		for point_index in curve.point_count:
+			handles_are_smooth = (
+				handles_are_smooth
+				and curve.get_point_in(point_index).is_equal_approx(
+					-curve.get_point_out(point_index)
+				)
+				and curve.get_point_out(point_index).length() > 0.01
+			)
+		_check(
+			handles_are_smooth and track.inspect_track().is_empty(),
+			"%s template is smooth and passes validation."
+			% String(template_id).capitalize()
+		)
+		_check(
+			is_equal_approx(
+				track.environment_size.x,
+				dimensions.x + 120.0
+			)
+			and is_equal_approx(
+				track.environment_size.y,
+				dimensions.y + 120.0
+			),
+			"%s environment follows route bounds with a 60 m margin per side."
+			% String(template_id).capitalize()
+		)
+		if previous_length > 0.0:
+			_check(
+				float(metrics.length) > previous_length
+				and dimensions.x > previous_dimensions.x
+				and dimensions.y > previous_dimensions.y
+				and track.environment_size.x > previous_environment_size.x
+				and track.environment_size.y > previous_environment_size.y,
+				"%s template grows in length, dimensions, and environment."
+				% String(template_id).capitalize()
+			)
+		previous_length = float(metrics.length)
+		previous_dimensions = dimensions
+		previous_environment_size = track.environment_size
+
+		var map_view := TrackMapView.new()
+		root.add_child(map_view)
+		map_view.set_track(track)
+		await process_frame
+		for viewport_size in [Vector2(1280.0, 720.0), Vector2(480.0, 320.0)]:
+			map_view.size = viewport_size
+			map_view._handle_resized()
+			var all_points_fit := true
+			for point_index in curve.point_count:
+				var screen_point := map_view._world_to_screen(
+					curve.get_point_position(point_index)
+				)
+				all_points_fit = (
+					all_points_fit
+					and screen_point.x >= 0.0
+					and screen_point.y >= 0.0
+					and screen_point.x <= viewport_size.x
+					and screen_point.y <= viewport_size.y
+				)
+			_check(
+				all_points_fit,
+				"%s template fits a %d×%d map."
+				% [
+					String(template_id).capitalize(),
+					roundi(viewport_size.x),
+					roundi(viewport_size.y),
+				]
+			)
+		var fitted_metrics := map_view.get_map_metrics()
+		var fitted_rule := float(fitted_metrics.scale_bar_meters)
+		var fitted_pixels := map_view._world_to_screen(
+			Vector3(fitted_rule, 0.0, 0.0)
+		).distance_to(map_view._world_to_screen(Vector3.ZERO))
+		_check(
+			fitted_rule in [5.0, 10.0, 20.0, 50.0]
+			and is_equal_approx(
+				fitted_pixels,
+				float(fitted_metrics.scale_bar_pixels)
+			),
+			"%s map rule represents its declared world distance."
+			% String(template_id).capitalize()
+		)
+		map_view.zoom_in()
+		var zoomed_metrics := map_view.get_map_metrics()
+		_check(
+			float(zoomed_metrics.zoom) > float(fitted_metrics.zoom)
+			and float(zoomed_metrics.scale_bar_meters) in [5.0, 10.0, 20.0, 50.0],
+			"%s map updates metric scale after zooming."
+			% String(template_id).capitalize()
+		)
+		map_view.frame_all()
+		_check(
+			is_equal_approx(float(map_view.get_map_metrics().zoom), 1.0),
+			"%s map restores fitted zoom when framing all."
+			% String(template_id).capitalize()
+		)
+		map_view.free()
+		track.free()
+
+
+func _test_asset_scale_contracts() -> void:
+	var library := load(
+		"res://assets/track/track_asset_library.tres"
+	) as TrackAssetLibrary
+	var entries := library.get_valid_entries()
+	_check(entries.size() == 7, "Decoration catalog keeps all seven calibrated assets.")
+	for entry in entries:
+		var scale_result := entry.resolve_base_scale()
+		var instance := entry.scene.instantiate() as Node3D
+		instance.scale = scale_result.scale
+		var bounds_result := TrackAssetEntry.get_node_aabb(instance)
+		var bounds: AABB = bounds_result.aabb
+		_check(
+			not bool(scale_result.used_fallback)
+			and bool(bounds_result.valid)
+			and absf(bounds.size.y - entry.target_height_meters)
+			<= entry.target_height_meters * 0.1,
+			"%s stays within 10%% of its %.1f m target height."
+			% [entry.display_name, entry.target_height_meters]
+		)
+		instance.free()
+
+	var fallback_entry := TrackAssetEntry.new()
+	var empty_scene := PackedScene.new()
+	var empty_root := Node3D.new()
+	empty_scene.pack(empty_root)
+	empty_root.free()
+	fallback_entry.scene = empty_scene
+	fallback_entry.target_height_meters = 4.0
+	fallback_entry.default_scale = Vector3(1.0, 2.0, 3.0)
+	var fallback_result := fallback_entry.resolve_base_scale()
+	_check(
+		bool(fallback_result.used_fallback)
+		and (fallback_result.scale as Vector3).is_equal_approx(
+			fallback_entry.default_scale
+		),
+		"Assets without measurable bounds keep their previous default scale."
+	)
+
+	var session := TrackEditorSession.new()
+	session.create_track(&"medium", "Escala de utilería")
+	var track := session.track
+	var props := track.get_node("Props") as Node3D
+	var legacy_prop := Node3D.new()
+	legacy_prop.name = "LegacyScaledProp"
+	legacy_prop.scale = Vector3(2.0, 1.25, 0.75)
+	props.add_child(legacy_prop)
+	legacy_prop.owner = track
+	var legacy_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.PROP,
+		track.get_path_to(legacy_prop)
+	)
+	var legacy_scale := legacy_prop.scale
+	_check(
+		not legacy_prop.has_meta(TrackEditorSession.META_PROP_BASE_SCALE),
+		"Existing props stay uncalibrated until an explicit scale edit."
+	)
+	session.snapshot_track_for_undo()
+	_check(
+		session.update_prop_anchor(
+			legacy_selection,
+			0.15,
+			12.0,
+			0.0,
+			20.0,
+			1.0
+		)
+		and legacy_prop.scale.is_equal_approx(legacy_scale)
+		and (legacy_prop.get_meta(
+			TrackEditorSession.META_PROP_BASE_SCALE
+		) as Vector3).is_equal_approx(legacy_scale),
+		"First legacy scale edit adopts the current transform as its proportional base."
+	)
+	session.undo_route()
+	_check(
+		legacy_prop.scale.is_equal_approx(legacy_scale)
+		and not legacy_prop.has_meta(TrackEditorSession.META_PROP_BASE_SCALE),
+		"Undo restores a legacy prop without scale metadata."
+	)
+	session.redo_route()
+	_check(
+		legacy_prop.scale.is_equal_approx(legacy_scale)
+		and legacy_prop.has_meta(TrackEditorSession.META_PROP_SCALE_MULTIPLIER),
+		"Redo restores the first explicit legacy scale edit."
+	)
+
+	var scaled_prop := Node3D.new()
+	scaled_prop.name = "ScaledProp"
+	props.add_child(scaled_prop)
+	scaled_prop.owner = track
+	var base_scale := Vector3(1.5, 2.0, 0.8)
+	_check(
+		session.initialize_prop_scale(scaled_prop, base_scale, 1.0),
+		"New props store their calibrated base scale and multiplier."
+	)
+	session.anchor_prop(scaled_prop, 0.3, -15.0, 1.0, 35.0)
+	var scaled_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.PROP,
+		track.get_path_to(scaled_prop)
+	)
+	for multiplier in [0.5, 1.0, 3.0]:
+		_check(
+			session.update_prop_scale(scaled_selection, multiplier)
+			and scaled_prop.scale.is_equal_approx(base_scale * multiplier),
+			"Uniform prop scale applies %d%% without changing proportions."
+			% roundi(multiplier * 100.0)
+		)
+	var scale_before_invalid := scaled_prop.scale
+	_check(
+		not session.update_prop_scale(scaled_selection, INF)
+		and scaled_prop.scale.is_equal_approx(scale_before_invalid),
+		"Non-finite prop scale values are rejected without mutation."
+	)
+	var transform_before_invalid_anchor := scaled_prop.transform
+	_check(
+		not session.update_prop_anchor(
+			scaled_selection,
+			0.3,
+			INF,
+			1.0,
+			35.0,
+			1.0
+		)
+		and scaled_prop.transform.is_equal_approx(
+			transform_before_invalid_anchor
+		),
+		"Non-finite combined prop edits are rejected atomically."
+	)
+	_check(
+		session.update_prop_scale(scaled_selection, 4.0)
+		and scaled_prop.scale.is_equal_approx(base_scale * 3.0)
+		and is_equal_approx(
+			float(scaled_prop.get_meta(
+				TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+			)),
+			3.0
+		),
+		"Prop scale multipliers clamp to the supported 50–300% range."
+	)
+	var route := track.get_main_route()
+	var route_point_before := route.curve.get_point_position(0)
+	var scale_before_route_edit := scaled_prop.scale
+	route.curve.set_point_position(0, route_point_before + Vector3.RIGHT * 2.0)
+	session.recalculate_route_dependents()
+	_check(
+		scaled_prop.scale.is_equal_approx(scale_before_route_edit),
+		"Route-dependent movement preserves prop scale and proportions."
+	)
+	route.curve.set_point_position(0, route_point_before)
+	session.recalculate_route_dependents()
+
+	session.snapshot_track_for_undo()
+	session.update_prop_anchor(
+		scaled_selection,
+		0.45,
+		18.0,
+		2.0,
+		70.0,
+		0.5
+	)
+	session.mark_dirty()
+	var edited_transform := scaled_prop.transform
+	session.undo_route()
+	_check(
+		scaled_prop.scale.is_equal_approx(base_scale * 3.0),
+		"Undo restores the previous prop scale with its anchor state."
+	)
+	session.redo_route()
+	_check(
+		scaled_prop.transform.is_equal_approx(edited_transform)
+		and is_equal_approx(
+			float(scaled_prop.get_meta(
+				TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+			)),
+			0.5
+		),
+		"Redo restores position, rotation, and scale as one prop edit."
+	)
+	var duplicate_selection := session.duplicate_entity(scaled_selection)
+	var duplicated_prop := session.get_selected_node(duplicate_selection)
+	_check(
+		duplicated_prop != null
+		and duplicated_prop.scale.is_equal_approx(scaled_prop.scale)
+		and duplicated_prop.get_meta(
+			TrackEditorSession.META_PROP_BASE_SCALE
+		) == scaled_prop.get_meta(TrackEditorSession.META_PROP_BASE_SCALE)
+		and duplicated_prop.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+		) == scaled_prop.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+		),
+		"Duplicating a prop preserves its scale and editor metadata."
+	)
+
+	var item := track.get_node("ItemSpawns").get_child(0) as Marker3D
+	var item_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.ITEM,
+		track.get_path_to(item)
+	)
+	session.update_item_progress(item_selection, 0.4)
+	_check(
+		not item.has_meta(TrackEditorSession.META_PROP_BASE_SCALE)
+		and not item.has_meta(TrackEditorSession.META_PROP_SCALE_MULTIPLIER),
+		"Functional item boxes never receive prop scale metadata."
+	)
+	var item_panel := TrackObjectPanel.new()
+	item_panel.configure(track, _make_test_button, item_selection)
+	_check(
+		item_panel.find_child("PropScalePercent", true, false) == null,
+		"The selected-item inspector does not expose prop scale editing."
+	)
+	item_panel.free()
+	var prop_panel := TrackObjectPanel.new()
+	prop_panel.configure(track, _make_test_button, scaled_selection)
+	var scale_control := prop_panel.find_child(
+		"PropScalePercent",
+		true,
+		false
+	) as SpinBox
+	_check(
+		scale_control != null
+		and scale_control.min_value == 50.0
+		and scale_control.max_value == 300.0
+		and scale_control.step == 10.0,
+		"Prop inspector exposes a uniform 50–300% control in 10% steps."
+	)
+	prop_panel.free()
+
+	var known_entry := entries[0]
+	var known_prop := known_entry.scene.instantiate() as Node3D
+	known_prop.name = "KnownProp"
+	known_prop.scale = Vector3.ONE * 0.75
+	props.add_child(known_prop)
+	known_prop.owner = track
+	var known_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.PROP,
+		track.get_path_to(known_prop)
+	)
+	var unknown_prop := Node3D.new()
+	unknown_prop.name = "UnknownProp"
+	unknown_prop.scale = Vector3(1.2, 0.8, 1.6)
+	props.add_child(unknown_prop)
+	unknown_prop.owner = track
+	var unknown_scale := unknown_prop.scale
+	_check(
+		session.get_prop_asset_entry(known_prop) == known_entry
+		and session.get_prop_asset_entry(unknown_prop) == null
+		and known_prop.scale.is_equal_approx(Vector3.ONE * 0.75),
+		"Legacy decoration resolves by scene path without implicit calibration."
+	)
+	session.snapshot_track_for_undo()
+	_check(
+		session.restore_prop_recommended_scale(known_selection)
+		and known_prop.scale.is_equal_approx(known_entry.resolve_base_scale().scale)
+		and StringName(known_prop.get_meta(
+			TrackEditorSession.META_ASSET_ID,
+			&""
+		)) == known_entry.id,
+		"Recommended-size restoration calibrates one recognized prop explicitly."
+	)
+	session.undo_route()
+	_check(
+		known_prop.scale.is_equal_approx(Vector3.ONE * 0.75)
+		and not known_prop.has_meta(TrackEditorSession.META_ASSET_ID),
+		"Undo restores the prop state before individual calibration."
+	)
+	session.redo_route()
+	var known_duplicate_selection := session.duplicate_entity(known_selection)
+	var known_duplicate := session.get_selected_node(known_duplicate_selection)
+	_check(
+		known_duplicate != null
+		and known_duplicate.get_meta(
+			TrackEditorSession.META_ASSET_ID,
+			&""
+		) == known_entry.id,
+		"Duplicating known decoration preserves its asset identifier."
+	)
+	known_prop.scale = Vector3.ONE * 0.5
+	var known_scale_before_bulk := known_prop.scale
+	session.snapshot_track_for_undo()
+	var calibration_result := session.calibrate_known_props()
+	_check(
+		int(calibration_result.affected) == 2
+		and int(calibration_result.omitted) >= 3
+		and known_prop.scale.is_equal_approx(known_entry.resolve_base_scale().scale)
+		and unknown_prop.scale.is_equal_approx(unknown_scale),
+		"Bulk calibration affects known decoration and leaves unknown props intact."
+	)
+	session.undo_route()
+	_check(
+		known_prop.scale.is_equal_approx(known_scale_before_bulk)
+		and unknown_prop.scale.is_equal_approx(unknown_scale),
+		"Bulk calibration is restored as one undo operation."
+	)
+	session.redo_route()
+
+	var draft_path := "user://coastal_karts_prop_scale_test.tscn"
+	session.scene_path = draft_path
+	_check(session.save() == OK, "Scaled props can be saved in an editor draft.")
+	var reloaded_session := TrackEditorSession.new()
+	var reload_error := reloaded_session.load_track(draft_path)
+	var reloaded_prop := (
+		reloaded_session.track.get_node_or_null("Props/ScaledProp") as Node3D
+		if reload_error == OK
+		else null
+	)
+	_check(
+		reloaded_prop != null
+		and reloaded_prop.scale.is_equal_approx(scaled_prop.scale)
+		and reloaded_prop.get_meta(
+			TrackEditorSession.META_PROP_BASE_SCALE
+		) == scaled_prop.get_meta(TrackEditorSession.META_PROP_BASE_SCALE)
+		and reloaded_prop.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+		) == scaled_prop.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER
+		),
+		"Saving and reopening preserves prop scale and metadata."
+	)
+	var reloaded_known_prop := (
+		reloaded_session.track.get_node_or_null("Props/KnownProp") as Node3D
+		if reload_error == OK
+		else null
+	)
+	_check(
+		reloaded_known_prop != null
+		and reloaded_known_prop.get_meta(
+			TrackEditorSession.META_ASSET_ID,
+			&""
+		) == known_entry.id,
+		"Saving and reopening preserves recognized decoration metadata."
+	)
+	if reloaded_session.track != null:
+		reloaded_session.track.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(draft_path))
+	session.clear_recovery()
+	track.free()
+
+
+func _get_shortcut_corridor_clearance(
+	track: TrackLevel,
+	shortcut: TrackShortcut
+) -> float:
+	return TrackLevelValidator.get_shortcut_corridor_clearance(
+		track._sample_path(shortcut, false),
+		track._sample_path(track.get_main_route(), true)
+	)
 
 
 func _test_guided_screen() -> void:
@@ -20,13 +857,152 @@ func _test_guided_screen() -> void:
 	root.add_child(screen)
 	await process_frame
 	await process_frame
+	_test_editor_visual_contract(screen)
 	_check(screen.session.track != null, "Guided editor opens the first catalog track.")
-	_check(screen.find_child("TrackMap", true, false) != null, "Guided editor exposes the aerial map.")
+	var map_view := screen.find_child("TrackMap", true, false) as TrackMapView
+	var preview_container := (
+		screen.find_child("TrackPreview3D", true, false) as SubViewportContainer
+	)
+	_check(map_view != null, "Guided editor exposes the aerial map.")
 	_check(
-		screen.find_child("TrackPreview3D", true, false) != null,
+		preview_container != null,
 		"Guided editor exposes the 3D preview."
 	)
+	_check(
+		screen.find_child("PitLaneToolbar", true, false) != null
+		and screen.find_child("TrackPicker", true, false) != null
+		and screen.find_child("EditorStatus", true, false) != null,
+		"Guided editor preserves the control names used by the plugin and tests."
+	)
+	var route_curve := screen.session.track.get_main_route().curve
+	var original_first_point := route_curve.get_point_position(0)
+	var first_point_screen := map_view._world_to_screen(original_first_point)
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = first_point_screen
+	map_view._gui_input(press)
+	_check(
+		map_view.selected_point == 0,
+		"A route point can be selected directly from its visible map handle."
+	)
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = first_point_screen
+	map_view._gui_input(release)
+	var move_right := InputEventKey.new()
+	move_right.keycode = KEY_RIGHT
+	move_right.pressed = true
+	map_view._gui_input(move_right)
+	_check(
+		route_curve.get_point_position(0).is_equal_approx(
+			original_first_point + Vector3.RIGHT
+		),
+		"The selected route point supports precise keyboard movement."
+	)
+	screen.session.undo_route()
+	await process_frame
+	map_view = screen.find_child("TrackMap", true, false) as TrackMapView
+	var step_texts := PackedStringArray()
+	for step_button in screen._step_buttons:
+		step_texts.append(step_button.text)
+	_check(
+		step_texts == PackedStringArray([
+			"1  CONFIGURACIÓN",
+			"2  CARRETERA",
+			"3  ATAJOS",
+			"4  OBJETOS",
+			"5  REVISAR",
+		]),
+		"Guided editor preserves the five workflow steps and their order."
+	)
+	_check(
+		screen._preview_viewport.own_world_3d
+		and screen._preview_viewport.find_child("*", true, false) != null
+		and screen._preview_camera != null
+		and screen._preview_camera.get_parent() == screen._preview_viewport,
+		"3D preview owns its world and keeps its camera inside the viewport."
+	)
+	screen._toggle_view()
+	_check(
+		not map_view.visible
+		and preview_container.visible
+		and screen._view_toggle.text == "MAPA AÉREO",
+		"View toggle replaces the aerial map with the 3D preview."
+	)
+	screen._toggle_view()
+	_check(
+		map_view.visible
+		and not preview_container.visible
+		and screen._view_toggle.text == "VISTA 3D",
+		"View toggle restores the aerial map."
+	)
+	_check(
+		screen._new_dialog.ok_button_text == "Crear pista"
+		and screen._open_dialog.file_mode == FileDialog.FILE_MODE_OPEN_FILE
+		and screen._unsaved_dialog.ok_button_text == "Guardar"
+		and screen._guide_dialog.dialog_text.begins_with("1. CONFIGURACIÓN"),
+		"Editor dialogs preserve their actions and purposes."
+	)
+	screen._new_size.select(0)
+	screen._update_new_template_details()
+	var small_template_text := screen._new_template_details.text
+	screen._new_size.select(2)
+	screen._update_new_template_details()
+	var large_template_text := screen._new_template_details.text
+	_check(
+		small_template_text.contains("42 m")
+		and small_template_text.contains("6 puntos")
+		and large_template_text.contains("84 m")
+		and large_template_text.contains("12 puntos")
+		and small_template_text != large_template_text,
+		"New-track dialog updates dimensions and metrics for the selected template."
+	)
+	screen._new_size.select(1)
+	screen._update_new_template_details()
+	var original_window_size := screen.get_window().size
+	screen.get_window().size = Vector2i(1280, 720)
+	screen._popup_new_dialog()
+	await process_frame
+	await process_frame
+	var new_dialog_content := screen.find_child(
+		"NewTrackDialogContent",
+		true,
+		false
+	) as VBoxContainer
+	var visible_window_size := screen.get_window().size
+	_check(
+		new_dialog_content != null
+		and new_dialog_content.get_combined_minimum_size().y < 300.0
+		and screen._new_dialog.size.x <= visible_window_size.x
+		and screen._new_dialog.size.y <= visible_window_size.y,
+		(
+			"New-track dialog keeps compact content and clamps itself to the visible window "
+			+ "(content: %s, dialog: %s, window: %s)."
+		) % [
+			new_dialog_content.get_combined_minimum_size(),
+			screen._new_dialog.size,
+			visible_window_size,
+		]
+	)
+	_check(
+		screen._new_name.has_focus(),
+		"New-track dialog places keyboard focus on the track name."
+	)
+	screen._new_dialog.hide()
+	screen.get_window().size = original_window_size
+	screen._show_unsaved_dialog("load", "user://pending-track.tscn")
+	_check(
+		screen._pending_action == "load"
+		and screen._pending_path == "user://pending-track.tscn",
+		"Unsaved changes retain the pending action and target path."
+	)
+	screen._unsaved_dialog.hide()
+	screen._pending_action = ""
+	screen._pending_path = ""
 	var interactive_controls_are_accessible := true
+	var inaccessible_buttons := PackedStringArray()
 	var button_count := 0
 	for node in _collect_descendants(screen):
 		if node is Button:
@@ -36,10 +1012,16 @@ func _test_guided_screen() -> void:
 				and (node as Button).custom_minimum_size.y >= 44.0
 				and (node as Button).focus_mode == Control.FOCUS_ALL
 			)
+			if (
+				(node as Button).custom_minimum_size.y < 44.0
+				or (node as Button).focus_mode != Control.FOCUS_ALL
+			):
+				inaccessible_buttons.append(str(node.name))
 	_check(button_count >= 14, "Guided editor exposes the complete five-step workflow.")
 	_check(
 		interactive_controls_are_accessible,
-		"Guided editor buttons are touch-friendly and keyboard focusable."
+		"Guided editor buttons are touch-friendly and keyboard focusable: %s"
+		% ", ".join(inaccessible_buttons)
 	)
 	for step_index in 5:
 		screen._show_step(step_index)
@@ -70,9 +1052,152 @@ func _test_guided_screen() -> void:
 		screen.session.track.get_shortcuts().size() == 1,
 		"The shortcut step creates a physical shortcut without editing nodes."
 	)
+	var created_shortcut := screen.session.track.get_shortcuts()[0]
+	var created_clearance := _get_shortcut_corridor_clearance(
+		screen.session.track,
+		created_shortcut
+	)
 	_check(
-		screen.session.track.validate_track().is_empty(),
-		"The automatically connected shortcut passes track validation."
+		created_clearance
+		>= TrackLevelValidator.SHORTCUT_ROUTE_CLEARANCE + 2.0,
+		"Automatic shortcut creation keeps its asphalt clear of MainRoute."
+	)
+	var created_turn_radius := TrackLevelValidator.get_shortcut_minimum_turn_radius(
+		screen.session.track._sample_path(created_shortcut, false),
+		screen.session.track._sample_path(
+			screen.session.track.get_main_route(),
+			true
+		)
+	)
+	_check(
+		created_turn_radius >= TrackLevelValidator.SHORTCUT_MINIMUM_TURN_RADIUS,
+		"Automatic shortcut creation avoids sharp asphalt corners (%.2f m)."
+		% created_turn_radius
+	)
+	var shortcut_midpoint := (
+		created_shortcut.transform
+		* created_shortcut.curve.get_point_position(1)
+	)
+	var shortcut_hit := map_view._find_selection_at(
+		map_view._world_to_screen(shortcut_midpoint)
+	)
+	_check(
+		shortcut_hit.kind == TrackEditorSelection.Kind.SHORTCUT_MIDPOINT,
+		"The shortcut midpoint exposes a direct map handle."
+	)
+	map_view.set_selection(shortcut_hit)
+	_check(
+		screen._current_step == 2
+		and screen.find_child("TrackShortcutPanel", true, false) != null,
+		"Selecting a shortcut opens its contextual workflow step."
+	)
+	var shortcut_control_positions := map_view._get_shortcut_control_positions(
+		created_shortcut
+	)
+	var all_shortcut_controls_are_selectable := shortcut_control_positions.size() == 7
+	for control_kind in shortcut_control_positions:
+		var control_hit := map_view._find_selection_at(
+			map_view._world_to_screen(shortcut_control_positions[control_kind])
+		)
+		all_shortcut_controls_are_selectable = (
+			all_shortcut_controls_are_selectable
+			and control_hit.kind == int(control_kind)
+			and control_hit.node_path == screen.session.track.get_path_to(
+				created_shortcut
+			)
+		)
+	_check(
+		all_shortcut_controls_are_selectable,
+		"Entry, exit, midpoint, and four tangent handles are directly selectable."
+	)
+	var rejected_non_finite := screen.session.fit_shortcut_shape(
+		shortcut_hit,
+		{"midpoint_lateral": NAN}
+	)
+	var rejected_order := screen.session.fit_shortcut_shape(
+		shortcut_hit,
+		{
+			"entry_progress": created_shortcut.exit_progress,
+			"exit_progress": created_shortcut.entry_progress,
+		}
+	)
+	_check(
+		rejected_non_finite.status == &"rejected"
+		and rejected_order.status == &"rejected",
+		"Unified shortcut fitting rejects non-finite values and finish-line crossing."
+	)
+	var entry_direction_before := created_shortcut.curve.get_point_out(0).normalized()
+	var entry_length_before := created_shortcut.entry_handle_length
+	var tangent_result := screen.session.fit_shortcut_shape(
+		TrackEditorSelection.node(
+			TrackEditorSelection.Kind.SHORTCUT_ENTRY_TANGENT,
+			screen.session.track.get_path_to(created_shortcut)
+		),
+		{"entry_handle": entry_length_before + 0.25}
+	)
+	_check(
+		tangent_result.status in [&"accepted", &"adjusted"]
+		and created_shortcut.curve.get_point_out(0).normalized().dot(
+			entry_direction_before
+		) > 0.999
+		and created_shortcut.entry_handle_length >= entry_length_before,
+		"Tangent editing changes only length and preserves its direction."
+	)
+	var drag_counts := {"started": 0}
+	map_view.edit_started.connect(
+		func() -> void: drag_counts.started = int(drag_counts.started) + 1
+	)
+	var drag_press := InputEventMouseButton.new()
+	drag_press.button_index = MOUSE_BUTTON_LEFT
+	drag_press.pressed = true
+	drag_press.position = map_view._world_to_screen(shortcut_midpoint)
+	map_view._gui_input(drag_press)
+	for drag_offset in [Vector2(2.0, 0.0), Vector2(4.0, 0.0)]:
+		var drag_motion := InputEventMouseMotion.new()
+		drag_motion.position = drag_press.position + drag_offset
+		map_view._gui_input(drag_motion)
+	var drag_release := InputEventMouseButton.new()
+	drag_release.button_index = MOUSE_BUTTON_LEFT
+	drag_release.pressed = false
+	drag_release.position = drag_press.position + Vector2(4.0, 0.0)
+	map_view._gui_input(drag_release)
+	_check(
+		int(drag_counts.started) == 1,
+		"A complete shortcut drag opens exactly one undo operation."
+	)
+	var original_entry_progress := created_shortcut.entry_progress
+	var original_exit_progress := created_shortcut.exit_progress
+	var fit_result := screen.session.fit_shortcut_midpoint(
+		shortcut_hit,
+		created_shortcut.midpoint_longitudinal_offset,
+		100.0,
+		created_shortcut.midpoint_height_offset
+	)
+	var fitted_shortcut := screen.session.track.get_shortcuts()[0]
+	var fitted_safety := TrackLevelValidator.get_shortcut_safety(
+		screen.session.track,
+		fitted_shortcut
+	)
+	_check(
+		fit_result.status == &"adjusted"
+		and bool(fitted_safety.safe)
+		and not is_equal_approx(fitted_shortcut.midpoint_lateral_offset, 100.0)
+		and is_equal_approx(fitted_shortcut.entry_progress, original_entry_progress)
+		and is_equal_approx(fitted_shortcut.exit_progress, original_exit_progress),
+		"Unsafe midpoint edits are adjusted without moving shortcut anchors."
+	)
+	_check(
+		map_view.get_shortcut_safety_state(fitted_shortcut) in [
+			&"comfortable",
+			&"tight",
+		],
+		"The 2D map exposes a non-red safety corridor for the fitted shortcut."
+	)
+	var created_validation_errors := screen.session.track.validate_track()
+	_check(
+		created_validation_errors.is_empty(),
+		"The automatically connected shortcut passes track validation: %s"
+		% " | ".join(created_validation_errors)
 	)
 	var asset_library := load(
 		"res://assets/track/track_asset_library.tres"
@@ -84,6 +1209,56 @@ func _test_guided_screen() -> void:
 	var anchored_prop := screen.session.track.get_node("Props").get_child(-1) as Node3D
 	var anchored_item := (
 		screen.session.track.get_node("ItemSpawns").get_child(-1) as Marker3D
+	)
+	var item_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.ITEM,
+		screen.session.track.get_path_to(anchored_item)
+	)
+	map_view.set_selection(item_selection)
+	_check(
+		screen._current_step == 3
+		and screen.find_child("TrackObjectPanel", true, false) != null,
+		"Selecting an item opens its contextual object inspector."
+	)
+	var first_screen := map_view._world_to_screen(
+		screen.session.track.get_main_route().curve.get_point_position(0)
+	)
+	var second_screen := map_view._world_to_screen(
+		screen.session.track.get_main_route().curve.get_point_position(1)
+	)
+	var fitted_distance := first_screen.distance_to(second_screen)
+	map_view.zoom_in()
+	var zoomed_distance := map_view._world_to_screen(
+		screen.session.track.get_main_route().curve.get_point_position(0)
+	).distance_to(map_view._world_to_screen(
+		screen.session.track.get_main_route().curve.get_point_position(1)
+	))
+	_check(
+		zoomed_distance > fitted_distance,
+		"Map zoom increases the visible distance between world points."
+	)
+	map_view._handle_resized()
+	var route_points_fit := map_view.clip_contents and is_equal_approx(map_view._zoom, 1.0)
+	for point_index in screen.session.track.get_main_route().curve.point_count:
+		var fitted_point := map_view._world_to_screen(
+			screen.session.track.get_main_route().curve.get_point_position(point_index)
+		)
+		route_points_fit = (
+			route_points_fit
+			and fitted_point.x >= 0.0
+			and fitted_point.y >= 0.0
+			and fitted_point.x <= map_view.size.x
+			and fitted_point.y <= map_view.size.y
+		)
+	_check(
+		route_points_fit,
+		"Resizing clips the map and reframes every route handle inside its visible area."
+	)
+	map_view.set_layer_enabled(&"slope", true)
+	_check(
+		map_view.is_layer_enabled(&"slope")
+		and not map_view.is_layer_enabled(&"barriers"),
+		"Technical map layers are independently configurable."
 	)
 	var original_shortcut_entry := anchored_shortcut.curve.get_point_position(0)
 	var original_prop_position := anchored_prop.position
@@ -123,11 +1298,189 @@ func _test_guided_screen() -> void:
 		and anchored_item.position.is_equal_approx(edited_item_position),
 		"Redo restores the recalculated dependents with the route."
 	)
+	var test_scene_path := "user://coastal_karts_editor_screen_test.tscn"
+	screen.session.scene_path = test_scene_path
+	var play_request := {}
+	screen.play_requested.connect(
+		func(scene_path: String, track_id: StringName, laps: int) -> void:
+			play_request.scene_path = scene_path
+			play_request.track_id = track_id
+			play_request.laps = laps
+	)
+	screen._handle_test_pressed()
+	_check(
+		play_request.get("scene_path", "") == test_scene_path
+		and play_request.get("track_id", &"") == screen.session.track.track_id
+		and play_request.get("laps", 0) == 3,
+		"Test action preserves the play_requested signal contract."
+	)
+	var result_path := "user://coastal_karts_editor_result_test.cfg"
+	var test_result := ConfigFile.new()
+	test_result.set_value("result", "token", "editor-result")
+	test_result.set_value("result", "elapsed_time", 75.25)
+	test_result.set_value("result", "recovery_count", 2)
+	test_result.set_value("result", "off_route_count", 1)
+	test_result.set_value("result", "shortcut_count", 3)
+	test_result.set_value("result", "completed", true)
+	test_result.save(result_path)
+	screen.track_test_started("editor-result", result_path)
+	await process_frame
+	_check(
+		screen._status_label.text.contains("01:15.250")
+		and screen._status_label.text.contains("2 recuperaciones")
+		and not FileAccess.file_exists(result_path),
+		"The editor consumes the matching playtest result and shows its summary."
+	)
+	var garden_loaded := screen.session.load_track(
+		"res://levels/garden_track.tscn"
+	)
+	var garden_curve := screen.session.track.get_main_route().curve
+	var garden_start := garden_curve.get_point_position(5)
+	var garden_finish := garden_curve.get_point_position(8)
+	var garden_candidate := screen._find_clear_shortcut_curve(
+		garden_start,
+		garden_finish,
+		screen._get_route_forward_at_position(garden_curve, garden_start),
+		screen._get_route_forward_at_position(garden_curve, garden_finish)
+	)
+	var garden_candidate_is_safe := garden_candidate == null
+	if garden_candidate != null:
+		var garden_points := screen._sample_shortcut_curve(garden_candidate)
+		var garden_route_points := screen.session.track._sample_path(
+			screen.session.track.get_main_route(),
+			true
+		)
+		garden_candidate_is_safe = (
+			TrackLevelValidator.get_shortcut_corridor_clearance(
+				garden_points,
+				garden_route_points
+			) >= TrackLevelValidator.SHORTCUT_ROUTE_CLEARANCE + 2.0
+			and TrackLevelValidator.get_shortcut_minimum_turn_radius(
+				garden_points,
+				garden_route_points
+			) >= TrackLevelValidator.SHORTCUT_MINIMUM_TURN_RADIUS
+			and TrackLevelValidator.shortcut_follows_route_direction(
+				garden_points,
+				garden_route_points
+			)
+		)
+	_check(
+		garden_loaded == OK and garden_candidate_is_safe,
+		(
+			"Garden's problematic 5→8 shortcut returns safe asphalt."
+			if garden_candidate != null
+			else "Garden's problematic 5→8 shortcut is explicitly rejected."
+		)
+	)
 	screen.queue_free()
 	await process_frame
-	await process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_scene_path))
 
 
+func _test_editor_visual_contract(screen: TrackEditorScreen) -> void:
+	var editor_style = preload("res://addons/track_editor/track_editor_style.gd")
+	var theme := screen.theme
+	var text_types := ["Label", "Button", "LineEdit", "TextEdit"]
+	var text_contract_is_legible := true
+	for type_name in text_types:
+		text_contract_is_legible = (
+			text_contract_is_legible
+			and theme.get_font_size("font_size", type_name) >= 16
+			and editor_style.contrast_ratio(
+				theme.get_color("font_color", type_name),
+				editor_style.background_for_type(type_name)
+			) >= 4.5
+		)
+	_check(
+		text_contract_is_legible,
+		"Editor body text is at least 16 px and reaches WCAG AA contrast."
+	)
+	_check(
+		editor_style.contrast_ratio(
+			theme.get_color("font_focus_color", "Button"),
+			editor_style.BUTTON_BACKGROUND
+		) >= 4.5
+		and editor_style.contrast_ratio(
+			editor_style.FOCUS,
+			editor_style.BUTTON_BACKGROUND
+		) >= 3.0,
+		"Editor focus text and outlines remain distinguishable."
+	)
+	screen._set_compact_mode(true)
+	_check(
+		screen._navigation_panel.custom_minimum_size.x == 180.0
+		and screen._inspector_panel.custom_minimum_size.x == 280.0
+		and screen._track_picker.custom_minimum_size.x == 160.0
+		and screen._header_actions_scroll.horizontal_scroll_mode
+		== ScrollContainer.SCROLL_MODE_AUTO,
+		"Editor compact mode preserves usable navigation, inspector, and actions."
+	)
+	var responsive_profiles := [
+		{
+			"size": Vector2(1920.0, 1200.0),
+			"compact": false,
+		},
+		{
+			"size": Vector2(1920.0, 1080.0),
+			"compact": false,
+		},
+		{
+			"size": Vector2(1536.0, 960.0),
+			"compact": true,
+		},
+		{
+			"size": Vector2(1280.0, 800.0),
+			"compact": true,
+		},
+		{
+			"size": Vector2(1280.0, 720.0),
+			"compact": true,
+		},
+	]
+	var responsive_profiles_are_supported := true
+	for profile in responsive_profiles:
+		var profile_size: Vector2 = profile.size
+		screen.size = profile_size
+		screen._apply_responsive_layout()
+		responsive_profiles_are_supported = (
+			responsive_profiles_are_supported
+			and screen._editor_root.custom_minimum_size.y >= profile_size.y
+			and screen._is_compact == bool(profile.compact)
+		)
+	_check(
+		responsive_profiles_are_supported
+		and screen.size_flags_vertical == Control.SIZE_EXPAND_FILL
+		and screen._content_status_split is VSplitContainer
+		and screen._navigation_split is HSplitContainer
+		and screen._inspector_split is HSplitContainer,
+		(
+			"Editor keeps 1920x1080 at 100% wide and treats 1920x1200 "
+			+ "at 125% as a compact 1536x960 workspace."
+		)
+	)
+	screen._handle_panel_menu_action(TrackEditorScreen.PANEL_WORKFLOW_ID)
+	var workflow_can_be_hidden := not screen._navigation_panel.visible
+	screen._handle_panel_menu_action(TrackEditorScreen.PANEL_INSPECTOR_ID)
+	var inspector_can_be_hidden := not screen._inspector_panel.visible
+	screen._handle_panel_menu_action(TrackEditorScreen.PANEL_STATUS_ID)
+	var status_can_be_hidden := not screen._status_panel.visible
+	screen._handle_panel_menu_action(TrackEditorScreen.PANEL_RESET_LAYOUT_ID)
+	_check(
+		workflow_can_be_hidden
+		and inspector_can_be_hidden
+		and status_can_be_hidden
+		and screen._navigation_panel.visible
+		and screen._inspector_panel.visible
+		and screen._status_panel.visible,
+		"Panel menu offers a keyboard alternative to all draggable dividers."
+	)
+	screen._set_compact_mode(false)
+	_check(
+		screen._navigation_panel.custom_minimum_size.x == 210.0
+		and screen._inspector_panel.custom_minimum_size.x == 320.0
+		and screen._track_picker.custom_minimum_size.x == 220.0,
+		"Editor wide mode restores the existing workshop proportions."
+	)
 func _test_template_and_history() -> void:
 	var session := TrackEditorSession.new()
 	session.create_track(&"medium", "Pista de prueba")
@@ -155,6 +1508,77 @@ func _test_template_and_history() -> void:
 			original_position + Vector3(8.0, 0.0, 0.0)
 		),
 		"Undone route edits can be redone."
+	)
+	var item_root := track.get_node("ItemSpawns")
+	var first_item := item_root.get_child(0) as Marker3D
+	var item_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.ITEM,
+		track.get_path_to(first_item)
+	)
+	session.snapshot_track_for_undo()
+	var duplicate_selection := session.duplicate_entity(item_selection)
+	session.mark_dirty()
+	_check(
+		item_root.get_child_count() == 5 and not duplicate_selection.is_empty(),
+		"Entity operations duplicate an anchored item with a stable selection."
+	)
+	session.undo_route()
+	_check(
+		item_root.get_child_count() == 4,
+		"Undo removes an entity created after the snapshot."
+	)
+	session.redo_route()
+	_check(
+		item_root.get_child_count() == 5,
+		"Redo reconstructs an entity that was removed by undo."
+	)
+	var restored_duplicate := item_root.get_child(-1) as Marker3D
+	var restored_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.ITEM,
+		track.get_path_to(restored_duplicate)
+	)
+	session.snapshot_track_for_undo()
+	_check(
+		session.delete_entity(restored_selection),
+		"Entity operations delete the selected item."
+	)
+	session.mark_dirty()
+	session.undo_route()
+	_check(
+		item_root.get_child_count() == 5,
+		"Undo restores a directly deleted entity."
+	)
+	var route_curve_for_prop := track.get_main_route().curve
+	var previous_prop_point := route_curve_for_prop.get_point_position(
+		route_curve_for_prop.point_count - 1
+	)
+	var next_prop_point := route_curve_for_prop.get_point_position(1)
+	var prop_forward := next_prop_point - previous_prop_point
+	prop_forward.y = 0.0
+	prop_forward = prop_forward.normalized()
+	var prop_lateral := Vector3(-prop_forward.z, 0.0, prop_forward.x)
+	var legacy_prop := Node3D.new()
+	legacy_prop.name = "LegacyProp"
+	legacy_prop.position = route_curve_for_prop.get_point_position(0) + prop_lateral * 10.0
+	track.get_node("Props").add_child(legacy_prop)
+	legacy_prop.owner = track
+	var legacy_position := legacy_prop.position
+	var legacy_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.PROP,
+		track.get_path_to(legacy_prop)
+	)
+	session.snapshot_track_for_undo()
+	_check(
+		session.move_entity(legacy_selection, legacy_position)
+		and legacy_prop.has_meta(TrackEditorSession.META_ANCHOR_PROGRESS)
+		and legacy_prop.position.distance_to(legacy_position) < 0.5,
+		"Editing a legacy prop creates an anchor without moving it unexpectedly."
+	)
+	session.undo_route()
+	_check(
+		not legacy_prop.has_meta(TrackEditorSession.META_ANCHOR_PROGRESS)
+		and legacy_prop.position.is_equal_approx(legacy_position),
+		"Undo restores the unanchored legacy prop state."
 	)
 
 	track.start_point_index = 2
@@ -289,10 +1713,13 @@ func _test_migration_and_partial_preview() -> void:
 
 func _test_track_runner() -> void:
 	var config_path := "user://coastal_karts_track_test.cfg"
+	var result_path := "user://coastal_karts_track_test_result.cfg"
 	var config := ConfigFile.new()
 	config.set_value("track", "scene_path", "res://levels/coastal_track.tscn")
 	config.set_value("track", "id", &"coastal")
 	config.set_value("track", "laps", 3)
+	config.set_value("test", "token", "runner-contract")
+	config.set_value("test", "result_path", result_path)
 	config.save(config_path)
 	var runner_scene := load(
 		"res://addons/track_editor/track_test_runner.tscn"
@@ -306,10 +1733,59 @@ func _test_track_runner() -> void:
 		test_world != null and test_world.player_kart != null,
 		"The Test button runner starts the selected draft with the real player kart."
 	)
+	_check(
+		runner.find_child("ReturnToTrackEditor", true, false) != null
+		and runner.find_child("TrackTestMetrics", true, false) != null,
+		"The track runner exposes an accessible return action and live metrics."
+	)
 	runner.queue_free()
 	await process_frame
 	await process_frame
+	var result := ConfigFile.new()
+	_check(
+		result.load(result_path) == OK
+		and result.get_value("result", "token", "") == "runner-contract",
+		"Leaving a track test persists only its tokenized diagnostic result."
+	)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(config_path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(result_path))
+
+
+func _test_playtest_diagnostics() -> void:
+	var session := TrackEditorSession.new()
+	session.create_track(&"medium", "Corredor diagnóstico")
+	var track := session.track
+	root.add_child(track)
+	track.rebuild_preview()
+	var diagnostics := TestDiagnostics.new()
+	diagnostics.configure(track)
+	var inside := track.route_points[0]
+	diagnostics.observe_position(inside, 1.0)
+	diagnostics.observe_position(Vector3(1000.0, 0.0, 1000.0), 0.25)
+	diagnostics.observe_position(Vector3(1000.0, 0.0, 1000.0), 0.25)
+	diagnostics.observe_position(Vector3(1000.0, 0.0, 1000.0), 1.0)
+	_check(
+		diagnostics.off_route_count == 1,
+		"Playtest diagnostics debounce a continuous excursion into one event."
+	)
+	diagnostics.observe_position(inside, 0.1)
+	diagnostics.observe_position(Vector3(1000.0, 0.0, 1000.0), 0.5)
+	_check(
+		diagnostics.off_route_count == 2,
+		"Re-entering the valid corridor arms the next off-route event."
+	)
+	diagnostics.record_recovery("fell")
+	diagnostics.record_recovery("fell")
+	diagnostics.record_shortcut()
+	var result: Dictionary = diagnostics.to_dictionary(&"diagnostic", "token-1")
+	_check(
+		result.recovery_count == 2
+		and result.recovery_reasons.fell == 2
+		and result.shortcut_count == 1
+		and result.token == "token-1",
+		"Playtest diagnostics preserve recoveries, reasons, shortcuts, and token."
+	)
+	track.free()
 
 
 func _collect_descendants(node: Node) -> Array[Node]:

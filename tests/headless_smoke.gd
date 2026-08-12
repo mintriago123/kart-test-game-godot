@@ -24,8 +24,9 @@ func _run() -> void:
 	_check(main.main_menu != null, "Main menu is created.")
 	_check(
 		main.main_menu.track_catalog != null
-		and main.main_menu.track_catalog.tracks.size() == 2,
-		"Main menu exposes both authored tracks."
+		and main.main_menu._track_buttons.size()
+		== main.main_menu.track_catalog.tracks.size(),
+		"Main menu exposes every published track."
 	)
 	_check(
 		main.main_menu._track_selector != null
@@ -374,8 +375,8 @@ func _run() -> void:
 			"Garden track is at least 300 meters long."
 		)
 		_check(
-			garden_track.shortcut_definitions.size() == 1,
-			"Garden track exposes its authored shortcut."
+			garden_track.shortcut_definitions.size() == 2,
+			"Garden track exposes its two authored shortcuts."
 		)
 		_check(
 			garden_track.get_node("Props").get_child_count() >= 8,
@@ -715,7 +716,7 @@ func _shortcut_barriers_clear_main_road(
 	var minimum_point_index := -1
 	for point_index in range(8, shortcut_points.size() - 8):
 		for side in [-1.0, 1.0]:
-			var barrier_point: Vector3 = track._offset_path_point(
+			var barrier_point := TrackSurfaceBuilder.offset_path_point(
 				shortcut_points,
 				point_index,
 				side * CoastalTrack.SHORTCUT_WIDTH * 0.5,

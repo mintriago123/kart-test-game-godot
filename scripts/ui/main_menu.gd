@@ -1,8 +1,9 @@
 class_name MainMenu
 extends CanvasLayer
 
-signal play_requested(track_id: StringName)
+signal play_requested(track_id: StringName, cc_id: StringName)
 signal track_selected(track_id: StringName)
+signal race_class_selected(cc_id: StringName)
 signal graphics_profile_changed(profile: String)
 signal vibration_changed(enabled: bool)
 signal volume_changed(value: float)
@@ -18,6 +19,7 @@ var _volume_slider: HSlider
 var _track_buttons: Dictionary = {}
 var _best_times: Dictionary = {}
 var _selected_track_id: StringName = &"coastal"
+var _selected_cc_id: StringName = RaceClassDefinition.DEFAULT_ID
 var _track_selector: TrackSelectScreen
 
 
@@ -31,11 +33,13 @@ func apply_settings(
 	vibration: bool,
 	volume: float,
 	best_times: Dictionary,
-	selected_track_id: StringName
+	selected_track_id: StringName,
+	selected_cc_id: StringName = RaceClassDefinition.DEFAULT_ID
 ) -> void:
 	graphics_profile = profile
 	_best_times = best_times.duplicate(true)
 	_select_track(selected_track_id, false)
+	_select_cc(selected_cc_id, false)
 	if _profile_value != null:
 		_profile_value.text = "ACTUAL: " + profile.to_upper()
 	if _vibration_toggle != null:
@@ -137,11 +141,18 @@ func _build_interface() -> void:
 	_track_selector = TrackSelectScreen.new()
 	_track_selector.visible = false
 	root.add_child(_track_selector)
-	_track_selector.configure(track_catalog, _best_times, _selected_track_id)
+	_track_selector.configure(
+		track_catalog,
+		_best_times,
+		_selected_track_id,
+		_selected_cc_id
+	)
 	_track_selector.race_requested.connect(
-		func(track_id: StringName) -> void: play_requested.emit(track_id)
+		func(track_id: StringName, cc_id: StringName) -> void:
+			play_requested.emit(track_id, cc_id)
 	)
 	_track_selector.track_selected.connect(_handle_track_selected)
+	_track_selector.race_class_selected.connect(_handle_race_class_selected)
 	_track_selector.back_requested.connect(_hide_track_selector)
 	_track_buttons = _track_selector.track_buttons
 
@@ -163,9 +174,17 @@ func _update_best_time_label() -> void:
 		_track_selector.update_best_times(_best_times)
 
 
+func _select_cc(cc_id: StringName, should_emit: bool = true) -> void:
+	if _track_selector == null:
+		return
+	_track_selector.select_cc(cc_id, should_emit)
+	_selected_cc_id = _track_selector.get_selected_cc_id()
+
+
 func _show_track_selector() -> void:
 	_track_selector.update_best_times(_best_times)
 	_track_selector.select_track(_selected_track_id, false)
+	_track_selector.select_cc(_selected_cc_id, false)
 	_track_selector.show_screen()
 
 
@@ -177,6 +196,11 @@ func _hide_track_selector() -> void:
 func _handle_track_selected(track_id: StringName) -> void:
 	_selected_track_id = track_id
 	track_selected.emit(track_id)
+
+
+func _handle_race_class_selected(cc_id: StringName) -> void:
+	_selected_cc_id = cc_id
+	race_class_selected.emit(cc_id)
 
 
 func _build_settings_panel() -> Control:

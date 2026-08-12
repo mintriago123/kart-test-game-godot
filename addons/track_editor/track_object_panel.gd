@@ -1,0 +1,309 @@
+@tool
+class_name TrackObjectPanel
+extends "res://addons/track_editor/track_editor_panel.gd"
+
+const ASSET_LIBRARY_PATH := "res://assets/track/track_asset_library.tres"
+const Selection := preload(
+	"res://addons/track_editor/track_editor_selection.gd"
+)
+
+signal add_item_requested(point_index: int)
+signal add_asset_requested(
+	entry: TrackAssetEntry,
+	point_index: int,
+	side_sign: float,
+	distance: float,
+	rotation_degrees_y: float,
+	scale_multiplier: float
+)
+signal anchor_changed(
+	selection: RefCounted,
+	progress: float,
+	lateral: float,
+	height: float,
+	rotation_degrees_y: float,
+	scale_multiplier: float
+)
+signal duplicate_requested(selection: RefCounted)
+signal delete_requested(selection: RefCounted)
+signal restore_recommended_requested(selection: RefCounted)
+signal calibrate_known_requested
+
+
+func configure(
+	track: TrackLevel,
+	button_factory: Callable,
+	selection: RefCounted = null
+) -> void:
+	configure_panel("4  OBJETOS", button_factory)
+	add_help(
+		"Elige un punto y un lado. El editor coloca la decoración fuera "
+		+ "de la carretera para no bloquear los karts."
+	)
+	if (
+		selection != null
+		and selection.kind in [Selection.Kind.ITEM, Selection.Kind.PROP]
+	):
+		_build_selected_inspector(track, selection)
+	var route := track.get_main_route()
+	var point_count := (
+		route.curve.point_count
+		if route != null and route.curve != null
+		else 0
+	)
+	add_field_label("Cajas de objetos")
+	var route_point := OptionButton.new()
+	for point_index in point_count:
+		route_point.add_item("Punto %d" % (point_index + 1))
+	route_point.custom_minimum_size.y = 44.0
+	add_child(route_point)
+	add_child(
+		make_button(
+			"＋ AÑADIR CAJA",
+			func() -> void: add_item_requested.emit(route_point.selected)
+		)
+	)
+
+	add_field_label("Decoración CC0")
+	var asset_picker := OptionButton.new()
+	var asset_entries: Array[TrackAssetEntry] = []
+	var library := load(ASSET_LIBRARY_PATH) as TrackAssetLibrary
+	if library != null:
+		asset_entries = library.get_valid_entries()
+		for entry in asset_entries:
+			asset_picker.add_item("%s  ·  %s" % [entry.category, entry.display_name])
+	asset_picker.custom_minimum_size.y = 44.0
+	asset_picker.disabled = asset_entries.is_empty()
+	add_child(asset_picker)
+
+	var side_picker := OptionButton.new()
+	side_picker.add_item("Lado izquierdo")
+	side_picker.add_item("Lado derecho")
+	side_picker.custom_minimum_size.y = 44.0
+	add_child(side_picker)
+	add_field_label("Distancia desde el centro")
+	var asset_distance := SpinBox.new()
+	asset_distance.min_value = 12.0
+	asset_distance.max_value = 35.0
+	asset_distance.step = 1.0
+	asset_distance.value = 15.0
+	asset_distance.suffix = " m"
+	asset_distance.custom_minimum_size.y = 44.0
+	add_child(asset_distance)
+	add_field_label("Rotación")
+	var asset_rotation := SpinBox.new()
+	asset_rotation.min_value = -180.0
+	asset_rotation.max_value = 180.0
+	asset_rotation.step = 15.0
+	asset_rotation.suffix = "°"
+	asset_rotation.custom_minimum_size.y = 44.0
+	add_child(asset_rotation)
+	add_field_label("Escala uniforme")
+	var asset_scale := SpinBox.new()
+	asset_scale.name = "NewPropScalePercent"
+	asset_scale.min_value = 50.0
+	asset_scale.max_value = 300.0
+	asset_scale.step = 10.0
+	asset_scale.value = 100.0
+	asset_scale.suffix = " %"
+	asset_scale.tooltip_text = "Tamaño uniforme de la decoración nueva"
+	asset_scale.focus_mode = Control.FOCUS_ALL
+	asset_scale.custom_minimum_size.y = 44.0
+	add_child(asset_scale)
+	var add_asset := make_button(
+		"＋ COLOCAR DECORACIÓN",
+		func() -> void:
+			if asset_picker.selected >= 0:
+				add_asset_requested.emit(
+					asset_entries[asset_picker.selected],
+					route_point.selected,
+					-1.0 if side_picker.selected == 0 else 1.0,
+					asset_distance.value,
+					asset_rotation.value,
+					asset_scale.value / 100.0
+				)
+	)
+	add_asset.disabled = asset_entries.is_empty()
+	add_child(add_asset)
+
+	var counts := Label.new()
+	var props := track.get_node_or_null("Props")
+	var items := track.get_node_or_null("ItemSpawns")
+	counts.text = "Decoración: %d\nCajas: %d" % [
+		props.get_child_count() if props != null else 0,
+		items.get_child_count() if items != null else 0,
+	]
+	counts.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
+	add_child(counts)
+	add_child(make_button(
+		"CALIBRAR DECORACIÓN CONOCIDA",
+		func() -> void: calibrate_known_requested.emit(),
+		"Restaurar explícitamente el tamaño recomendado de los assets reconocidos"
+	))
+
+
+func _build_selected_inspector(
+	track: TrackLevel,
+	selection: RefCounted
+) -> void:
+	var selected_node := track.get_node_or_null(selection.node_path) as Node3D
+	if selected_node == null:
+		return
+	var anchor_defaults := _get_anchor_defaults(track, selected_node)
+	add_field_label("SELECCIÓN · %s" % selected_node.name)
+	var progress := SpinBox.new()
+	progress.min_value = 0.0
+	progress.max_value = 100.0
+	progress.step = 0.1
+	progress.suffix = " %"
+	progress.value = float(selected_node.get_meta(
+		&"track_editor_anchor_progress",
+		anchor_defaults.progress
+	)) * 100.0
+	progress.custom_minimum_size.y = 44.0
+	add_field_label("Progreso sobre la vuelta")
+	add_child(progress)
+	var lateral := SpinBox.new()
+	lateral.min_value = -100.0
+	lateral.max_value = 100.0
+	lateral.step = 0.25
+	lateral.suffix = " m"
+	lateral.value = float(selected_node.get_meta(
+		&"track_editor_anchor_lateral",
+		anchor_defaults.lateral
+	))
+	lateral.custom_minimum_size.y = 44.0
+	lateral.editable = selection.kind == Selection.Kind.PROP
+	add_field_label("Distancia lateral")
+	add_child(lateral)
+	var height := SpinBox.new()
+	height.min_value = -10.0
+	height.max_value = 30.0
+	height.step = 0.25
+	height.suffix = " m"
+	height.value = float(selected_node.get_meta(
+		&"track_editor_anchor_height",
+		anchor_defaults.height
+	))
+	height.custom_minimum_size.y = 44.0
+	height.editable = selection.kind == Selection.Kind.PROP
+	add_field_label("Altura relativa")
+	add_child(height)
+	var rotation := SpinBox.new()
+	rotation.min_value = -180.0
+	rotation.max_value = 180.0
+	rotation.step = 5.0
+	rotation.suffix = "°"
+	rotation.value = float(selected_node.get_meta(
+		&"track_editor_anchor_rotation",
+		selected_node.rotation_degrees.y
+	))
+	rotation.custom_minimum_size.y = 44.0
+	rotation.editable = selection.kind == Selection.Kind.PROP
+	add_field_label("Rotación")
+	add_child(rotation)
+	var prop_scale: SpinBox = null
+	if selection.kind == Selection.Kind.PROP:
+		var asset_entry := _get_asset_entry(selected_node)
+		var recognition := Label.new()
+		recognition.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		recognition.text = (
+			"✓ ASSET CONOCIDO · %s" % asset_entry.display_name
+			if asset_entry != null
+			else "○ ASSET DESCONOCIDO · se conserva su tamaño actual"
+		)
+		recognition.add_theme_color_override(
+			"font_color",
+			EditorStyle.SUCCESS if asset_entry != null else EditorStyle.TEXT_MUTED
+		)
+		add_child(recognition)
+		prop_scale = SpinBox.new()
+		prop_scale.name = "PropScalePercent"
+		prop_scale.min_value = 50.0
+		prop_scale.max_value = 300.0
+		prop_scale.step = 10.0
+		prop_scale.value = float(selected_node.get_meta(
+			TrackEditorSession.META_PROP_SCALE_MULTIPLIER,
+			1.0
+		)) * 100.0
+		prop_scale.suffix = " %"
+		prop_scale.tooltip_text = "Tamaño uniforme de la decoración seleccionada"
+		prop_scale.focus_mode = Control.FOCUS_ALL
+		prop_scale.custom_minimum_size.y = 44.0
+		add_field_label("Escala uniforme")
+		add_child(prop_scale)
+		var restore_button := make_button(
+			"RESTAURAR TAMAÑO RECOMENDADO",
+			func() -> void: restore_recommended_requested.emit(selection),
+			"Aplicar la escala base de este asset"
+		)
+		restore_button.disabled = asset_entry == null
+		add_child(restore_button)
+	add_child(make_button(
+		"APLICAR CAMBIOS",
+		func() -> void:
+			anchor_changed.emit(
+				selection,
+				progress.value / 100.0,
+				lateral.value,
+				height.value,
+				rotation.value,
+				prop_scale.value / 100.0 if prop_scale != null else NAN
+			)
+	))
+	add_child(make_button(
+		"DUPLICAR SELECCIÓN",
+		func() -> void: duplicate_requested.emit(selection),
+		"Duplicar este objeto (Ctrl+D)"
+	))
+	add_child(make_button(
+		"ELIMINAR SELECCIÓN",
+		func() -> void: delete_requested.emit(selection),
+		"Eliminar este objeto (Supr)"
+	))
+
+
+func _get_anchor_defaults(track: TrackLevel, node: Node3D) -> Dictionary:
+	var route := track.get_main_route()
+	if route == null or route.curve == null or route.curve.get_baked_length() <= 0.001:
+		return {"progress": 0.0, "lateral": 0.0, "height": 0.0}
+	var node_transform: Transform3D = track._get_transform_relative_to_track(node)
+	var route_transform: Transform3D = track._get_transform_relative_to_track(route)
+	var route_position := route_transform.affine_inverse() * node_transform.origin
+	var offset := route.curve.get_closest_offset(route_position)
+	var progress := offset / route.curve.get_baked_length()
+	var sample := route_transform * route.curve.sample_baked(offset, true)
+	var epsilon := minf(maxf(route.curve.get_baked_length() * 0.002, 0.05), 0.5)
+	var previous := route_transform * route.curve.sample_baked(
+		fposmod(offset - epsilon, route.curve.get_baked_length()),
+		true
+	)
+	var next := route_transform * route.curve.sample_baked(
+		fposmod(offset + epsilon, route.curve.get_baked_length()),
+		true
+	)
+	var forward := next - previous
+	forward.y = 0.0
+	forward = forward.normalized() if forward.length_squared() > 0.0001 else Vector3.FORWARD
+	var lateral_axis := Vector3(-forward.z, 0.0, forward.x)
+	var delta := node_transform.origin - sample
+	return {
+		"progress": progress,
+		"lateral": delta.dot(lateral_axis),
+		"height": delta.y,
+	}
+
+
+func _get_asset_entry(node: Node3D) -> TrackAssetEntry:
+	var library := load(ASSET_LIBRARY_PATH) as TrackAssetLibrary
+	if library == null or node == null:
+		return null
+	if node.has_meta(TrackEditorSession.META_ASSET_ID):
+		var asset_id := StringName(node.get_meta(
+			TrackEditorSession.META_ASSET_ID,
+			&""
+		))
+		var metadata_entry := library.get_entry(asset_id)
+		if metadata_entry != null:
+			return metadata_entry
+	return library.get_entry_for_scene_path(node.scene_file_path)

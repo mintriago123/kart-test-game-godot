@@ -15,30 +15,40 @@ script = ExtResource("2_entry")
 id = &"palm_tree"
 display_name = "Palmera"
 scene = ExtResource("3_palm")
+target_height_meters = 10.0
+base_scale = Vector3(5.203778, 5.203778, 5.203778)
 
 [sub_resource type="Resource" id="TrackAssetEntry_oak"]
 script = ExtResource("2_entry")
 id = &"oak_tree"
 display_name = "Roble"
 scene = ExtResource("4_oak")
+target_height_meters = 10.0
+base_scale = Vector3(5.436674, 5.436674, 5.436674)
 
 [sub_resource type="Resource" id="TrackAssetEntry_rock"]
 script = ExtResource("2_entry")
 id = &"large_rock"
 display_name = "Roca grande"
 scene = ExtResource("5_rock")
+target_height_meters = 3.0
+base_scale = Vector3(8.248549, 8.248549, 8.248549)
 
 [sub_resource type="Resource" id="TrackAssetEntry_bush"]
 script = ExtResource("2_entry")
 id = &"large_bush"
 display_name = "Arbusto"
 scene = ExtResource("6_bush")
+target_height_meters = 2.5
+base_scale = Vector3(7.62289, 7.62289, 7.62289)
 
 [sub_resource type="Resource" id="TrackAssetEntry_flower"]
 script = ExtResource("2_entry")
 id = &"yellow_flower"
 display_name = "Flor amarilla"
 scene = ExtResource("7_flower")
+target_height_meters = 1.5
+base_scale = Vector3(4.87013, 4.87013, 4.87013)
 
 [sub_resource type="Resource" id="TrackAssetEntry_tents"]
 script = ExtResource("2_entry")
@@ -46,6 +56,8 @@ id = &"racing_tents"
 display_name = "Carpas de carrera"
 category = "Carrera"
 scene = ExtResource("8_tents")
+target_height_meters = 4.5
+base_scale = Vector3(1.071402, 1.071402, 1.071402)
 
 [sub_resource type="Resource" id="TrackAssetEntry_finish"]
 script = ExtResource("2_entry")
@@ -53,6 +65,8 @@ id = &"finish_arch"
 display_name = "Arco de meta"
 category = "Carrera"
 scene = ExtResource("9_finish")
+target_height_meters = 6.0
+base_scale = Vector3(0.855035, 0.855035, 0.855035)
 
 [resource]
 script = ExtResource("1_library")

@@ -30,7 +30,16 @@ func _physics_process(delta: float) -> void:
 	var checkpoint_distance := kart.global_position.distance_to(next_checkpoint)
 	if _update_progress_recovery(delta, next_index, checkpoint_distance):
 		return
-	var lookahead_steps := 1 if checkpoint_distance > 11.0 else 3
+	var speed := Vector2(kart.velocity.x, kart.velocity.z).length()
+	var speed_ratio := clampf(speed / maxf(kart.stats.max_speed, 0.1), 0.0, 1.2)
+	var high_speed_class := (
+		kart.race_class != null and kart.race_class.id == &"200"
+	)
+	var lookahead_steps := clampi(
+		2 + roundi(speed_ratio * 1.5) + (1 if high_speed_class else 0),
+		2,
+		5
+	)
 	var lookahead_index := (next_index + lookahead_steps) % race_manager.route_points.size()
 	var target := race_manager.route_points[lookahead_index]
 	var segment_direction := (
@@ -44,23 +53,24 @@ func _physics_process(delta: float) -> void:
 	var to_target := (target - kart.global_position).normalized()
 	var steer := clampf(-forward.cross(to_target).y * 2.2, -1.0, 1.0)
 	var alignment := forward.dot(to_target)
-	var speed := Vector2(kart.velocity.x, kart.velocity.z).length()
 	var brake := 0.0
 	var throttle := 1.0
+	var corner_alignment_threshold := 0.69 + (0.06 if high_speed_class else 0.0)
+	var corner_speed_ratio := 0.67 + caution * 0.1 - (0.07 if high_speed_class else 0.0)
 	if alignment < -0.1:
 		throttle = 0.0
-		brake = 1.0 if speed > 2.0 else 0.7
-		if speed <= 2.0:
+		brake = 1.0 if speed > kart.stats.max_speed * 0.08 else 0.7
+		if speed <= kart.stats.max_speed * 0.08:
 			steer = -steer
-	elif alignment < 0.65 and speed > 15.0 + caution * 4.0:
-		brake = 0.55
-		throttle = 0.25
+	elif alignment < corner_alignment_threshold and speed > kart.stats.max_speed * corner_speed_ratio:
+		brake = 0.7 if high_speed_class else 0.55
+		throttle = 0.15 if high_speed_class else 0.25
 	elif alignment < 0.82:
 		throttle = 0.72
 	var should_drift := (
 		absf(steer) > 0.48
-		and speed > 10.0
-		and checkpoint_distance < 20.0
+		and speed > kart.stats.max_speed * 0.38
+		and checkpoint_distance < maxf(18.0, speed * (1.0 if high_speed_class else 0.8))
 	)
 	var should_use_item := _should_use_item(forward)
 	if should_use_item:
