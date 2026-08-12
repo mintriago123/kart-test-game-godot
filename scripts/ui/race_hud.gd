@@ -1,9 +1,17 @@
 class_name RaceHud
 extends CanvasLayer
 
+const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
+const RaceMinimap = preload("res://scripts/ui/race_minimap.gd")
+
 signal retry_requested
 signal menu_requested
 signal intro_skip_requested
+signal resume_requested
+signal restart_requested
+signal settings_requested
+signal controls_requested
+signal quit_requested
 
 var _status_view: RaceStatusView
 var _touch_view: RaceTouchControls
@@ -37,6 +45,7 @@ var _intro_title: Label
 var _intro_laps: Label
 var _intro_skip_button: Button
 var _is_intro_visible := false
+var _minimap: RaceMinimap
 
 var mobile_controls_enabled := (
 	OS.has_feature("android")
@@ -60,6 +69,13 @@ func bind_player(kart: Kart) -> void:
 	kart.boost_changed.connect(_handle_boost_changed)
 	kart.shield_state_changed.connect(_handle_shield_state_changed)
 	_handle_item_changed(kart.held_item)
+
+
+func configure_minimap(track: TrackLevel, racers: Array[Node]) -> void:
+	if _minimap == null:
+		return
+	_minimap.configure_track(track)
+	_minimap.register_racers(racers, _player_kart)
 
 
 func update_race_info(
@@ -175,6 +191,7 @@ func set_mobile_controls_enabled(enabled: bool) -> void:
 func _build_interface() -> void:
 	var root := Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.theme = UiTokens.create_theme()
 	add_child(root)
 
 	_status_view = RaceStatusView.new()
@@ -182,6 +199,13 @@ func _build_interface() -> void:
 	_status_view.build_interface()
 	root.add_child(_status_view)
 	_bind_status_references()
+	_minimap = RaceMinimap.new()
+	_minimap.name = "RaceMinimap"
+	_minimap.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_minimap.position = Vector2(-226, 94)
+	_minimap.size = Vector2(202, 142)
+	root.add_child(_minimap)
+	_race_elements.append(_minimap)
 
 	_touch_view = RaceTouchControls.new()
 	_touch_view.build_interface(
@@ -203,6 +227,11 @@ func _build_interface() -> void:
 	_flow_overlay.intro_skip_requested.connect(
 		func() -> void: intro_skip_requested.emit()
 	)
+	_flow_overlay.resume_requested.connect(func() -> void: resume_requested.emit())
+	_flow_overlay.restart_requested.connect(func() -> void: restart_requested.emit())
+	_flow_overlay.settings_requested.connect(func() -> void: settings_requested.emit())
+	_flow_overlay.controls_requested.connect(func() -> void: controls_requested.emit())
+	_flow_overlay.quit_requested.connect(func() -> void: quit_requested.emit())
 	_bind_flow_references()
 
 

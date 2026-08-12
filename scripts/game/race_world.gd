@@ -258,6 +258,7 @@ func _build_race() -> void:
 	)
 	add_child(_hud)
 	_hud.bind_player(player_kart)
+	_hud.configure_minimap(_track, race_manager.racers)
 	if threat_indicators_enabled and _active_items != null:
 		_threat_indicators = ThreatIndicatorController.new()
 		_hud.add_child(_threat_indicators)
@@ -266,6 +267,8 @@ func _build_race() -> void:
 	_hud.update_race_info(1, race_manager.total_laps, race_manager.get_race_position(player_kart), kart_count, 0.0)
 	_hud.retry_requested.connect(_handle_retry_requested)
 	_hud.menu_requested.connect(_handle_menu_requested)
+	_hud.restart_requested.connect(_handle_retry_requested)
+	_hud.quit_requested.connect(_handle_menu_requested)
 	_hud.intro_skip_requested.connect(_handle_intro_skip_requested)
 	race_manager.countdown_changed.connect(_hud.show_countdown)
 	race_manager.countdown_changed.connect(_sound.play_countdown)

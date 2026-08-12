@@ -1,6 +1,8 @@
 class_name MainMenu
 extends CanvasLayer
 
+const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
+
 signal play_requested(track_id: StringName, cc_id: StringName, game_mode: int, difficulty_id: StringName)
 signal track_selected(track_id: StringName)
 signal race_class_selected(cc_id: StringName)
@@ -98,15 +100,16 @@ func apply_settings(
 func _build_interface() -> void:
 	var root := Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.theme = UiTokens.create_theme()
 	add_child(root)
 
 	var background := ColorRect.new()
-	background.color = Color("#082d37")
+	background.color = UiTokens.GRAPHITE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(background)
 
 	var sun := ColorRect.new()
-	sun.color = Color("#f2b84d")
+	sun.color = UiTokens.ELECTRIC_YELLOW
 	sun.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
 	sun.offset_left = -330.0
 	sun.offset_right = 0.0
@@ -116,7 +119,7 @@ func _build_interface() -> void:
 	root.add_child(sun)
 
 	var stripe := ColorRect.new()
-	stripe.color = Color("#ef7151")
+	stripe.color = UiTokens.CORAL
 	stripe.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
 	stripe.offset_left = -365.0
 	stripe.offset_right = -329.0

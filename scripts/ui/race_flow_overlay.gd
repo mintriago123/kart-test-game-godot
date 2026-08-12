@@ -1,9 +1,16 @@
 class_name RaceFlowOverlay
 extends Control
 
+const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
+
 signal retry_requested
 signal menu_requested
 signal intro_skip_requested
+signal resume_requested
+signal restart_requested
+signal settings_requested
+signal controls_requested
+signal quit_requested
 
 var intro_overlay: Control
 var intro_content: Control
@@ -300,6 +307,14 @@ func _build_intro_overlay() -> Control:
 	intro_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	intro_content.add_theme_constant_override("separation", 6)
 	overlay.add_child(intro_content)
+	var band := ColorRect.new()
+	band.color = Color(0.05, 0.1, 0.15, 0.88)
+	band.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	band.offset_top = 52.0
+	band.offset_bottom = 232.0
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(band)
+	overlay.move_child(band, 0)
 
 	intro_title = Label.new()
 	intro_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -352,22 +367,69 @@ func _build_intro_overlay() -> Control:
 
 func _build_pause_overlay() -> Control:
 	var overlay := ColorRect.new()
-	overlay.color = Color(0.01, 0.06, 0.08, 0.58)
+	overlay.name = "PauseMenu"
+	overlay.color = UiTokens.SCRIM
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.visible = false
+	var card := PanelContainer.new()
+	card.set_anchors_preset(Control.PRESET_CENTER)
+	card.position = Vector2(-220, -270)
+	card.size = Vector2(440, 540)
+	card.theme = UiTokens.create_theme()
+	overlay.add_child(card)
+	var content := VBoxContainer.new()
+	content.alignment = BoxContainer.ALIGNMENT_CENTER
+	card.add_child(content)
 	var label := Label.new()
-	label.text = "PAUSA\nToca Ⅱ o pulsa Esc para continuar"
+	label.text = "CARRERA EN PAUSA"
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 34)
-	label.add_theme_color_override(
-		"font_color",
-		Color("#fff1b5")
+	content.add_child(label)
+	var resume := _pause_action("CONTINUAR", UiTokens.ELECTRIC_YELLOW)
+	resume.name = "Resume"
+	resume.pressed.connect(func() -> void:
+		resume_requested.emit()
+		get_tree().paused = false
 	)
-	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.add_child(label)
+	content.add_child(resume)
+	var restart := _pause_action("REINICIAR CARRERA", UiTokens.WARM_WHITE)
+	restart.pressed.connect(func() -> void: _show_confirmation("¿REINICIAR LA CARRERA?", restart_requested))
+	content.add_child(restart)
+	var settings := _pause_action("AJUSTES", UiTokens.CYAN)
+	settings.pressed.connect(func() -> void: settings_requested.emit())
+	content.add_child(settings)
+	var controls := _pause_action("CONTROLES", UiTokens.CYAN)
+	controls.pressed.connect(func() -> void: controls_requested.emit())
+	content.add_child(controls)
+	var quit := _pause_action("SALIR AL MENÚ", UiTokens.CORAL)
+	quit.pressed.connect(func() -> void: _show_confirmation("¿SALIR AL MENÚ?", quit_requested))
+	content.add_child(quit)
 	return overlay
+
+
+func _pause_action(text: String, color: Color) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(360, 58)
+	RaceHudStyle.apply_button_style(button, color)
+	return button
+
+
+func _show_confirmation(title: String, confirmed_signal: Signal) -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = title
+	dialog.dialog_text = "Esta acción no se puede deshacer."
+	dialog.ok_button_text = "CONFIRMAR"
+	dialog.cancel_button_text = "CANCELAR"
+	dialog.process_mode = Node.PROCESS_MODE_ALWAYS
+	dialog.confirmed.connect(func() -> void:
+		confirmed_signal.emit()
+		dialog.queue_free()
+	)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(420, 190))
 
 
 func _build_results_panel() -> Control:

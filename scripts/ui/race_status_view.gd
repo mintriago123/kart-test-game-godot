@@ -50,7 +50,13 @@ func build_interface() -> void:
 	delta_label.visible = false
 	top_bar.add_child(delta_label)
 	speed_label = RaceHudStyle.create_chip("000 km/h", 20)
-	top_bar.add_child(speed_label)
+	speed_label.name = "SpeedAndMiniTurbo"
+	speed_label.custom_minimum_size = Vector2(190.0, 64.0)
+	speed_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	speed_label.position = Vector2(-95.0, -126.0)
+	speed_label.size = Vector2(190.0, 64.0)
+	add_child(speed_label)
+	race_elements.append(speed_label)
 
 	item_chip = PanelContainer.new()
 	item_chip.name = "ItemChip"
@@ -95,7 +101,7 @@ func build_interface() -> void:
 	drift_bar.value = 0.0
 	drift_bar.show_percentage = false
 	drift_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	drift_bar.position = Vector2(-90.0, -52.0)
+	drift_bar.position = Vector2(-90.0, -54.0)
 	drift_bar.size = Vector2(180.0, 13.0)
 	drift_bar.add_theme_stylebox_override(
 		"background",
