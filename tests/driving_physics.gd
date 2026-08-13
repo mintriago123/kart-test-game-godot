@@ -20,6 +20,7 @@ func _run() -> void:
 	_test_race_class_scaling()
 	_test_drive_curves()
 	_test_barrier_retention()
+	_test_kart_bumps()
 	_test_recovery_sampling_reset()
 	_test_record_migration_and_independence()
 	_test_settings_persistence()
@@ -175,6 +176,52 @@ func _test_barrier_retention() -> void:
 		frontal_retention >= 0.5 and frontal_retention <= 0.6,
 		"A frontal barrier impact preserves 50-60 percent without bouncing."
 	)
+
+
+func _test_kart_bumps() -> void:
+	var fixture := Node3D.new()
+	root.add_child(fixture)
+	var manager := KartInteractionManager.new()
+	manager.tuning = DrivingTuningDefinition.new()
+	fixture.add_child(manager)
+	var first := Kart.new()
+	var second := Kart.new()
+	first.configure_for_race(KartStats.new(), RaceClassDefinition.get_by_id(&"150"))
+	second.configure_for_race(KartStats.new(), RaceClassDefinition.get_by_id(&"150"))
+	first.is_control_enabled = true
+	second.is_control_enabled = true
+	first.position = Vector3(0.0, 0.6, 0.0)
+	second.position = Vector3(0.0, 0.6, -2.3)
+	fixture.add_child(first)
+	fixture.add_child(second)
+	first.velocity = Vector3(0.0, 0.0, -20.0)
+	second.velocity = Vector3.ZERO
+	manager._process_bump(first, second)
+	_check(
+		first.get_horizontal_speed() >= 16.0,
+		"A frontal kart bump preserves most of the incoming speed."
+	)
+	_check(
+		first.global_position.distance_to(second.global_position) >= Kart.COLLISION_SIZE.z - 0.01,
+		"Overlapping karts are separated after a bump."
+	)
+	var first_velocity_after_bump := first.velocity
+	first.global_position = Vector3(0.0, 0.6, 0.0)
+	second.global_position = Vector3(0.0, 0.6, -2.3)
+	manager._process_bump(first, second)
+	_check(
+		first.velocity.is_equal_approx(first_velocity_after_bump),
+		"A sustained kart contact respects the bump cooldown."
+	)
+	manager._pair_cooldowns.clear()
+	first.velocity = Vector3(0.0, 0.0, 20.0)
+	second.velocity = Vector3.ZERO
+	manager._process_bump(first, second)
+	_check(
+		first.velocity.is_equal_approx(Vector3(0.0, 0.0, 20.0)),
+		"Karts moving apart do not receive an artificial impact impulse."
+	)
+	fixture.free()
 
 
 func _test_record_migration_and_independence() -> void:

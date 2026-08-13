@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="RacerDefinition" format=3]
+[gd_resource type="Resource" script_class="RacerDefinition" format=3 uid="uid://dwax0n56hq10d"]
 
-[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/data/kart_stats.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/data/ai_profile.gd" id="3"]
+[ext_resource type="Script" uid="uid://cq4orl5qfaqur" path="res://scripts/data/racer_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://bpj1vbc708f5i" path="res://scripts/data/kart_stats.gd" id="2"]
+[ext_resource type="Script" uid="uid://qh0ympyxhwsu" path="res://scripts/data/ai_profile.gd" id="3"]
 [ext_resource type="Resource" path="res://progression/variants/sedan_sports.tres" id="4"]
 
 [sub_resource type="Resource" id="AI"]
