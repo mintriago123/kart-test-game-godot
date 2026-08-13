@@ -50,6 +50,11 @@ func equip(variant_id: StringName, catalog: UnlockCatalog) -> bool:
 	return true
 func is_reward_new(reward_id: StringName) -> bool:
 	return unlocked_reward_ids.has(reward_id) and not seen_reward_ids.has(reward_id)
+func get_new_reward_count() -> int:
+	var count := 0
+	for reward_id in unlocked_reward_ids:
+		count += int(not seen_reward_ids.has(reward_id))
+	return count
 func mark_reward_seen(reward_id: StringName) -> bool:
 	if not unlocked_reward_ids.has(reward_id) or seen_reward_ids.has(reward_id): return false
 	seen_reward_ids[reward_id] = true

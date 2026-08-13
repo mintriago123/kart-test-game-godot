@@ -20,6 +20,7 @@ var primary: ActionButton
 var _variants: Array[KartVariantDefinition] = []
 var _swipe_start := Vector2.ZERO
 var _pending_configuration: Array = []
+var _scroll_tween: Tween
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -40,6 +41,8 @@ func _ready() -> void:
 		var pending := _pending_configuration
 		_pending_configuration = []
 		configure(pending[0], pending[1], pending[2])
+	resized.connect(_refresh_gallery_spacing)
+	card_scroll.resized.connect(_refresh_gallery_spacing)
 
 func configure(value_catalog: ProgressionCatalog, value_progress: PlayerProgress, value_payload: Dictionary) -> void:
 	if not is_node_ready() or showroom == null:
@@ -71,6 +74,13 @@ func _build_cards() -> void:
 		button.pressed.connect(focus_variant.bind(variant.id)); button.focus_entered.connect(focus_variant.bind(variant.id)); cards.add_child(button)
 	var trailing := Control.new(); trailing.custom_minimum_size.x = maxf(0.0, card_scroll.size.x * 0.5 - 95.0); trailing.mouse_filter = Control.MOUSE_FILTER_IGNORE; cards.add_child(trailing)
 
+func _refresh_gallery_spacing() -> void:
+	if cards == null or card_scroll == null or cards.get_child_count() < 2: return
+	var spacer := maxf(0.0, card_scroll.size.x * 0.5 - 95.0)
+	(cards.get_child(0) as Control).custom_minimum_size.x = spacer
+	(cards.get_child(cards.get_child_count() - 1) as Control).custom_minimum_size.x = spacer
+	_center_focused_card.call_deferred(false)
+
 func focus_variant(variant_id: StringName) -> void:
 	var variant := _get_variant(variant_id)
 	if variant == null:
@@ -81,7 +91,9 @@ func focus_variant(variant_id: StringName) -> void:
 	var unlocked := _is_unlocked(variant.id)
 	var unlock := _get_unlock(variant.id)
 	var is_new := unlocked and unlock != null and progress.is_reward_new(unlock.id)
-	if is_new: progress.mark_reward_seen(unlock.id)
+	if is_new:
+		progress.mark_reward_seen(unlock.id)
+		_update_card_badges()
 	var locked_by_cup := bool(payload.get("continue_active", false)) and str(payload.get("source", "")) == "play" and not equipped
 	status_label.text = "EQUIPADO" if equipped else ("NUEVO" if is_new else ("DISPONIBLE" if unlocked else "BLOQUEADO"))
 	if locked_by_cup:
@@ -96,7 +108,19 @@ func focus_variant(variant_id: StringName) -> void:
 	var standalone := str(payload.get("source", "standalone")) == "standalone"
 	primary.text = ("EQUIPADO" if equipped else ("EQUIPAR" if unlocked else "BLOQUEADO")) if standalone else ("CONTINUAR" if unlocked and not locked_by_cup else ("EQUIPADO" if locked_by_cup else "BLOQUEADO"))
 	primary.disabled = (standalone and (equipped or not unlocked)) or (not standalone and (not unlocked or locked_by_cup))
+	for candidate in cards.find_children("*", "Button", false, false):
+		var card := candidate as Button
+		card.add_theme_stylebox_override("normal", UiTokens.panel(UiTokens.WARM_WHITE, 12, UiTokens.CYAN if card.name == str(variant.id) else Color.TRANSPARENT))
 	_center_focused_card.call_deferred(false)
+
+func _update_card_badges() -> void:
+	for variant in _variants:
+		var button := cards.get_node_or_null(str(variant.id)) as Button
+		if button == null: continue
+		var unlock := _get_unlock(variant.id)
+		var unlocked := _is_unlocked(variant.id)
+		var badge := "\n🔒 BLOQUEADO" if not unlocked else ("\n✓ EQUIPADO" if progress != null and progress.equipped_kart_variant_id == variant.id else ("\n★ NUEVO" if unlock != null and progress.is_reward_new(unlock.id) else ""))
+		button.text = variant.display_name.to_upper() + badge
 
 func _center_focused_card(animated := true) -> void:
 	if card_scroll == null or cards == null: return
@@ -107,8 +131,9 @@ func _center_focused_card(animated := true) -> void:
 	if not animated:
 		card_scroll.scroll_horizontal = target
 		return
-	var tween := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.tween_property(card_scroll, "scroll_horizontal", target, 0.16)
+	if _scroll_tween != null: _scroll_tween.kill()
+	_scroll_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_scroll_tween.tween_property(card_scroll, "scroll_horizontal", target, 0.16)
 
 func _build_stats(variant: KartVariantDefinition) -> void:
 	for child in stats.get_children(): child.queue_free()
@@ -131,19 +156,19 @@ func _stat_value(variant: KartVariantDefinition, label: String) -> float:
 func _activate() -> void:
 	var result := payload.duplicate(true); result["variant_id"] = focused_variant_id; action_requested.emit(result)
 
-func _move(direction: int) -> void:
+func _move(direction: int, animated := true) -> void:
 	if _variants.is_empty(): return
 	var index := 0
 	for i in _variants.size():
 		if _variants[i].id == focused_variant_id:
 			index = i
 	focus_variant(_variants[posmod(index + direction, _variants.size())].id)
-	_center_focused_card(false)
+	_center_focused_card(animated)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return
-	if event.is_action_pressed(&"ui_left"): _move(-1); get_viewport().set_input_as_handled()
-	elif event.is_action_pressed(&"ui_right"): _move(1); get_viewport().set_input_as_handled()
+	if event.is_action_pressed(&"ui_left"): _move(-1, false); get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(&"ui_right"): _move(1, false); get_viewport().set_input_as_handled()
 	elif event is InputEventScreenTouch:
 		if event.pressed: _swipe_start = event.position
 		elif absf(event.position.x - _swipe_start.x) > 60: _move(-1 if event.position.x > _swipe_start.x else 1)

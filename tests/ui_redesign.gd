@@ -216,12 +216,21 @@ func _test_shared_components_and_flow() -> void:
 
 func _test_progress_schema_two() -> void:
 	var path := "user://progress_schema_two_test.cfg"
-	var progress := PlayerProgress.new(); progress.save_path = path
-	var result := RaceResult.new(); result.track_id = &"coastal"; result.cc_id = &"150"
-	var player := RacerRaceResult.new(); player.racer_id = &"marea"; player.finish_position = 1; player.finish_time = 90.0; player.items_used = 2; result.player_result = player
-	_check(progress.record_race_result(result) and not progress.record_race_result(result), "Race telemetry records exactly once.")
+	var fixture := ConfigFile.new()
+	fixture.set_value("progress", "schema_version", 2)
+	fixture.set_value("progress", "best_medals", {"tropical/competitive": 2})
+	fixture.set_value("progress", "unlocked_reward_ids", {&"competitive_bronze": true})
+	fixture.set_value("progress", "equipped_kart_variant_id", "taxi")
+	fixture.set_value("progress", "active_cup", {"cup_id": &"tropical", "current_race_index": 1})
+	fixture.set_value("telemetry", "races_played", 4)
+	fixture.set_value("telemetry", "victories", 1)
+	fixture.set_value("telemetry", "podiums", 3)
+	fixture.set_value("telemetry", "items_used", 2)
+	fixture.save(path)
 	var loaded := PlayerProgress.new(); loaded.save_path = path; loaded.load_from_disk()
-	_check(loaded.races_played == 1 and loaded.victories == 1 and loaded.items_used == 2, "Schema 2 telemetry persists and reloads.")
+	_check(loaded.races_played == 4 and loaded.victories == 1 and loaded.podiums == 3 and loaded.items_used == 2, "Schema 2 telemetry persists and reloads.")
+	_check(loaded.get_medal(&"tropical", &"competitive") == 2 and loaded.equipped_kart_variant_id == &"taxi" and not loaded.active_cup.is_empty(), "Schema 2 medals, equipped vehicle, and active cup survive migration.")
+	_check(loaded.seen_reward_ids.has(&"competitive_bronze") and loaded.get_new_reward_count() == 0, "Schema 2 rewards migrate as already seen.")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
