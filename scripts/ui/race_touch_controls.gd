@@ -3,6 +3,7 @@ extends Control
 
 var steering_pad: CoastalJoystick
 var item_button: MobileActionButton
+var launch_button: MobileActionButton
 
 var _player_kart: Kart
 var _mobile_controls_enabled := false
@@ -35,6 +36,11 @@ func build_interface(
 		Vector2(-156.0, -156.0),
 		vibration_enabled
 	)
+	launch_button = _add_action_button(
+		"LaunchButton", &"accelerate", "ACELERA", Color("#ffb238"),
+		Vector2(132.0, 132.0), Vector2(-156.0, -156.0), vibration_enabled
+	)
+	launch_button.visible = false
 	item_button = _add_action_button(
 		"ItemButton",
 		&"use_item",
@@ -88,6 +94,10 @@ func set_mobile_controls_enabled(enabled: bool) -> void:
 	_mobile_controls_enabled = enabled
 	if not enabled:
 		release_auto_acceleration()
+
+func show_launch_button(show: bool) -> void:
+	if launch_button != null:
+		launch_button.visible = show and _mobile_controls_enabled
 
 
 func update_state(

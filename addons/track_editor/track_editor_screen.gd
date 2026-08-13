@@ -22,7 +22,8 @@ const STEP_LABELS := [
 	"2  CARRETERA",
 	"3  ATAJOS",
 	"4  OBJETOS",
-	"5  REVISAR",
+	"5  SUPERFICIES",
+	"6  REVISAR",
 ]
 const PANEL_WORKFLOW_ID := 0
 const PANEL_INSPECTOR_ID := 1
@@ -644,7 +645,89 @@ func _show_step(step_index: int) -> void:
 		3:
 			_build_object_properties()
 		4:
+			_build_surface_properties()
+		5:
 			_build_review_properties()
+
+
+func _build_surface_properties() -> void:
+	var title := Label.new()
+	title.text = "SUPERFICIES"
+	title.add_theme_font_size_override("font_size", 24)
+	_properties.add_child(title)
+	_add_help("Crea zonas visuales sin alterar el piso físico. El ancho se valida dentro de las barreras.")
+	var kind := OptionButton.new()
+	for entry in [["Asfalto", ""], ["Tierra", "dirt"], ["Arena", "sand"], ["Césped", "grass"]]:
+		kind.add_item(entry[0])
+		kind.set_item_metadata(kind.item_count - 1, entry[1])
+	_properties.add_child(kind)
+	var route_kind := OptionButton.new()
+	route_kind.add_item("Ruta principal", TrackSurfaceZone.PathKind.MAIN)
+	route_kind.add_item("Atajo", TrackSurfaceZone.PathKind.SHORTCUT)
+	_properties.add_child(route_kind)
+	var start := SpinBox.new()
+	start.prefix = "Inicio  "
+	start.max_value = 1.0
+	start.step = 0.01
+	start.value = 0.1
+	_properties.add_child(start)
+	var finish := SpinBox.new()
+	finish.prefix = "Final  "
+	finish.max_value = 1.0
+	finish.step = 0.01
+	finish.value = 0.2
+	_properties.add_child(finish)
+	var width := SpinBox.new()
+	width.prefix = "Ancho  "
+	width.min_value = 0.5
+	width.max_value = CoastalTrack.ROAD_WIDTH
+	width.step = 0.25
+	width.value = 3.0
+	_properties.add_child(width)
+	var create := _button("+ CREAR ZONA", func() -> void:
+		if finish.value <= start.value:
+			_status_label.text = "El final debe estar después del inicio."
+			return
+		session.snapshot_track_for_undo()
+		var root := session.track.get_node_or_null("Surfaces")
+		if root == null:
+			root = Node3D.new()
+			root.name = "Surfaces"
+			session.track.add_child(root)
+			root.owner = session.track
+		var zone := TrackSurfaceZone.new()
+		zone.name = "SurfaceZone%d" % (root.get_child_count() + 1)
+		zone.id = StringName("surface_zone_%d" % (root.get_child_count() + 1))
+		zone.path_kind = route_kind.get_selected_id()
+		zone.start_progress = start.value
+		zone.end_progress = finish.value
+		zone.width = width.value
+		var surface_id := str(kind.get_selected_metadata())
+		zone.surface = (load("res://levels/surfaces/%s.tres" % surface_id) as SurfaceDefinition if not surface_id.is_empty() else SurfaceDefinition.asphalt())
+		root.add_child(zone)
+		zone.owner = session.track
+		session.mark_dirty()
+		session.route_changed.emit()
+		_show_step(4)
+	)
+	_properties.add_child(create)
+	var surfaces := session.track.get_node_or_null("Surfaces")
+	if surfaces != null:
+		for child in surfaces.get_children():
+			if child is TrackSurfaceZone:
+				var row := HBoxContainer.new()
+				var label := Label.new()
+				label.text = "%s · %.0f–%.0f%%" % [child.id, child.start_progress * 100.0, child.end_progress * 100.0]
+				label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				row.add_child(label)
+				row.add_child(_button("ELIMINAR", func() -> void:
+					session.snapshot_track_for_undo()
+					child.queue_free()
+					session.mark_dirty()
+					session.route_changed.emit()
+					_show_step(4)
+				))
+				_properties.add_child(row)
 
 
 func _build_setup_properties() -> void:
@@ -655,6 +738,15 @@ func _build_setup_properties() -> void:
 	panel.laps_changed.connect(func(value: int) -> void: _laps = value)
 	panel.description_changed.connect(
 		func(value: String) -> void: _description = value
+	)
+	panel.environment_theme_changed.connect(func(value: TrackTheme) -> void:
+		session.track.track_theme = value; session.mark_dirty(); _rebuild_preview()
+	)
+	panel.music_changed.connect(func(value: AudioStream) -> void:
+		session.track.track_music = value; session.mark_dirty()
+	)
+	panel.difficulty_changed.connect(func(value: String) -> void:
+		session.track.difficulty = value; session.mark_dirty()
 	)
 	_properties.add_child(panel)
 
@@ -879,13 +971,15 @@ func _refresh_validation() -> void:
 
 
 func _update_step_badges(issues: Array[TrackValidationIssue]) -> void:
-	var counts := [0, 0, 0, 0, 0]
+	var counts := [0, 0, 0, 0, 0, 0]
 	for issue in issues:
 		var path_text := str(issue.target_path)
 		if path_text.begins_with("Shortcuts"):
 			counts[2] += 1
 		elif path_text.begins_with("ItemSpawns") or path_text.begins_with("Props"):
 			counts[3] += 1
+		elif path_text.begins_with("Surfaces"):
+			counts[4] += 1
 		elif path_text == ".":
 			counts[0] += 1
 		else:

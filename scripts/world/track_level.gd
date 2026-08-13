@@ -5,11 +5,17 @@ extends CoastalTrack
 const GENERATED_GROUP := &"track_editor_generated"
 const DEFAULT_ROUTE_SUBDIVISIONS := 8
 const DEFAULT_SHORTCUT_SUBDIVISIONS := 12
+# Authored paths may use negative elevation while shaping hills. The generated
+# terrain has its upper face at -0.20 m, so keep every drivable ribbon visibly
+# and physically above it. This is applied to both preview and runtime output.
+const MINIMUM_DRIVABLE_HEIGHT := 0.25
 
 @export var track_id: StringName = &"track"
 @export var display_name := "Nueva pista"
 @export var start_banner_text := "MICHIKART XD"
 @export var track_theme: TrackTheme
+@export var track_music: AudioStream
+@export_enum("Media", "Difícil") var difficulty := "Media"
 @export_range(4, 16, 1) var route_subdivisions := DEFAULT_ROUTE_SUBDIVISIONS
 @export_range(6, 18, 1) var shortcut_subdivisions := DEFAULT_SHORTCUT_SUBDIVISIONS
 @export_range(0.0, 4.0, 0.25) var shortcut_barrier_overlap := 0.0
@@ -221,9 +227,15 @@ func _define_item_spawns() -> void:
 	if item_spawns_root != null:
 		for child in item_spawns_root.get_children():
 			if child is Marker3D:
+				var item_position := _get_transform_relative_to_track(
+					child as Node3D
+				).origin
+				item_position.y = maxf(
+					item_position.y,
+					_get_route_height_near(item_position)
+				)
 				item_spawn_points.append(
-					_get_transform_relative_to_track(child as Node3D).origin
-					+ Vector3.UP * 1.2
+					item_position + Vector3.UP * 1.2
 				)
 	if item_spawn_points.is_empty():
 		for fraction in [0.12, 0.38, 0.64, 0.88]:
@@ -234,6 +246,19 @@ func _define_item_spawns() -> void:
 		item_spawn_points.append(
 			shortcut_points[shortcut_points.size() / 2] + Vector3.UP * 1.2
 		)
+
+
+func _get_route_height_near(position: Vector3) -> float:
+	var closest_height := MINIMUM_DRIVABLE_HEIGHT
+	var closest_distance := INF
+	for route_point in route_points:
+		var distance := Vector2(position.x, position.z).distance_squared_to(
+			Vector2(route_point.x, route_point.z)
+		)
+		if distance < closest_distance:
+			closest_distance = distance
+			closest_height = route_point.y
+	return closest_height
 
 
 func _get_start_banner_text() -> String:
@@ -261,10 +286,17 @@ func _sample_path(path: Path3D, is_closed: bool) -> Array[Vector3]:
 		for subdivision in subdivisions:
 			var progress := float(subdivision) / subdivisions
 			var local_point := path.curve.sample(curve_segment, progress)
-			points.append(path_to_track * local_point)
+			var track_point := path_to_track * local_point
+			track_point.y = maxf(track_point.y, MINIMUM_DRIVABLE_HEIGHT)
+			points.append(track_point)
 	if not is_closed:
 		var final_point := path.curve.sample(curve_segment_count - 1, 1.0)
-		points.append(path_to_track * final_point)
+		var final_track_point := path_to_track * final_point
+		final_track_point.y = maxf(
+			final_track_point.y,
+			MINIMUM_DRIVABLE_HEIGHT
+		)
+		points.append(final_track_point)
 	return points
 
 

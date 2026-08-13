@@ -1,0 +1,120 @@
+[gd_resource type="Resource" script_class="CupDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/difficulty_definition.gd" id="1_58gm3"]
+[ext_resource type="Resource" path="res://progression/difficulties/relaxed.tres" id="2_5wlj4"]
+[ext_resource type="Resource" path="res://progression/difficulties/competitive.tres" id="3_niiad"]
+[ext_resource type="Resource" path="res://progression/difficulties/expert.tres" id="4_otd5c"]
+[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="5_wsb4u"]
+[ext_resource type="Resource" path="res://progression/racers/lima.tres" id="6_tkcgv"]
+[ext_resource type="Resource" path="res://progression/racers/coral.tres" id="7_o7odu"]
+[ext_resource type="Resource" path="res://progression/racers/brisa.tres" id="8_f37xi"]
+[ext_resource type="Resource" path="res://progression/racers/marea.tres" id="9_h4lk1"]
+[ext_resource type="Script" path="res://scripts/data/cup_definition.gd" id="10_lahq4"]
+[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="11_0rypf"]
+[ext_resource type="AudioStream" path="res://assets/music/garden.ogg" id="12_rivgq"]
+[ext_resource type="Script" path="res://scripts/data/track_minimap_data.gd" id="13_iswmc"]
+[ext_resource type="PackedScene" path="res://levels/tracks/pantano_brumoso.tscn" id="14_cwkio"]
+[ext_resource type="AudioStream" path="res://assets/music/coastal.ogg" id="15_f55cr"]
+[ext_resource type="PackedScene" path="res://levels/tracks/can_carmes.tscn" id="16_ksjqj"]
+[ext_resource type="PackedScene" path="res://levels/tracks/ruinas_esmeralda.tscn" id="17_gop7x"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="18_e6gsm"]
+[ext_resource type="Resource" path="res://progression/variants/kart_ooli.tres" id="19_153xj"]
+[ext_resource type="Resource" path="res://progression/variants/suv_luxury.tres" id="20_fex8x"]
+
+[sub_resource type="Resource" id="Resource_c4s5h"]
+script = ExtResource("13_iswmc")
+route_points = PackedVector2Array(-14.247946, 105.318344, 11.28967, 115.43131, 33.275677, 119.911545, 50.687782, 119.00688, 69.421616, 112.23933, 91.99104, 96.68088, 114.89665, 73.711235, 138.4915, 44.63234, 144.46336, 33.681522, 147.37463, 24.140755, 148.059, 11.703133, 145.682, -0.52927774, 139.54352, -14.175749, 129.8206, -28.698881, 68.37621, -104.26722, 50.876373, -118.28258, 34.714973, -124.746574, 17.329264, -125.126045, -23.935287, -115.21778, -71.15415, -110.64129, -83.18919, -107.37683, -94.16466, -101.50144, -104.65687, -90.888336, -112.76204, -75.449814, -135.07512, 6.459677, -137.00189, 21.300034, -135.44325, 33.646774, -131.30934, 42.70442, -122.875435, 51.8581, -101.456024, 64.57932, -66.47792, 77.97442, -59.08529, 78.89042, -44.692856, 75.17324, -39.83156, 76.06057, -34.04793, 80.67245, -24.258991, 98.02838)
+shortcut_points = PackedVector2Array(-14.247982, 105.31861, -6.9940786, 105.29722, 5.454759, 97.34836, 19.448965, 83.34727, 48.6838, 49.71361, 57.98428, 41.60212, 69.64106, 37.520782, 113.19259, 28.075146, 132.20697, 22.567879, 145.0916, 15.383927, 147.76515, 8.742905)
+shortcut_ranges = PackedInt32Array(0, 11)
+start_position = Vector2(-14.247946, 105.318344)
+start_direction = Vector2(0.92975265, 0.3681847)
+length_meters = 831.9123771190643
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_0x04r"]
+script = ExtResource("11_0rypf")
+id = &"pantano_brumoso"
+display_name = "Pantano Brumoso"
+description = "Humedal de agua oscura, árboles retorcidos y pasos de tierra entre la bruma."
+preview_color = Color(0.25, 0.38, 0.2, 1)
+preview_map = SubResource("Resource_c4s5h")
+scene = ExtResource("14_cwkio")
+music = ExtResource("12_rivgq")
+length_km = 0.8
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_v4gnk"]
+script = ExtResource("13_iswmc")
+route_points = PackedVector2Array(-14.522693, 100.85204, 4.7161975, 105.95993, 27.112953, 106.88424, 49.408424, 104.36824, 88.47132, 96.100555, 112.181915, 88.34649, 127.6626, 80.30105, 138.53067, 70.112175, 143.84396, 58.895763, 145.20824, 49.02697, 144.68008, 39.06405, 137.02586, 2.427215, 129.55069, -21.366848, 119.73615, -41.556583, 98.50772, -72.35652, 77.45776, -97.01426, 58.278854, -112.91054, 40.109314, -120.972755, 30.215918, -122.17283, 17.824638, -120.893295, -20.418642, -109.48642, -64.71744, -102.10456, -86.012474, -95.12432, -107.14932, -81.91158, -126.15165, -65.76346, -138.53291, -50.15174, -144.31068, -36.397762, -144.79797, -24.006857, -141.0839, -12.130014, -114.633415, 30.149704, -97.87991, 69.08704, -89.80581, 81.61518, -81.45805, 86.83015, -74.0758, 86.25423, -46.31669, 69.61659, -36.779186, 67.264565, -32.333324, 69.37791, -29.527884, 73.46544, -22.091534, 94.57264)
+shortcut_points = PackedVector2Array(-14.525034, 100.8683, -7.3859725, 102.79737, 2.477779, 102.7775, 23.7936, 96.657455, 43.638756, 86.638016, 103.19683, 51.447243, 119.478165, 40.24548, 131.87566, 28.228941, 137.78326, 17.454472, 138.23596, 7.679776)
+shortcut_ranges = PackedInt32Array(0, 10)
+start_position = Vector2(-14.522693, 100.85204)
+start_direction = Vector2(0.9665156, 0.25660798)
+length_meters = 843.7005262374878
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_05qxe"]
+script = ExtResource("11_0rypf")
+id = &"can_carmes"
+display_name = "Cañón Carmesí"
+description = "Rectas rápidas y horquillas elevadas entre barrancos rojizos."
+preview_color = Color(0.64, 0.22, 0.12, 1)
+preview_map = SubResource("Resource_v4gnk")
+scene = ExtResource("16_ksjqj")
+music = ExtResource("15_f55cr")
+length_km = 0.8
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_1ixs5"]
+script = ExtResource("13_iswmc")
+route_points = PackedVector2Array(-17.229689, 88.335815, 8.802501, 96.92665, 38.243275, 102.20988, 60.664036, 102.49184, 77.58044, 98.40175, 101.322205, 84.81026, 140.04149, 53.46235, 176.66853, 27.519835, 186.0127, 15.965336, 187.26932, 8.673951, 185.87112, 3.9129167, 180.04318, -4.1398406, 170.80571, -12.511616, 118.113556, -50.311977, 73.005936, -93.34103, 58.090313, -102.33685, 43.727486, -106.32325, 28.820787, -107.12348, 8.988821, -105.229515, -62.343082, -93.20667, -89.06982, -87.04626, -105.476524, -81.12436, -123.09859, -71.80356, -141.71735, -59.289917, -154.88736, -47.853764, -162.87152, -38.30527, -167.27856, -29.41052, -168.09425, -22.02003, -165.88339, -12.326132, -159.07263, 0.9803943, -140.58685, 27.628586, -123.77024, 55.36227, -112.87135, 68.96717, -102.52014, 75.75365, -92.718254, 76.299225, -81.00245, 72.16617, -50.12766, 55.94391, -43.010967, 53.707928, -38.068043, 53.821373, -32.557384, 58.516357, -26.14626, 79.9584, -21.479189, 85.74589)
+shortcut_points = PackedVector2Array(-17.237534, 88.37603, -12.442356, 89.62313, -5.0537863, 88.85144, 10.478415, 81.13552, 29.800352, 65.49418, 65.67517, 31.023277, 75.85052, 23.970129, 88.163635, 22.520847, 142.88483, 23.741854, 167.69966, 22.242931, 177.38097, 19.992714, 183.95609, 16.542135, 186.88069, 12.58582, 187.21234, 7.678632, 119.311714, -49.36571, 109.839745, -51.995964, 94.90514, -51.62359, 18.586277, -39.803463, 1.22221, -38.631233, -15.265109, -44.205395, -86.0553, -75.074745, -100.41474, -79.19365, -110.23213, -78.94228)
+shortcut_ranges = PackedInt32Array(0, 14, 14, 9)
+start_position = Vector2(-17.229689, 88.335815)
+start_direction = Vector2(0.9496263, 0.31338447)
+length_meters = 903.2182228565216
+shortcut_count = 2
+
+[sub_resource type="Resource" id="Resource_v5muo"]
+script = ExtResource("11_0rypf")
+id = &"ruinas_esmeralda"
+display_name = "Ruinas Esmeralda"
+description = "Una ruta estrecha entre templos y vegetación de selva profunda."
+preview_color = Color(0.055, 0.3, 0.12, 1)
+preview_map = SubResource("Resource_1ixs5")
+scene = ExtResource("17_gop7x")
+music = ExtResource("12_rivgq")
+difficulty = "Difícil"
+length_km = 0.9
+shortcut_count = 2
+
+[sub_resource type="Resource" id="Resource_w44o2"]
+script = ExtResource("18_e6gsm")
+id = &"salvaje_bronze"
+display_name = "Kart Ooli"
+cup_id = &"salvaje"
+kart_variant = ExtResource("19_153xj")
+
+[sub_resource type="Resource" id="Resource_daeab"]
+script = ExtResource("18_e6gsm")
+id = &"salvaje_silver"
+display_name = "SUV Luxury"
+cup_id = &"salvaje"
+required_medal = 2
+kart_variant = ExtResource("20_fex8x")
+
+[resource]
+script = ExtResource("10_lahq4")
+id = &"salvaje"
+display_name = "Copa Salvaje"
+description = "Bruma, cañones y ruinas de selva profunda."
+tracks = Array[ExtResource("11_0rypf")]([SubResource("Resource_0x04r"), SubResource("Resource_05qxe"), SubResource("Resource_v5muo")])
+player_racer = ExtResource("9_h4lk1")
+opponents = Array[ExtResource("5_wsb4u")]([ExtResource("6_tkcgv"), ExtResource("7_o7odu"), ExtResource("8_f37xi")])
+scoring_table = PackedInt32Array(9, 6, 3, 1)
+medal_thresholds = PackedInt32Array(9, 17, 24)
+difficulties = Array[ExtResource("1_58gm3")]([ExtResource("2_5wlj4"), ExtResource("3_niiad"), ExtResource("4_otd5c")])
+unlocks = Array[ExtResource("18_e6gsm")]([SubResource("Resource_w44o2"), SubResource("Resource_daeab")])
+prerequisite_cup_id = &"horizontes"
+prerequisite_difficulty_id = &"competitive"
+sort_order = 2

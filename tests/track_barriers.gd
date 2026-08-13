@@ -673,6 +673,7 @@ func _test_explicit_portals() -> void:
 		"Curved junction visuals and collisions share stable names and world layers."
 	)
 	var shortcut_surfaces_are_trimmed := true
+	var shortcut_junction_gaps_are_bounded := true
 	for shortcut_definition in track.shortcut_definitions:
 		var shortcut_id := int(shortcut_definition.id)
 		var shortcut_points: Array[Vector3] = shortcut_definition.points
@@ -681,6 +682,11 @@ func _test_explicit_portals() -> void:
 			{}
 		)
 		var trimmed_points := track._get_trimmed_shortcut_points(
+			shortcut_points,
+			shortcut_junctions.get("entry"),
+			shortcut_junctions.get("exit")
+		)
+		var collision_points := track._get_shortcut_collision_points(
 			shortcut_points,
 			shortcut_junctions.get("entry"),
 			shortcut_junctions.get("exit")
@@ -708,11 +714,27 @@ func _test_explicit_portals() -> void:
 			shortcut_surfaces_are_trimmed
 			and trimmed_points.size() < shortcut_points.size()
 			and visual_vertices.size() == (trimmed_points.size() - 1) * 6
-			and collision_faces.size() == (shortcut_points.size() - 1) * 6
+			and collision_faces.size() == (collision_points.size() - 1) * 6
 		)
+		if trimmed_points.size() >= 2:
+			var entry_overlap := trimmed_points[0].distance_to(
+				shortcut_junctions.entry.shortcut_transition_center
+			)
+			var exit_overlap := trimmed_points[-1].distance_to(
+				shortcut_junctions.exit.shortcut_transition_center
+			)
+			shortcut_junction_gaps_are_bounded = (
+				shortcut_junction_gaps_are_bounded
+				and entry_overlap >= 0.20
+				and exit_overlap >= 0.20
+			)
 	_check(
 		shortcut_surfaces_are_trimmed,
 		"Shortcut asphalt stops at its curved junctions instead of covering MainRoad."
+	)
+	_check(
+		shortcut_junction_gaps_are_bounded,
+		"Shortcut entry and exit surfaces overlap their junctions by at least 0.20 m."
 	)
 	var left_offset := -CoastalTrack.ROAD_WIDTH * 0.5 + CoastalTrack.BARRIER_PATH_INSET
 	var right_offset := CoastalTrack.ROAD_WIDTH * 0.5 - CoastalTrack.BARRIER_PATH_INSET
@@ -796,7 +818,7 @@ func _test_explicit_portals() -> void:
 			"body": "Shortcut0Collision",
 			"layer": CoastalTrack.SHORTCUT_COLLISION_LAYER,
 			"mask": PhysicsLayers.KARTS,
-			"backface": false,
+			"backface": true,
 		},
 		{
 			"visual": "MainBarrierRight",

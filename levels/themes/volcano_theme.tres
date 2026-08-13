@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TrackTheme" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/data/track_theme.gd" id="1"]
+[resource]
+script = ExtResource("1")
+road_color = Color(0.28, 0.23, 0.21, 1)
+curb_color = Color(1, 0.34, 0.03, 1)
+terrain_color = Color(0.07, 0.045, 0.04, 1)
+barrier_color = Color(0.75, 0.12, 0.03, 1)
+shortcut_color = Color(0.32, 0.13, 0.08, 1)
+water_color = Color(0.92, 0.12, 0.01, 1)
+sky_color = Color(0.18, 0.10, 0.12, 1)
+ambient_color = Color(0.76, 0.25, 0.12, 1)
+banner_color = Color(1, 0.28, 0.02, 1)

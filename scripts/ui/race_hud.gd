@@ -1,9 +1,17 @@
 class_name RaceHud
 extends CanvasLayer
 
+const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
+const RaceMinimap = preload("res://scripts/ui/race_minimap.gd")
+
 signal retry_requested
 signal menu_requested
 signal intro_skip_requested
+signal resume_requested
+signal restart_requested
+signal settings_requested
+signal controls_requested
+signal quit_requested
 
 var _status_view: RaceStatusView
 var _touch_view: RaceTouchControls
@@ -37,6 +45,7 @@ var _intro_title: Label
 var _intro_laps: Label
 var _intro_skip_button: Button
 var _is_intro_visible := false
+var _minimap: RaceMinimap
 
 var mobile_controls_enabled := (
 	OS.has_feature("android")
@@ -44,6 +53,7 @@ var mobile_controls_enabled := (
 	or DisplayServer.is_touchscreen_available()
 )
 var vibration_enabled := true
+var vibration_intensity := 1.0
 
 
 func _ready() -> void:
@@ -59,6 +69,13 @@ func bind_player(kart: Kart) -> void:
 	kart.boost_changed.connect(_handle_boost_changed)
 	kart.shield_state_changed.connect(_handle_shield_state_changed)
 	_handle_item_changed(kart.held_item)
+
+
+func configure_minimap(track: TrackLevel, racers: Array[Node]) -> void:
+	if _minimap == null:
+		return
+	_minimap.configure_track(track)
+	_minimap.register_racers(racers, _player_kart)
 
 
 func update_race_info(
@@ -79,6 +96,7 @@ func update_race_info(
 
 func show_countdown(text: String) -> void:
 	_status_view.show_countdown(text, _is_intro_visible)
+	_touch_view.show_launch_button(not text.is_empty() and text != "¡YA!")
 
 
 func show_intro(track_name: String, total_laps: int) -> void:
@@ -106,9 +124,44 @@ func hide_intro() -> void:
 	_countdown_label.visible = not _countdown_label.text.is_empty()
 
 
-func show_results(position: int, race_time: float) -> void:
-	_flow_overlay.show_results(position, race_time)
+func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> void:
+	_flow_overlay.show_results(result_or_position, legacy_time)
 	_set_touch_controls_visible(false)
+	_set_race_elements_visible(false)
+
+
+func show_provisional(standings: Array[RacerRaceResult], remaining: float) -> void:
+	_flow_overlay.show_provisional(standings, remaining)
+	_set_touch_controls_visible(false)
+	_set_race_elements_visible(false)
+	_release_auto_acceleration()
+
+
+func update_provisional_standings(standings: Array[RacerRaceResult]) -> void:
+	_flow_overlay.update_provisional_standings(standings)
+
+
+func update_results_countdown(remaining: float) -> void:
+	if _flow_overlay.provisional_panel.visible:
+		_flow_overlay.provisional_title.text = "RESULTADOS EN %d…" % ceili(maxf(remaining, 0.0))
+
+
+func show_lap_split(lap_number: int, lap_time: float, previous_best: float) -> void:
+	_status_view.show_lap_split(lap_number, lap_time, previous_best)
+
+
+func set_game_mode(game_mode: int) -> void:
+	_status_view.set_game_mode(game_mode)
+	_minimap.set_game_mode(game_mode)
+	_touch_view.item_button.visible = game_mode != GameModeDefinition.TIME_TRIAL
+
+
+func update_ghost_delta(delta: float) -> void:
+	_status_view.update_ghost_delta(delta)
+
+
+func request_resume() -> void:
+	_flow_overlay.request_resume()
 
 
 func _process(_delta: float) -> void:
@@ -142,14 +195,23 @@ func set_mobile_controls_enabled(enabled: bool) -> void:
 
 func _build_interface() -> void:
 	var root := Control.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.theme = UiTokens.create_theme()
 	add_child(root)
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.resized.connect(_update_responsive_layout)
 
 	_status_view = RaceStatusView.new()
 	_status_view.name = "RaceStatus"
 	_status_view.build_interface()
 	root.add_child(_status_view)
 	_bind_status_references()
+	_minimap = RaceMinimap.new()
+	_minimap.name = "RaceMinimap"
+	_minimap.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_minimap.position = Vector2(-244, 104)
+	_minimap.size = Vector2(220, 156)
+	root.add_child(_minimap)
+	_race_elements.append(_minimap)
 
 	_touch_view = RaceTouchControls.new()
 	_touch_view.build_interface(
@@ -171,7 +233,31 @@ func _build_interface() -> void:
 	_flow_overlay.intro_skip_requested.connect(
 		func() -> void: intro_skip_requested.emit()
 	)
+	_flow_overlay.resume_requested.connect(func() -> void: resume_requested.emit())
+	_flow_overlay.restart_requested.connect(func() -> void: restart_requested.emit())
+	_flow_overlay.settings_requested.connect(func() -> void: settings_requested.emit())
+	_flow_overlay.controls_requested.connect(func() -> void: controls_requested.emit())
+	_flow_overlay.quit_requested.connect(func() -> void: quit_requested.emit())
 	_bind_flow_references()
+	_update_responsive_layout()
+
+
+func _update_responsive_layout() -> void:
+	if _minimap == null or _flow_overlay == null:
+		return
+	var viewport_size := get_viewport().get_visible_rect().size
+	var compact := viewport_size.x < 900.0 or viewport_size.y < 500.0
+	var map_size := Vector2(150.0, 106.0) if compact else Vector2(220.0, 156.0)
+	_minimap.offset_left = -map_size.x - 16.0 if compact else -map_size.x - 24.0
+	_minimap.offset_right = -16.0 if compact else -24.0
+	_minimap.offset_top = 82.0 if compact else 104.0
+	_minimap.offset_bottom = _minimap.offset_top + map_size.y
+	var pause_button := _flow_overlay.get_node_or_null("PauseButton") as Button
+	if pause_button != null:
+		pause_button.offset_left = -76.0 if compact else -88.0
+		pause_button.offset_right = -12.0 if compact else -24.0
+		pause_button.offset_top = 198.0 if compact else 278.0
+		pause_button.offset_bottom = pause_button.offset_top + 64.0
 
 
 func _bind_status_references() -> void:

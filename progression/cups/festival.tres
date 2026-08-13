@@ -1,0 +1,79 @@
+[gd_resource type="Resource" script_class="CupDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/difficulty_definition.gd" id="1_ftx08"]
+[ext_resource type="Resource" path="res://progression/difficulties/relaxed.tres" id="2_vvsh7"]
+[ext_resource type="Resource" path="res://progression/difficulties/competitive.tres" id="3_5f32i"]
+[ext_resource type="Resource" path="res://progression/difficulties/expert.tres" id="4_kgye7"]
+[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="5_8vtsn"]
+[ext_resource type="Resource" path="res://progression/racers/lima.tres" id="6_t3bty"]
+[ext_resource type="Resource" path="res://progression/racers/coral.tres" id="7_7kdpo"]
+[ext_resource type="Resource" path="res://progression/racers/brisa.tres" id="8_i0x0j"]
+[ext_resource type="Resource" path="res://progression/racers/marea.tres" id="9_v70fs"]
+[ext_resource type="Script" path="res://scripts/data/cup_definition.gd" id="10_7wdm5"]
+[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="11_dvs5m"]
+[ext_resource type="Resource" path="res://levels/definitions/garden.tres" id="12_7a4nu"]
+[ext_resource type="AudioStream" path="res://assets/music/garden.ogg" id="13_g1svq"]
+[ext_resource type="Script" path="res://scripts/data/track_minimap_data.gd" id="14_uknxh"]
+[ext_resource type="PackedScene" path="res://levels/tracks/baha_pirata.tscn" id="15_36t3o"]
+[ext_resource type="AudioStream" path="res://assets/music/coastal.ogg" id="16_ftfv1"]
+[ext_resource type="PackedScene" path="res://levels/tracks/nen_medianoche.tscn" id="17_0ej2a"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="18_ohf45"]
+
+[sub_resource type="Resource" id="Resource_knu8l"]
+script = ExtResource("14_uknxh")
+route_points = PackedVector2Array(-17.144295, 105.30441, 9.122825, 113.055626, 36.32889, 116.22972, 58.671764, 114.63646, 82.39081, 107.12993, 112.82416, 90.145805, 137.76135, 69.52564, 152.85078, 49.809704, 157.88686, 38.45335, 160.18958, 28.779312, 160.85117, 18.85014, 159.61217, 6.465902, 152.44356, -14.730693, 138.18474, -38.106743, 118.43789, -60.528465, 95.18722, -79.28276, 69.44825, -94.459465, 41.925114, -106.07409, 15.344416, -112.665985, -9.508786, -114.13066, -34.28544, -111.55068, -58.38246, -105.256226, -83.48868, -94.28843, -112.85962, -75.511246, -135.51663, -56.049152, -148.75513, -38.038734, -153.89398, -21.468987, -154.3317, -11.523361, -152.84126, 0.8347283, -145.07846, 24.471434, -132.73253, 46.07257, -116.14374, 64.61332, -98.261604, 78.04498, -84.33978, 83.02856, -74.584145, 81.2897, -52.068253, 70.64208, -42.30963, 70.18966, -36.71066, 74.93118, -26.825897, 97.71902)
+shortcut_points = PackedVector2Array(-17.147314, 105.32295, -4.9018683, 105.11966, 16.54413, 99.110016, 48.873474, 86.61216, 80.27435, 71.94783, 111.82367, 52.356426, 139.89758, 32.033035, 156.03847, 16.721567, 159.88347, 7.856342)
+shortcut_ranges = PackedInt32Array(0, 9)
+start_position = Vector2(-17.144295, 105.30441)
+start_direction = Vector2(0.95911217, 0.2830262)
+length_meters = 867.5608947277069
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_x1k1c"]
+script = ExtResource("11_dvs5m")
+id = &"baha_pirata"
+display_name = "Bahía Pirata"
+description = "Costa de palmeras, muelles y tesoros, con una escapada por la playa."
+preview_color = Color(0.79, 0.66, 0.38, 1)
+preview_map = SubResource("Resource_knu8l")
+scene = ExtResource("15_36t3o")
+music = ExtResource("13_g1svq")
+length_km = 0.9
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_ant4k"]
+script = ExtResource("14_uknxh")
+route_points = PackedVector2Array(-18.333212, 88.541084, -1.3020477, 92.25858, 20.995785, 94.56474, 43.40866, 94.91714, 65.75795, 93.252144, 102.635895, 87.07522, 134.16592, 79.55006, 157.71475, 71.392136, 170.60098, 63.893944, 175.32333, 58.152336, 177.10846, 53.512268, 177.11717, 41.133205, 167.26434, 7.6730695, 162.07011, -34.359756, 157.833, -46.059525, 152.29408, -54.320152, 144.88676, -60.94271, 134.24309, -67.378654, 101.98729, -80.53556, 49.159042, -95.16053, 14.705347, -100.66628, -25.149529, -101.41874, -77.249985, -96.63585, -108.85459, -89.70838, -120.395775, -85.06559, -128.77304, -79.711365, -137.45369, -70.80277, -145.38222, -58.137383, -169.25981, -0.57154816, -173.9323, 18.74546, -173.36029, 26.180805, -170.45296, 33.014343, -161.4174, 41.48002, -143.98378, 51.10121, -118.42818, 61.002052, -94.41784, 67.61908, -79.58128, 67.40946, -53.58055, 58.812973, -43.80884, 59.475105, -38.42776, 64.52893, -28.659151, 81.863495)
+shortcut_points = PackedVector2Array(-18.340681, 88.577156, -6.1497865, 88.239265, 9.261349, 80.487015, 26.704323, 66.69239, 57.511635, 38.11001, 67.63671, 31.100368, 82.22076, 28.610012, 131.57062, 25.404953, 148.64265, 22.60922, 158.0243, 19.517818, 164.20766, 15.485549, 166.83925, 11.34979, 167.09775, 6.4560513, 148.73665, -57.97052, 136.94122, -61.24662, 117.08383, -60.65712, 11.417824, -44.980232, -5.365724, -49.357254, -91.9922, -80.17689, -111.398476, -84.42654, -123.5941, -83.37698)
+shortcut_ranges = PackedInt32Array(0, 13, 13, 8)
+start_position = Vector2(-18.333212, 88.541084)
+start_direction = Vector2(0.9769966, 0.21325517)
+length_meters = 915.218160867691
+shortcut_count = 2
+
+[sub_resource type="Resource" id="Resource_2yhtj"]
+script = ExtResource("11_dvs5m")
+id = &"nen_medianoche"
+display_name = "Neón Medianoche"
+description = "Curvas rápidas encadenadas entre túneles y luces de una ciudad nocturna."
+preview_color = Color(0.018, 0.02, 0.055, 1)
+preview_map = SubResource("Resource_ant4k")
+scene = ExtResource("17_0ej2a")
+music = ExtResource("16_ftfv1")
+difficulty = "Difícil"
+length_km = 0.9
+shortcut_count = 2
+
+[resource]
+script = ExtResource("10_7wdm5")
+id = &"festival"
+display_name = "Copa Festival"
+description = "Jardines, piratas y neón para cerrar la campaña."
+tracks = Array[ExtResource("11_dvs5m")]([ExtResource("12_7a4nu"), SubResource("Resource_x1k1c"), SubResource("Resource_2yhtj")])
+player_racer = ExtResource("9_v70fs")
+opponents = Array[ExtResource("5_8vtsn")]([ExtResource("6_t3bty"), ExtResource("7_7kdpo"), ExtResource("8_i0x0j")])
+scoring_table = PackedInt32Array(9, 6, 3, 1)
+medal_thresholds = PackedInt32Array(9, 17, 24)
+difficulties = Array[ExtResource("1_ftx08")]([ExtResource("2_vvsh7"), ExtResource("3_5f32i"), ExtResource("4_kgye7")])
+prerequisite_cup_id = &"extrema"
+sort_order = 6

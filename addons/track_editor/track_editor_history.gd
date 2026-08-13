@@ -80,7 +80,7 @@ func _capture_track_state() -> Dictionary:
 	if route != null and route.curve != null:
 		state.route_curve = route.curve.duplicate(true) as Curve3D
 	state.start_point_index = _session.track.start_point_index
-	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props"]:
+	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props", &"Surfaces"]:
 		state.collections[container_name] = _capture_collection(container_name)
 	return state
 
@@ -96,7 +96,7 @@ func _restore_track_state(state: Dictionary) -> void:
 		state.get("start_point_index", 0)
 	)
 	var collections: Dictionary = state.get("collections", {})
-	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props"]:
+	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props", &"Surfaces"]:
 		_restore_collection(
 			container_name,
 			collections.get(container_name, []) as Array

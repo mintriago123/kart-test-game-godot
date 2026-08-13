@@ -2,7 +2,7 @@
 
 El editor se abre desde la pestaña **Pistas** de la barra superior de Godot.
 Está diseñado para trabajar sin el árbol de nodos, el Inspector ni herramientas
-de curvas.
+de curvas. El proyecto se desarrolla y valida con Godot 4.7.1.
 
 ## Flujo recomendado
 
@@ -110,7 +110,7 @@ La reparación:
 - **Probar** ejecuta la escena actual con el kart sin añadirla al menú.
 - **Publicar** exige una validación correcta y registra automáticamente la pista
   en `levels/track_catalog.tres`. También genera y guarda el plano 2D que aparece
-  en el selector, con distancia, salida, sentido y atajos.
+  en el selector vertical de pistas, con distancia, salida, sentido y atajos.
 
 El editor mantiene una copia de recuperación dentro de `user://`; no forma parte
 del repositorio ni del APK.
@@ -142,10 +142,13 @@ del atajo recorren un hombro exterior para mantener libre el corredor del kart.
 Las pruebas automatizadas son:
 
 ```sh
-godot --headless --path . --script tests/track_editor.gd
-godot --headless --path . --script tests/track_barriers.gd
-godot --headless --path . --script tests/track_minimap.gd
-godot --headless --path . --script tests/track_authoring.gd
-godot --headless --path . --script tests/shortcut_drive.gd
-godot --headless --path . --script tests/race_stability.gd
+GODOT_BIN=/home/mintriago/Godot_v4.7.1-stable_linux.x86_64
+
+for suite in \
+  tests/track_editor.gd tests/track_barriers.gd \
+  tests/track_minimap.gd tests/track_authoring.gd \
+  tests/shortcut_drive.gd tests/race_stability.gd
+do
+  "$GODOT_BIN" --headless --path . --script "$suite" || exit $?
+done
 ```

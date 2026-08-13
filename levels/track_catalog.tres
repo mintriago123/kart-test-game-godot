@@ -1,66 +1,226 @@
-[gd_resource type="Resource" script_class="TrackCatalog" format=3 uid="uid://dkmvav0d6yvrb"]
+[gd_resource type="Resource" script_class="TrackCatalog" format=3]
 
-[ext_resource type="Script" uid="uid://eoyi70lot677" path="res://scripts/data/track_catalog.gd" id="1_catalog"]
-[ext_resource type="Script" uid="uid://4rdkup4ywfp8" path="res://scripts/data/track_definition.gd" id="2_definition"]
-[ext_resource type="PackedScene" uid="uid://bmo5euyuwse28" path="res://levels/coastal_track.tscn" id="3_coastal"]
-[ext_resource type="Script" uid="uid://cblvdeuhqe2kn" path="res://scripts/data/track_minimap_data.gd" id="3_qkri8"]
-[ext_resource type="PackedScene" uid="uid://cida3p7ag2q6c" path="res://levels/garden_track.tscn" id="4_garden"]
-[ext_resource type="PackedScene" uid="uid://0cw3gm7ph46x" path="res://levels/tracks/bahia_turbo.tscn" id="6_xwiqk"]
+[ext_resource type="Script" path="res://scripts/data/track_catalog.gd" id="1"]
+[ext_resource type="Resource" path="res://levels/definitions/coastal.tres" id="2"]
+[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="2_hb87e"]
+[ext_resource type="Resource" path="res://levels/definitions/garden.tres" id="3"]
+[ext_resource type="Resource" path="res://levels/definitions/bahia_turbo.tres" id="4"]
+[ext_resource type="AudioStream" path="res://assets/music/bahia_turbo.ogg" id="6_sapuk"]
+[ext_resource type="Script" path="res://scripts/data/track_minimap_data.gd" id="7_l3s7q"]
+[ext_resource type="PackedScene" path="res://levels/tracks/dunas_doradas.tscn" id="8_2kmnd"]
+[ext_resource type="AudioStream" path="res://assets/music/garden.ogg" id="9_l3s7q"]
+[ext_resource type="PackedScene" path="res://levels/tracks/pantano_brumoso.tscn" id="10_2kmnd"]
+[ext_resource type="AudioStream" path="res://assets/music/coastal.ogg" id="11_lle2a"]
+[ext_resource type="PackedScene" path="res://levels/tracks/can_carmes.tscn" id="12_cqx33"]
+[ext_resource type="PackedScene" path="res://levels/tracks/valle_de_otoo.tscn" id="13_cqx33"]
+[ext_resource type="PackedScene" path="res://levels/tracks/baha_pirata.tscn" id="14_blset"]
+[ext_resource type="PackedScene" path="res://levels/tracks/caldera_furiosa.tscn" id="15_0x04r"]
+[ext_resource type="PackedScene" path="res://levels/tracks/cumbre_glacial.tscn" id="16_03e5t"]
+[ext_resource type="PackedScene" path="res://levels/tracks/ruinas_esmeralda.tscn" id="17_05qxe"]
+[ext_resource type="PackedScene" path="res://levels/tracks/nen_medianoche.tscn" id="18_p1dd2"]
 
-[sub_resource type="Resource" id="Resource_qkri8"]
-script = ExtResource("3_qkri8")
-route_points = PackedVector2Array(7.858078, 69.97268, 17.659775, 68.107735, 53.373592, 56.83216, 62.330936, 52.449066, 69.95713, 46.028015, 78.83438, 33.99962, 85.97019, 18.075743, 88.88616, 3.412809, 88.136566, -11.524333, 84.44147, -26.017748, 78.62393, -37.026337, 68.44439, -47.981483, 52.351498, -59.783813, 36.764023, -67.65284, 20.031876, -72.630516, 5.1469555, -74.20183, -12.286647, -73.18926, -26.889605, -69.90663, -43.012123, -63.204422, -57.842964, -54.00079, -71.03695, -42.61639, -80.04309, -30.71096, -86.19028, -17.086226, -88.81461, -4.9047184, -88.35792, 7.5270567, -84.38415, 21.892801, -77.39466, 35.077477, -65.8376, 48.14431, -52.121555, 58.945614, -38.830326, 65.8183, -24.493198, 70.101585, -9.574441, 71.2024)
-shortcut_points = PackedVector2Array(73.83367, 41.506413, 74.87382, 39.292164, 73.63746, 34.634552, 60.16447, 20.234058, 56.545574, 11.254262, 58.536522, 1.6128461, 61.790657, -5.0245447, 80.80217, -24.263536, 82.376175, -28.856144, 80.90564, -33.513294, -33.7711, -67.44201, -39.692684, -63.16185, -41.631332, -58.66678, -39.015705, -31.773113, -41.379223, -22.308735, -50.466633, -14.19045, -82.06136, -0.4449859, -86.9215, 5.0194807, -87.423325, 12.266504)
-shortcut_ranges = PackedInt32Array(0, 10, 10, 9)
-start_position = Vector2(7.858078, 69.97268)
-start_direction = Vector2(0.98237616, -0.18691428)
-length_meters = 509.4730670452118
+[sub_resource type="Resource" id="Resource_q5pq8"]
+script = ExtResource("7_l3s7q")
+route_points = PackedVector2Array(-13.286804, 104.63359, 14.970843, 120.39863, 26.658955, 124.68022, 38.87972, 126.984856, 48.819443, 126.66204, 58.340664, 123.816284, 66.87312, 118.69918, 74.31729, 112.08255, 92.22711, 88.19695, 119.994354, 43.846443, 126.18743, 30.27454, 129.08911, 15.6424675, 129.61096, -1.7844634, 128.66338, -19.198786, 125.7556, -36.388092, 118.03933, -57.392693, 106.68904, -73.71405, 91.333374, -86.34552, 69.03826, -97.40277, 24.29662, -112.882484, 4.8283277, -117.02371, -39.962177, -115.90908, -64.67326, -112.9143, -78.82158, -108.16265, -89.437935, -101.685074, -100.142715, -91.28205, -109.86375, -76.83393, -117.54109, -58.468834, -122.07209, -39.07669, -123.42338, -21.714647, -121.45415, -6.9161563, -95.25416, 65.71995, -90.04882, 77.03411, -84.42827, 85.24245, -76.46384, 91.073204, -69.12055, 90.91179, -60.41608, 86.13341, -42.72161, 72.378876, -33.3574, 69.6658, -27.610727, 74.00969, -21.550179, 95.51992)
+shortcut_points = PackedVector2Array(-13.286759, 104.63324, -6.1383686, 104.72343, 3.6637359, 97.17021, 38.47058, 51.771084, 48.93791, 41.2166, 60.462055, 36.59112, 115.47065, 20.895124, 126.1418, 14.607283, 129.5259, 8.177416)
+shortcut_ranges = PackedInt32Array(0, 9)
+start_position = Vector2(-13.286804, 104.63359)
+start_direction = Vector2(0.8732854, 0.4872089)
+length_meters = 819.887421131134
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_cqx33"]
+script = ExtResource("2_hb87e")
+id = &"dunas_doradas"
+display_name = "Dunas Doradas"
+description = "Desierto abierto entre oasis y ruinas, con amplias curvas sobre arena."
+preview_color = Color(0.88, 0.58, 0.22, 1)
+preview_map = SubResource("Resource_q5pq8")
+scene = ExtResource("8_2kmnd")
+music = ExtResource("6_sapuk")
+length_km = 0.8
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_c4s5h"]
+script = ExtResource("7_l3s7q")
+route_points = PackedVector2Array(-14.247946, 105.318344, 11.28967, 115.43131, 33.275677, 119.911545, 50.687782, 119.00688, 69.421616, 112.23933, 91.99104, 96.68088, 114.89665, 73.711235, 138.4915, 44.63234, 144.46336, 33.681522, 147.37463, 24.140755, 148.059, 11.703133, 145.682, -0.52927774, 139.54352, -14.175749, 129.8206, -28.698881, 68.37621, -104.26722, 50.876373, -118.28258, 34.714973, -124.746574, 17.329264, -125.126045, -23.935287, -115.21778, -71.15415, -110.64129, -83.18919, -107.37683, -94.16466, -101.50144, -104.65687, -90.888336, -112.76204, -75.449814, -135.07512, 6.459677, -137.00189, 21.300034, -135.44325, 33.646774, -131.30934, 42.70442, -122.875435, 51.8581, -101.456024, 64.57932, -66.47792, 77.97442, -59.08529, 78.89042, -44.692856, 75.17324, -39.83156, 76.06057, -34.04793, 80.67245, -24.258991, 98.02838)
+shortcut_points = PackedVector2Array(-14.247982, 105.31861, -6.9940786, 105.29722, 5.454759, 97.34836, 19.448965, 83.34727, 48.6838, 49.71361, 57.98428, 41.60212, 69.64106, 37.520782, 113.19259, 28.075146, 132.20697, 22.567879, 145.0916, 15.383927, 147.76515, 8.742905)
+shortcut_ranges = PackedInt32Array(0, 11)
+start_position = Vector2(-14.247946, 105.318344)
+start_direction = Vector2(0.92975265, 0.3681847)
+length_meters = 831.9123771190643
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_0x04r"]
+script = ExtResource("2_hb87e")
+id = &"pantano_brumoso"
+display_name = "Pantano Brumoso"
+description = "Humedal de agua oscura, árboles retorcidos y pasos de tierra entre la bruma."
+preview_color = Color(0.25, 0.38, 0.2, 1)
+preview_map = SubResource("Resource_c4s5h")
+scene = ExtResource("10_2kmnd")
+music = ExtResource("9_l3s7q")
+length_km = 0.8
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_v4gnk"]
+script = ExtResource("7_l3s7q")
+route_points = PackedVector2Array(-14.522693, 100.85204, 4.7161975, 105.95993, 27.112953, 106.88424, 49.408424, 104.36824, 88.47132, 96.100555, 112.181915, 88.34649, 127.6626, 80.30105, 138.53067, 70.112175, 143.84396, 58.895763, 145.20824, 49.02697, 144.68008, 39.06405, 137.02586, 2.427215, 129.55069, -21.366848, 119.73615, -41.556583, 98.50772, -72.35652, 77.45776, -97.01426, 58.278854, -112.91054, 40.109314, -120.972755, 30.215918, -122.17283, 17.824638, -120.893295, -20.418642, -109.48642, -64.71744, -102.10456, -86.012474, -95.12432, -107.14932, -81.91158, -126.15165, -65.76346, -138.53291, -50.15174, -144.31068, -36.397762, -144.79797, -24.006857, -141.0839, -12.130014, -114.633415, 30.149704, -97.87991, 69.08704, -89.80581, 81.61518, -81.45805, 86.83015, -74.0758, 86.25423, -46.31669, 69.61659, -36.779186, 67.264565, -32.333324, 69.37791, -29.527884, 73.46544, -22.091534, 94.57264)
+shortcut_points = PackedVector2Array(-14.525034, 100.8683, -7.3859725, 102.79737, 2.477779, 102.7775, 23.7936, 96.657455, 43.638756, 86.638016, 103.19683, 51.447243, 119.478165, 40.24548, 131.87566, 28.228941, 137.78326, 17.454472, 138.23596, 7.679776)
+shortcut_ranges = PackedInt32Array(0, 10)
+start_position = Vector2(-14.522693, 100.85204)
+start_direction = Vector2(0.9665156, 0.25660798)
+length_meters = 843.7005262374878
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_05qxe"]
+script = ExtResource("2_hb87e")
+id = &"can_carmes"
+display_name = "Cañón Carmesí"
+description = "Rectas rápidas y horquillas elevadas entre barrancos rojizos."
+preview_color = Color(0.64, 0.22, 0.12, 1)
+preview_map = SubResource("Resource_v4gnk")
+scene = ExtResource("12_cqx33")
+music = ExtResource("11_lle2a")
+length_km = 0.8
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_p1dd2"]
+script = ExtResource("7_l3s7q")
+route_points = PackedVector2Array(-15.089008, 98.5164, 1.687576, 103.144554, 24.087784, 104.01349, 46.32062, 101.0519, 67.83437, 94.70894, 90.56349, 84.46745, 111.81675, 71.435875, 136.75528, 50.74208, 150.15848, 35.996117, 156.31186, 25.177315, 159.4429, 13.150512, 158.90985, -1.7500015, 155.25475, -16.233757, 148.38214, -32.25837, 137.92271, -49.225964, 125.0457, -64.44454, 111.77831, -75.77073, 83.73098, -91.95014, 51.062817, -104.20514, 24.282513, -109.90917, -0.5926572, -109.26756, -47.18568, -100.75885, -77.81385, -90.2444, -123.45402, -64.593094, -137.3686, -54.06253, -147.56873, -43.14657, -152.5798, -34.545963, -155.46434, -25.022072, -156.43636, -15.110676, -155.47844, -2.6968136, -152.63057, 9.430816, -147.22794, 23.369175, -139.93407, 36.41814, -132.17448, 46.157837, -121.08928, 56.1909, -106.59961, 65.90977, -93.189026, 72.53773, -78.94909, 77.07494, -66.7247, 75.70429, -43.489006, 61.32861, -38.8499, 59.567913, -33.94932, 59.906, -29.063562, 65.29445, -22.173403, 91.74079)
+shortcut_points = PackedVector2Array(-15.09251, 98.53927, -10.251193, 99.31145, -5.4475455, 98.139915, 7.2648287, 90.49938, 63.395493, 38.10905, 75.164, 34.356308, 121.663124, 26.740742, 140.9852, 22.274887, 154.5683, 16.338509, 158.16417, 12.954954, 159.75815, 8.344508)
+shortcut_ranges = PackedInt32Array(0, 11)
+start_position = Vector2(-15.089008, 98.5164)
+start_direction = Vector2(0.96399075, 0.2659358)
+length_meters = 855.6063737869263
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_g0avn"]
+script = ExtResource("2_hb87e")
+id = &"valle_de_otoo"
+display_name = "Valle de Otoño"
+description = "Un trazado fluido entre campos dorados, robles y flores."
+preview_color = Color(0.62, 0.48, 0.16, 1)
+preview_map = SubResource("Resource_p1dd2")
+scene = ExtResource("13_cqx33")
+music = ExtResource("6_sapuk")
+length_km = 0.9
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_knu8l"]
+script = ExtResource("7_l3s7q")
+route_points = PackedVector2Array(-17.144295, 105.30441, 9.122825, 113.055626, 36.32889, 116.22972, 58.671764, 114.63646, 82.39081, 107.12993, 112.82416, 90.145805, 137.76135, 69.52564, 152.85078, 49.809704, 157.88686, 38.45335, 160.18958, 28.779312, 160.85117, 18.85014, 159.61217, 6.465902, 152.44356, -14.730693, 138.18474, -38.106743, 118.43789, -60.528465, 95.18722, -79.28276, 69.44825, -94.459465, 41.925114, -106.07409, 15.344416, -112.665985, -9.508786, -114.13066, -34.28544, -111.55068, -58.38246, -105.256226, -83.48868, -94.28843, -112.85962, -75.511246, -135.51663, -56.049152, -148.75513, -38.038734, -153.89398, -21.468987, -154.3317, -11.523361, -152.84126, 0.8347283, -145.07846, 24.471434, -132.73253, 46.07257, -116.14374, 64.61332, -98.261604, 78.04498, -84.33978, 83.02856, -74.584145, 81.2897, -52.068253, 70.64208, -42.30963, 70.18966, -36.71066, 74.93118, -26.825897, 97.71902)
+shortcut_points = PackedVector2Array(-17.147314, 105.32295, -4.9018683, 105.11966, 16.54413, 99.110016, 48.873474, 86.61216, 80.27435, 71.94783, 111.82367, 52.356426, 139.89758, 32.033035, 156.03847, 16.721567, 159.88347, 7.856342)
+shortcut_ranges = PackedInt32Array(0, 9)
+start_position = Vector2(-17.144295, 105.30441)
+start_direction = Vector2(0.95911217, 0.2830262)
+length_meters = 867.5608947277069
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_x1k1c"]
+script = ExtResource("2_hb87e")
+id = &"baha_pirata"
+display_name = "Bahía Pirata"
+description = "Costa de palmeras, muelles y tesoros, con una escapada por la playa."
+preview_color = Color(0.79, 0.66, 0.38, 1)
+preview_map = SubResource("Resource_knu8l")
+scene = ExtResource("14_blset")
+music = ExtResource("9_l3s7q")
+length_km = 0.9
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_g3kl1"]
+script = ExtResource("7_l3s7q")
+route_points = PackedVector2Array(-16.521255, 95.51351, 26.212536, 109.404274, 43.45457, 112.286285, 60.918762, 112.58988, 75.681175, 110.13163, 94.74747, 104.219795, 113.10102, 96.353096, 132.81839, 85.58735, 149.1892, 74.154755, 160.13454, 63.93583, 169.25839, 52.06682, 175.7472, 38.58693, 178.49838, 26.424913, 178.22273, 11.479933, 175.09674, -0.5847463, 167.3753, -16.236576, 157.40778, -30.578108, 144.2506, -45.590183, 129.62434, -59.17735, 115.59257, -69.593155, 98.37465, -79.73557, 78.033936, -89.31013, 56.957577, -97.13648, 37.700172, -102.4715, 20.437405, -105.22269, 2.9688456, -105.89529, -34.198494, -101.523384, -67.499344, -91.01647, -98.4551, -74.83582, -119.368515, -61.208157, -133.03279, -50.316696, -143.29912, -39.420845, -149.74803, -28.757559, -153.5884, -14.319866, -153.74062, 0.63323784, -150.38963, 17.75172, -144.03284, 33.99595, -136.21509, 46.757214, -125.02792, 60.183308, -112.10761, 71.949715, -99.497826, 80.00408, -92.4725, 82.535225, -82.5569, 82.14686, -54.89338, 70.71158, -45.08872, 69.39173, -38.416225, 72.56063, -25.148361, 90.56366)
+shortcut_points = PackedVector2Array(-16.525818, 95.53989, -4.1855407, 95.821144, 20.1536, 90.74238, 55.86677, 79.948784, 88.48904, 67.78705, 126.241104, 48.740158, 156.14644, 30.909147, 173.5694, 16.919725, 176.56247, 12.955672, 177.70197, 8.218718, 128.65845, -60.0265, 119.18409, -62.649597, 101.770325, -62.194218, 30.295319, -51.80828, 15.407992, -50.742535, -68.2673, -74.99184, -85.41759, -78.044, -95.17586, -76.85826)
+shortcut_ranges = PackedInt32Array(0, 10, 10, 8)
+start_position = Vector2(-16.521255, 95.51351)
+start_direction = Vector2(0.95101917, 0.30913198)
+length_meters = 879.5261716842651
 shortcut_count = 2
 
-[sub_resource type="Resource" id="TrackDefinition_coastal"]
-script = ExtResource("2_definition")
-id = &"coastal"
-display_name = "Costa Turbo"
-description = "Curvas amplias, laguna y cañón junto al mar."
-preview_color = Color(0.0862745, 0.498039, 0.576471, 1)
-preview_map = SubResource("Resource_qkri8")
-scene = ExtResource("3_coastal")
-
-[sub_resource type="Resource" id="Resource_xwiqk"]
-script = ExtResource("3_qkri8")
-route_points = PackedVector2Array(0, 45, 29.532215, 49.891964, 46.918987, 48.584568, 68.60015, 42.956104, 75.00736, 39.127056, 79.36545, 33.146133, 80.89495, 25.848862, 80.470795, 15.894432, 72.94194, -10.428225, 57.99258, -36.295662, 49.472675, -45.375927, 43.11664, -49.283695, 26.014524, -52.22665, -6.4265847, -51.888966, -21.157372, -49.389698, -32.556187, -44.356342, -44.976223, -36.02854, -52.09487, -29.051615, -57.252373, -20.55087, -60.521652, -8.548237, -60.676, 6.3742085, -57.092007, 18.277515, -48.87147, 30.70493, -41.32325, 37.185062, -32.18076, 41.07732)
-shortcut_points = PackedVector2Array(33.73101, 49.98995, 40.61618, 47.57679, 47.52204, 37.47435, 63.89521, -11.79407, 65.58999, -21.53103, 64.74453, -26.34553, 33.34605, -51.7873, 25.97442, -50.82957, 19.1583, -47.74343, -11.18918, -25.82651, -52.25523, -7.634202, -58.53168, -3.56727, -61.11755, 0.531374)
-shortcut_ranges = PackedInt32Array(0, 6, 6, 7)
-start_position = Vector2(0, 45)
-start_direction = Vector2(0.98655635, 0.16342147)
-length_meters = 399.3606095314026
+[sub_resource type="Resource" id="Resource_7whma"]
+script = ExtResource("2_hb87e")
+id = &"caldera_furiosa"
+display_name = "Caldera Furiosa"
+description = "Ascensos técnicos sobre roca negra junto a una caldera de lava."
+preview_color = Color(0.07, 0.045, 0.04, 1)
+preview_map = SubResource("Resource_g3kl1")
+scene = ExtResource("15_0x04r")
+music = ExtResource("11_lle2a")
+difficulty = "Difícil"
+length_km = 0.9
 shortcut_count = 2
 
-[sub_resource type="Resource" id="TrackDefinition_garden"]
-script = ExtResource("2_definition")
-id = &"garden"
-display_name = "Circuito Jardín"
-description = "Un trazado compacto entre robles, flores y senderos."
-preview_color = Color(0.435294, 0.65098, 0.333333, 1)
-preview_map = SubResource("Resource_xwiqk")
-scene = ExtResource("4_garden")
+[sub_resource type="Resource" id="Resource_qp6la"]
+script = ExtResource("7_l3s7q")
+route_points = PackedVector2Array(-17.14164, 93.31135, 8.402382, 103.32649, 32.36151, 110.234474, 52.061398, 113.32326, 69.4748, 112.73406, 83.76232, 108.35789, 101.274086, 98.80825, 119.18496, 85.26119, 137.17076, 67.96189, 148.16902, 54.410103, 154.73958, 41.028915, 157.57764, 26.417635, 157.56273, 9.013397, 155.00626, -18.302809, 150.04561, -37.61885, 142.14995, -53.164215, 130.61005, -66.23489, 104.62685, -85.611496, 71.35796, -102.719574, 45.08013, -110.4641, 20.179846, -110.99548, -43.503647, -98.75266, -81.69489, -87.2693, -145.28395, -58.29581, -160.2476, -49.298496, -171.5762, -39.569313, -175.81773, -33.4333, -178.00969, -26.314655, -177.90887, -16.371017, -175.52504, -6.6903787, -170.62569, 4.7766824, -162.96873, 17.637072, -145.17984, 38.438564, -133.01353, 47.153477, -117.640884, 55.45335, -82.55516, 68.38806, -70.16218, 68.29434, -48.743877, 61.677536, -41.50527, 63.092503, -36.49183, 68.51829, -27.206938, 86.10343)
+shortcut_points = PackedVector2Array(-17.148163, 93.34686, -4.892015, 93.58817, 16.816935, 88.575745, 47.397926, 78.49859, 77.23687, 66.4088, 107.41315, 49.334793, 136.25041, 30.086075, 153.03513, 15.46684, 157.50558, 6.859112, 136.79391, -60.094105, 127.681, -63.49849, 107.89603, -63.479897, 29.436205, -52.46424, 14.634569, -51.584774, -73.67008, -75.88459, -93.18639, -79.209145, -102.96242, -78.28937)
+shortcut_ranges = PackedInt32Array(0, 9, 9, 8)
+start_position = Vector2(-17.14164, 93.31135)
+start_direction = Vector2(0.93099946, 0.36502057)
+length_meters = 891.3182587623596
+shortcut_count = 2
 
-[sub_resource type="Resource" id="Resource_48042"]
-script = ExtResource("3_qkri8")
-route_points = PackedVector2Array(-7.9827347, 57.502243, 21.886402, 59.489845, 109.211235, 58.19083, 133.7238, 53.884777, 146.14539, 45.775837, 150.98811, 37.132385, 152.76122, 27.329561, 153.74557, -17.578169, 152.81786, -47.506783, 150.62894, -67.34646, 146.74097, -84.36145, 141.65761, -95.7217, 135.2382, -103.3317, 122.622246, -111.260445, 103.355774, -116.29838, 63.555386, -119.34979, 33.614426, -119.09987, -6.1769896, -115.87132, -35.671326, -110.77335, -51.935574, -104.57742, -63.42675, -95.07633, -68.90749, -86.77137, -70.91929, -79.59895, -69.35468, -72.409836, -63.547665, -67.89533, -43.75337, -65.979126, 18.573044, -68.76145, 41.010292, -68.272446, 55.045387, -63.40584, 60.806667, -58.662975, 64.608246, -52.277832, 65.1649, -47.352192, 63.617897, -42.64778, 58.390804, -37.379066, 51.63115, -34.217484, 31.933254, -31.145462, -50.16449, -24.966354, -67.05638, -20.652864, -76.74082, -13.079683, -80.87221, -1.4319859, -79.7289, 15.920455, -73.25314, 34.763145, -63.816208, 49.364403, -57.477577, 53.2782, -47.848454, 55.822536)
-shortcut_points = PackedVector2Array()
-shortcut_ranges = PackedInt32Array()
-start_position = Vector2(-7.9827347, 57.502243)
-start_direction = Vector2(0.99779326, 0.06639683)
-length_meters = 968.2365963459015
+[sub_resource type="Resource" id="Resource_84s1t"]
+script = ExtResource("2_hb87e")
+id = &"cumbre_glacial"
+display_name = "Cumbre Glacial"
+description = "Rasantes exigentes y curvas sobre hielo entre cumbres nevadas."
+preview_color = Color(0.76, 0.88, 0.93, 1)
+preview_map = SubResource("Resource_qp6la")
+scene = ExtResource("16_03e5t")
+music = ExtResource("6_sapuk")
+difficulty = "Difícil"
+length_km = 0.9
+shortcut_count = 2
 
-[sub_resource type="Resource" id="Resource_hb87e"]
-script = ExtResource("2_definition")
-id = &"bahia_turbo"
-display_name = "Bahia Turbo"
-preview_map = SubResource("Resource_48042")
-scene = ExtResource("6_xwiqk")
+[sub_resource type="Resource" id="Resource_1ixs5"]
+script = ExtResource("7_l3s7q")
+route_points = PackedVector2Array(-17.229689, 88.335815, 8.802501, 96.92665, 38.243275, 102.20988, 60.664036, 102.49184, 77.58044, 98.40175, 101.322205, 84.81026, 140.04149, 53.46235, 176.66853, 27.519835, 186.0127, 15.965336, 187.26932, 8.673951, 185.87112, 3.9129167, 180.04318, -4.1398406, 170.80571, -12.511616, 118.113556, -50.311977, 73.005936, -93.34103, 58.090313, -102.33685, 43.727486, -106.32325, 28.820787, -107.12348, 8.988821, -105.229515, -62.343082, -93.20667, -89.06982, -87.04626, -105.476524, -81.12436, -123.09859, -71.80356, -141.71735, -59.289917, -154.88736, -47.853764, -162.87152, -38.30527, -167.27856, -29.41052, -168.09425, -22.02003, -165.88339, -12.326132, -159.07263, 0.9803943, -140.58685, 27.628586, -123.77024, 55.36227, -112.87135, 68.96717, -102.52014, 75.75365, -92.718254, 76.299225, -81.00245, 72.16617, -50.12766, 55.94391, -43.010967, 53.707928, -38.068043, 53.821373, -32.557384, 58.516357, -26.14626, 79.9584, -21.479189, 85.74589)
+shortcut_points = PackedVector2Array(-17.237534, 88.37603, -12.442356, 89.62313, -5.0537863, 88.85144, 10.478415, 81.13552, 29.800352, 65.49418, 65.67517, 31.023277, 75.85052, 23.970129, 88.163635, 22.520847, 142.88483, 23.741854, 167.69966, 22.242931, 177.38097, 19.992714, 183.95609, 16.542135, 186.88069, 12.58582, 187.21234, 7.678632, 119.311714, -49.36571, 109.839745, -51.995964, 94.90514, -51.62359, 18.586277, -39.803463, 1.22221, -38.631233, -15.265109, -44.205395, -86.0553, -75.074745, -100.41474, -79.19365, -110.23213, -78.94228)
+shortcut_ranges = PackedInt32Array(0, 14, 14, 9)
+start_position = Vector2(-17.229689, 88.335815)
+start_direction = Vector2(0.9496263, 0.31338447)
+length_meters = 903.2182228565216
+shortcut_count = 2
+
+[sub_resource type="Resource" id="Resource_v5muo"]
+script = ExtResource("2_hb87e")
+id = &"ruinas_esmeralda"
+display_name = "Ruinas Esmeralda"
+description = "Una ruta estrecha entre templos y vegetación de selva profunda."
+preview_color = Color(0.055, 0.3, 0.12, 1)
+preview_map = SubResource("Resource_1ixs5")
+scene = ExtResource("17_05qxe")
+music = ExtResource("9_l3s7q")
+difficulty = "Difícil"
+length_km = 0.9
+shortcut_count = 2
+
+[sub_resource type="Resource" id="Resource_ant4k"]
+script = ExtResource("7_l3s7q")
+route_points = PackedVector2Array(-18.333212, 88.541084, -1.3020477, 92.25858, 20.995785, 94.56474, 43.40866, 94.91714, 65.75795, 93.252144, 102.635895, 87.07522, 134.16592, 79.55006, 157.71475, 71.392136, 170.60098, 63.893944, 175.32333, 58.152336, 177.10846, 53.512268, 177.11717, 41.133205, 167.26434, 7.6730695, 162.07011, -34.359756, 157.833, -46.059525, 152.29408, -54.320152, 144.88676, -60.94271, 134.24309, -67.378654, 101.98729, -80.53556, 49.159042, -95.16053, 14.705347, -100.66628, -25.149529, -101.41874, -77.249985, -96.63585, -108.85459, -89.70838, -120.395775, -85.06559, -128.77304, -79.711365, -137.45369, -70.80277, -145.38222, -58.137383, -169.25981, -0.57154816, -173.9323, 18.74546, -173.36029, 26.180805, -170.45296, 33.014343, -161.4174, 41.48002, -143.98378, 51.10121, -118.42818, 61.002052, -94.41784, 67.61908, -79.58128, 67.40946, -53.58055, 58.812973, -43.80884, 59.475105, -38.42776, 64.52893, -28.659151, 81.863495)
+shortcut_points = PackedVector2Array(-18.340681, 88.577156, -6.1497865, 88.239265, 9.261349, 80.487015, 26.704323, 66.69239, 57.511635, 38.11001, 67.63671, 31.100368, 82.22076, 28.610012, 131.57062, 25.404953, 148.64265, 22.60922, 158.0243, 19.517818, 164.20766, 15.485549, 166.83925, 11.34979, 167.09775, 6.4560513, 148.73665, -57.97052, 136.94122, -61.24662, 117.08383, -60.65712, 11.417824, -44.980232, -5.365724, -49.357254, -91.9922, -80.17689, -111.398476, -84.42654, -123.5941, -83.37698)
+shortcut_ranges = PackedInt32Array(0, 13, 13, 8)
+start_position = Vector2(-18.333212, 88.541084)
+start_direction = Vector2(0.9769966, 0.21325517)
+length_meters = 915.218160867691
+shortcut_count = 2
+
+[sub_resource type="Resource" id="Resource_2yhtj"]
+script = ExtResource("2_hb87e")
+id = &"nen_medianoche"
+display_name = "Neón Medianoche"
+description = "Curvas rápidas encadenadas entre túneles y luces de una ciudad nocturna."
+preview_color = Color(0.018, 0.02, 0.055, 1)
+preview_map = SubResource("Resource_ant4k")
+scene = ExtResource("18_p1dd2")
+music = ExtResource("11_lle2a")
+difficulty = "Difícil"
+length_km = 0.9
+shortcut_count = 2
 
 [resource]
-script = ExtResource("1_catalog")
-tracks = Array[ExtResource("2_definition")]([SubResource("TrackDefinition_coastal"), SubResource("TrackDefinition_garden"), SubResource("Resource_hb87e")])
+script = ExtResource("1")
+tracks = Array[ExtResource("2_hb87e")]([ExtResource("2"), ExtResource("3"), ExtResource("4"), SubResource("Resource_cqx33"), SubResource("Resource_0x04r"), SubResource("Resource_05qxe"), SubResource("Resource_g0avn"), SubResource("Resource_x1k1c"), SubResource("Resource_7whma"), SubResource("Resource_84s1t"), SubResource("Resource_v5muo"), SubResource("Resource_2yhtj")])

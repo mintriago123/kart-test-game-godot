@@ -127,6 +127,22 @@ func _run() -> void:
 		var track: CoastalTrack = main.race_world._track
 		var manager: RaceManager = main.race_world.race_manager
 		var hud: RaceHud = main.race_world._hud
+		var paused_time := manager.race_time
+		var paused_player_position := player.global_position
+		hud._flow_overlay.get_node("PauseButton").pressed.emit()
+		await create_timer(0.2, true).timeout
+		_check(
+			paused
+			and is_equal_approx(manager.race_time, paused_time)
+			and player.global_position.is_equal_approx(paused_player_position),
+			"Pause freezes race time and kart simulation."
+		)
+		var resume_button := hud._pause_overlay.find_child(
+			"Resume", true, false
+		) as Button
+		resume_button.pressed.emit()
+		await create_timer(RaceFlowOverlay.RESUME_DELAY + 0.05, true).timeout
+		_check(not paused, "Resume restarts race processing.")
 		hud.set_mobile_controls_enabled(true)
 		await process_frame
 		_check(hud._touch_controls.visible, "Mobile controls can be enabled on a touch device.")
@@ -556,6 +572,24 @@ func _barriers_contain_drivable_corridors(
 	query.collide_with_areas = false
 	query.exclude = excluded_rids
 	var space_state := track.get_world_3d().direct_space_state
+	var barrier_builder := TrackBarrierBuilder.new(
+		track,
+		track.route_points,
+		track.shortcut_definitions,
+		track.ROAD_WIDTH,
+		track.SHORTCUT_WIDTH,
+		null,
+		track._get_shortcut_barrier_join_clearance(),
+		track._shortcut_junctions
+	)
+	var route_progresses := PackedFloat32Array()
+	var route_length := track.get_route_length()
+	var accumulated_distance := 0.0
+	for route_point_index in track.route_points.size():
+		route_progresses.append(accumulated_distance / route_length)
+		accumulated_distance += track.route_points[route_point_index].distance_to(
+			track.route_points[(route_point_index + 1) % track.route_points.size()]
+		)
 	for route_index in range(0, track.route_points.size(), 2):
 		var route_forward := (
 			track.route_points[(route_index + 1) % track.route_points.size()]
@@ -566,6 +600,11 @@ func _barriers_contain_drivable_corridors(
 		route_forward.y = 0.0
 		var route_right := Vector3.UP.cross(route_forward.normalized())
 		for side in [-1.0, 1.0]:
+			var portal_intervals := barrier_builder.build_main_barrier_portals(
+			side * (track.ROAD_WIDTH * 0.5 - track.BARRIER_PATH_INSET)
+			)
+			if _progress_is_inside_portal(route_progresses[route_index], portal_intervals):
+				continue
 			if not _motion_hits_barrier(
 				space_state,
 				query,
@@ -615,6 +654,16 @@ func _barriers_contain_drivable_corridors(
 					)
 					return false
 	return true
+
+
+func _progress_is_inside_portal(
+	progress: float,
+	portal_intervals: Array[Vector2]
+) -> bool:
+	for interval in portal_intervals:
+		if progress >= interval.x and progress <= interval.y:
+			return true
+	return false
 
 
 func _shortcut_surface_is_continuous(

@@ -171,6 +171,15 @@ func build(
 		mini(geometry.shortcut_join_index, geometry.shortcut_transition_index),
 		maxi(geometry.shortcut_join_index, geometry.shortcut_transition_index)
 	)
+	var height_aligned_boundaries := _align_junction_height_to_shortcut(
+		geometry.left_boundary,
+		geometry.right_boundary,
+		shortcut_points,
+		mini(geometry.shortcut_join_index, geometry.shortcut_transition_index),
+		maxi(geometry.shortcut_join_index, geometry.shortcut_transition_index)
+	)
+	geometry.left_boundary = height_aligned_boundaries[0]
+	geometry.right_boundary = height_aligned_boundaries[1]
 	if (
 		not _boundaries_are_finite(geometry)
 		or _boundaries_cross(geometry.left_boundary, geometry.right_boundary)
@@ -438,6 +447,49 @@ func _keep_boundary_outside_shortcut(
 				transition_weight
 			)
 	return expanded
+
+
+func _align_junction_height_to_shortcut(
+	left_boundary: PackedVector3Array,
+	right_boundary: PackedVector3Array,
+	shortcut_points: Array[Vector3],
+	first_segment_index: int,
+	final_segment_index: int
+) -> Array[PackedVector3Array]:
+	var aligned_left := left_boundary.duplicate()
+	var aligned_right := right_boundary.duplicate()
+	var safe_first := clampi(first_segment_index, 0, shortcut_points.size() - 2)
+	var safe_final := clampi(final_segment_index, safe_first + 1, shortcut_points.size() - 1)
+	for boundary_index in aligned_left.size():
+		var point := aligned_left[boundary_index].lerp(
+			aligned_right[boundary_index],
+			0.5
+		)
+		var closest_distance := INF
+		var closest_height := point.y
+		for segment_index in range(safe_first, safe_final):
+			var start := shortcut_points[segment_index]
+			var finish := shortcut_points[segment_index + 1]
+			var segment := Vector2(finish.x - start.x, finish.z - start.z)
+			var length_squared := segment.length_squared()
+			if length_squared <= 0.0001:
+				continue
+			var weight := clampf(
+				Vector2(point.x - start.x, point.z - start.z).dot(segment)
+				/ length_squared,
+				0.0,
+				1.0
+			)
+			var candidate := start.lerp(finish, weight)
+			var distance := Vector2(point.x, point.z).distance_squared_to(
+				Vector2(candidate.x, candidate.z)
+			)
+			if distance < closest_distance:
+				closest_distance = distance
+				closest_height = candidate.y
+		aligned_left[boundary_index].y = closest_height
+		aligned_right[boundary_index].y = closest_height
+	return [aligned_left, aligned_right]
 
 
 func _boundary_is_safe(boundary: PackedVector3Array) -> bool:

@@ -226,9 +226,11 @@ func _hit_kart(kart: Node3D) -> void:
 	if kart_id in _hit_karts:
 		return
 	_hit_karts[kart_id] = true
-	var raw_result: Variant = kart.receive_hit(
-		item_definition.projectile_impact_duration
-	)
+	var raw_result: Variant
+	if kart is Kart:
+		raw_result = (kart as Kart).receive_hit(item_definition.projectile_impact_duration, self)
+	else:
+		raw_result = kart.receive_hit(item_definition.projectile_impact_duration)
 	var hit_result := (
 		int(raw_result)
 		if raw_result != null

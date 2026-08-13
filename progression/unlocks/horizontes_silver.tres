@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" format=3]
+
+[ext_resource type="Resource" path="res://progression/variants/van.tres" id="1_i2p37"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="2_v3bi7"]
+
+[resource]
+script = ExtResource("2_v3bi7")
+id = &"horizontes_silver"
+display_name = "Van"
+cup_id = &"horizontes"
+required_medal = 2
+kart_variant = ExtResource("1_i2p37")

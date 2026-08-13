@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SurfaceDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/surface_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"grass"
+display_name = "Césped"
+grip_multiplier = 0.74
+drift_grip_multiplier = 0.65
+rolling_resistance_multiplier = 1.50
+acceleration_multiplier = 0.80
+boost_multiplier = 0.82
+color = Color(0.31, 0.67, 0.28, 1)
+audio_pitch = 0.76
+audio_volume = 0.78
+audio_roughness = 0.38
+particle_color = Color(0.38, 0.74, 0.3, 1)

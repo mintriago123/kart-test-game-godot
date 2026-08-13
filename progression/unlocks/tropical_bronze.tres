@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" format=3]
+
+[ext_resource type="Resource" path="res://progression/variants/kart_oobi.tres" id="1_lsm1b"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="2_lnqu6"]
+
+[resource]
+script = ExtResource("2_lnqu6")
+id = &"tropical_bronze"
+display_name = "Kart Oobi"
+cup_id = &"tropical"
+kart_variant = ExtResource("1_lsm1b")

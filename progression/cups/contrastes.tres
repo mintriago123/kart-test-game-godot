@@ -1,0 +1,78 @@
+[gd_resource type="Resource" script_class="CupDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/difficulty_definition.gd" id="1_gilfc"]
+[ext_resource type="Resource" path="res://progression/difficulties/relaxed.tres" id="2_xu8mx"]
+[ext_resource type="Resource" path="res://progression/difficulties/competitive.tres" id="3_f307h"]
+[ext_resource type="Resource" path="res://progression/difficulties/expert.tres" id="4_t6oro"]
+[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="5_qkjds"]
+[ext_resource type="Resource" path="res://progression/racers/lima.tres" id="6_aca8r"]
+[ext_resource type="Resource" path="res://progression/racers/coral.tres" id="7_j85oh"]
+[ext_resource type="Resource" path="res://progression/racers/brisa.tres" id="8_ldej1"]
+[ext_resource type="Resource" path="res://progression/racers/marea.tres" id="9_6ue0r"]
+[ext_resource type="Script" path="res://scripts/data/cup_definition.gd" id="10_6ygkp"]
+[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="11_sxdht"]
+[ext_resource type="Resource" path="res://levels/definitions/bahia_turbo.tres" id="12_2e8kv"]
+[ext_resource type="AudioStream" path="res://assets/music/bahia_turbo.ogg" id="13_i1itn"]
+[ext_resource type="Script" path="res://scripts/data/track_minimap_data.gd" id="14_r8tr5"]
+[ext_resource type="PackedScene" path="res://levels/tracks/dunas_doradas.tscn" id="15_1ljo6"]
+[ext_resource type="PackedScene" path="res://levels/tracks/cumbre_glacial.tscn" id="16_kjjjc"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="17_kiqbd"]
+
+[sub_resource type="Resource" id="Resource_q5pq8"]
+script = ExtResource("14_r8tr5")
+route_points = PackedVector2Array(-13.286804, 104.63359, 14.970843, 120.39863, 26.658955, 124.68022, 38.87972, 126.984856, 48.819443, 126.66204, 58.340664, 123.816284, 66.87312, 118.69918, 74.31729, 112.08255, 92.22711, 88.19695, 119.994354, 43.846443, 126.18743, 30.27454, 129.08911, 15.6424675, 129.61096, -1.7844634, 128.66338, -19.198786, 125.7556, -36.388092, 118.03933, -57.392693, 106.68904, -73.71405, 91.333374, -86.34552, 69.03826, -97.40277, 24.29662, -112.882484, 4.8283277, -117.02371, -39.962177, -115.90908, -64.67326, -112.9143, -78.82158, -108.16265, -89.437935, -101.685074, -100.142715, -91.28205, -109.86375, -76.83393, -117.54109, -58.468834, -122.07209, -39.07669, -123.42338, -21.714647, -121.45415, -6.9161563, -95.25416, 65.71995, -90.04882, 77.03411, -84.42827, 85.24245, -76.46384, 91.073204, -69.12055, 90.91179, -60.41608, 86.13341, -42.72161, 72.378876, -33.3574, 69.6658, -27.610727, 74.00969, -21.550179, 95.51992)
+shortcut_points = PackedVector2Array(-13.286759, 104.63324, -6.1383686, 104.72343, 3.6637359, 97.17021, 38.47058, 51.771084, 48.93791, 41.2166, 60.462055, 36.59112, 115.47065, 20.895124, 126.1418, 14.607283, 129.5259, 8.177416)
+shortcut_ranges = PackedInt32Array(0, 9)
+start_position = Vector2(-13.286804, 104.63359)
+start_direction = Vector2(0.8732854, 0.4872089)
+length_meters = 819.887421131134
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_cqx33"]
+script = ExtResource("11_sxdht")
+id = &"dunas_doradas"
+display_name = "Dunas Doradas"
+description = "Desierto abierto entre oasis y ruinas, con amplias curvas sobre arena."
+preview_color = Color(0.88, 0.58, 0.22, 1)
+preview_map = SubResource("Resource_q5pq8")
+scene = ExtResource("15_1ljo6")
+music = ExtResource("13_i1itn")
+length_km = 0.8
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_qp6la"]
+script = ExtResource("14_r8tr5")
+route_points = PackedVector2Array(-17.14164, 93.31135, 8.402382, 103.32649, 32.36151, 110.234474, 52.061398, 113.32326, 69.4748, 112.73406, 83.76232, 108.35789, 101.274086, 98.80825, 119.18496, 85.26119, 137.17076, 67.96189, 148.16902, 54.410103, 154.73958, 41.028915, 157.57764, 26.417635, 157.56273, 9.013397, 155.00626, -18.302809, 150.04561, -37.61885, 142.14995, -53.164215, 130.61005, -66.23489, 104.62685, -85.611496, 71.35796, -102.719574, 45.08013, -110.4641, 20.179846, -110.99548, -43.503647, -98.75266, -81.69489, -87.2693, -145.28395, -58.29581, -160.2476, -49.298496, -171.5762, -39.569313, -175.81773, -33.4333, -178.00969, -26.314655, -177.90887, -16.371017, -175.52504, -6.6903787, -170.62569, 4.7766824, -162.96873, 17.637072, -145.17984, 38.438564, -133.01353, 47.153477, -117.640884, 55.45335, -82.55516, 68.38806, -70.16218, 68.29434, -48.743877, 61.677536, -41.50527, 63.092503, -36.49183, 68.51829, -27.206938, 86.10343)
+shortcut_points = PackedVector2Array(-17.148163, 93.34686, -4.892015, 93.58817, 16.816935, 88.575745, 47.397926, 78.49859, 77.23687, 66.4088, 107.41315, 49.334793, 136.25041, 30.086075, 153.03513, 15.46684, 157.50558, 6.859112, 136.79391, -60.094105, 127.681, -63.49849, 107.89603, -63.479897, 29.436205, -52.46424, 14.634569, -51.584774, -73.67008, -75.88459, -93.18639, -79.209145, -102.96242, -78.28937)
+shortcut_ranges = PackedInt32Array(0, 9, 9, 8)
+start_position = Vector2(-17.14164, 93.31135)
+start_direction = Vector2(0.93099946, 0.36502057)
+length_meters = 891.3182587623596
+shortcut_count = 2
+
+[sub_resource type="Resource" id="Resource_84s1t"]
+script = ExtResource("11_sxdht")
+id = &"cumbre_glacial"
+display_name = "Cumbre Glacial"
+description = "Rasantes exigentes y curvas sobre hielo entre cumbres nevadas."
+preview_color = Color(0.76, 0.88, 0.93, 1)
+preview_map = SubResource("Resource_qp6la")
+scene = ExtResource("16_kjjjc")
+music = ExtResource("13_i1itn")
+difficulty = "Difícil"
+length_km = 0.9
+shortcut_count = 2
+
+[resource]
+script = ExtResource("10_6ygkp")
+id = &"contrastes"
+display_name = "Copa Contrastes"
+description = "Tres extremos del campeonato en una sola Copa."
+tracks = Array[ExtResource("11_sxdht")]([ExtResource("12_2e8kv"), SubResource("Resource_cqx33"), SubResource("Resource_84s1t")])
+player_racer = ExtResource("9_6ue0r")
+opponents = Array[ExtResource("5_qkjds")]([ExtResource("6_aca8r"), ExtResource("7_j85oh"), ExtResource("8_ldej1")])
+scoring_table = PackedInt32Array(9, 6, 3, 1)
+medal_thresholds = PackedInt32Array(9, 17, 24)
+difficulties = Array[ExtResource("1_gilfc")]([ExtResource("2_xu8mx"), ExtResource("3_f307h"), ExtResource("4_t6oro")])
+prerequisite_cup_id = &"extrema"
+sort_order = 4

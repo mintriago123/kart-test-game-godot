@@ -110,9 +110,10 @@ static func _sample_path(
 			sample_offset = fmod(sample_offset, baked_length)
 		else:
 			sample_offset = minf(sample_offset, baked_length)
-		points.append(
-			path_to_track * curve.sample_baked(sample_offset, true)
-		)
+		var point := path_to_track * curve.sample_baked(sample_offset, true)
+		if track is TrackLevel:
+			point.y = maxf(point.y, TrackLevel.MINIMUM_DRIVABLE_HEIGHT)
+		points.append(point)
 	return points
 
 

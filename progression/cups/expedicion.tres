@@ -1,0 +1,79 @@
+[gd_resource type="Resource" script_class="CupDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/difficulty_definition.gd" id="1_hmfnv"]
+[ext_resource type="Resource" path="res://progression/difficulties/relaxed.tres" id="2_k34au"]
+[ext_resource type="Resource" path="res://progression/difficulties/competitive.tres" id="3_x8pfy"]
+[ext_resource type="Resource" path="res://progression/difficulties/expert.tres" id="4_wk2bn"]
+[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="5_a2q1b"]
+[ext_resource type="Resource" path="res://progression/racers/lima.tres" id="6_yj1ww"]
+[ext_resource type="Resource" path="res://progression/racers/coral.tres" id="7_hw0dd"]
+[ext_resource type="Resource" path="res://progression/racers/brisa.tres" id="8_tmfgp"]
+[ext_resource type="Resource" path="res://progression/racers/marea.tres" id="9_l5gsl"]
+[ext_resource type="Script" path="res://scripts/data/cup_definition.gd" id="10_0w7s1"]
+[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="11_lfyq7"]
+[ext_resource type="Resource" path="res://levels/definitions/coastal.tres" id="12_u7aey"]
+[ext_resource type="AudioStream" path="res://assets/music/garden.ogg" id="13_j0oda"]
+[ext_resource type="Script" path="res://scripts/data/track_minimap_data.gd" id="14_chpeg"]
+[ext_resource type="PackedScene" path="res://levels/tracks/pantano_brumoso.tscn" id="15_rpdl4"]
+[ext_resource type="AudioStream" path="res://assets/music/coastal.ogg" id="16_r5lip"]
+[ext_resource type="PackedScene" path="res://levels/tracks/caldera_furiosa.tscn" id="17_0drwo"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="18_xe0t1"]
+
+[sub_resource type="Resource" id="Resource_c4s5h"]
+script = ExtResource("14_chpeg")
+route_points = PackedVector2Array(-14.247946, 105.318344, 11.28967, 115.43131, 33.275677, 119.911545, 50.687782, 119.00688, 69.421616, 112.23933, 91.99104, 96.68088, 114.89665, 73.711235, 138.4915, 44.63234, 144.46336, 33.681522, 147.37463, 24.140755, 148.059, 11.703133, 145.682, -0.52927774, 139.54352, -14.175749, 129.8206, -28.698881, 68.37621, -104.26722, 50.876373, -118.28258, 34.714973, -124.746574, 17.329264, -125.126045, -23.935287, -115.21778, -71.15415, -110.64129, -83.18919, -107.37683, -94.16466, -101.50144, -104.65687, -90.888336, -112.76204, -75.449814, -135.07512, 6.459677, -137.00189, 21.300034, -135.44325, 33.646774, -131.30934, 42.70442, -122.875435, 51.8581, -101.456024, 64.57932, -66.47792, 77.97442, -59.08529, 78.89042, -44.692856, 75.17324, -39.83156, 76.06057, -34.04793, 80.67245, -24.258991, 98.02838)
+shortcut_points = PackedVector2Array(-14.247982, 105.31861, -6.9940786, 105.29722, 5.454759, 97.34836, 19.448965, 83.34727, 48.6838, 49.71361, 57.98428, 41.60212, 69.64106, 37.520782, 113.19259, 28.075146, 132.20697, 22.567879, 145.0916, 15.383927, 147.76515, 8.742905)
+shortcut_ranges = PackedInt32Array(0, 11)
+start_position = Vector2(-14.247946, 105.318344)
+start_direction = Vector2(0.92975265, 0.3681847)
+length_meters = 831.9123771190643
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_0x04r"]
+script = ExtResource("11_lfyq7")
+id = &"pantano_brumoso"
+display_name = "Pantano Brumoso"
+description = "Humedal de agua oscura, árboles retorcidos y pasos de tierra entre la bruma."
+preview_color = Color(0.25, 0.38, 0.2, 1)
+preview_map = SubResource("Resource_c4s5h")
+scene = ExtResource("15_rpdl4")
+music = ExtResource("13_j0oda")
+length_km = 0.8
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_g3kl1"]
+script = ExtResource("14_chpeg")
+route_points = PackedVector2Array(-16.521255, 95.51351, 26.212536, 109.404274, 43.45457, 112.286285, 60.918762, 112.58988, 75.681175, 110.13163, 94.74747, 104.219795, 113.10102, 96.353096, 132.81839, 85.58735, 149.1892, 74.154755, 160.13454, 63.93583, 169.25839, 52.06682, 175.7472, 38.58693, 178.49838, 26.424913, 178.22273, 11.479933, 175.09674, -0.5847463, 167.3753, -16.236576, 157.40778, -30.578108, 144.2506, -45.590183, 129.62434, -59.17735, 115.59257, -69.593155, 98.37465, -79.73557, 78.033936, -89.31013, 56.957577, -97.13648, 37.700172, -102.4715, 20.437405, -105.22269, 2.9688456, -105.89529, -34.198494, -101.523384, -67.499344, -91.01647, -98.4551, -74.83582, -119.368515, -61.208157, -133.03279, -50.316696, -143.29912, -39.420845, -149.74803, -28.757559, -153.5884, -14.319866, -153.74062, 0.63323784, -150.38963, 17.75172, -144.03284, 33.99595, -136.21509, 46.757214, -125.02792, 60.183308, -112.10761, 71.949715, -99.497826, 80.00408, -92.4725, 82.535225, -82.5569, 82.14686, -54.89338, 70.71158, -45.08872, 69.39173, -38.416225, 72.56063, -25.148361, 90.56366)
+shortcut_points = PackedVector2Array(-16.525818, 95.53989, -4.1855407, 95.821144, 20.1536, 90.74238, 55.86677, 79.948784, 88.48904, 67.78705, 126.241104, 48.740158, 156.14644, 30.909147, 173.5694, 16.919725, 176.56247, 12.955672, 177.70197, 8.218718, 128.65845, -60.0265, 119.18409, -62.649597, 101.770325, -62.194218, 30.295319, -51.80828, 15.407992, -50.742535, -68.2673, -74.99184, -85.41759, -78.044, -95.17586, -76.85826)
+shortcut_ranges = PackedInt32Array(0, 10, 10, 8)
+start_position = Vector2(-16.521255, 95.51351)
+start_direction = Vector2(0.95101917, 0.30913198)
+length_meters = 879.5261716842651
+shortcut_count = 2
+
+[sub_resource type="Resource" id="Resource_7whma"]
+script = ExtResource("11_lfyq7")
+id = &"caldera_furiosa"
+display_name = "Caldera Furiosa"
+description = "Ascensos técnicos sobre roca negra junto a una caldera de lava."
+preview_color = Color(0.07, 0.045, 0.04, 1)
+preview_map = SubResource("Resource_g3kl1")
+scene = ExtResource("17_0drwo")
+music = ExtResource("16_r5lip")
+difficulty = "Difícil"
+length_km = 0.9
+shortcut_count = 2
+
+[resource]
+script = ExtResource("10_0w7s1")
+id = &"expedicion"
+display_name = "Copa Expedición"
+description = "Una travesía de la costa al corazón del volcán."
+tracks = Array[ExtResource("11_lfyq7")]([ExtResource("12_u7aey"), SubResource("Resource_0x04r"), SubResource("Resource_7whma")])
+player_racer = ExtResource("9_l5gsl")
+opponents = Array[ExtResource("5_a2q1b")]([ExtResource("6_yj1ww"), ExtResource("7_hw0dd"), ExtResource("8_tmfgp")])
+scoring_table = PackedInt32Array(9, 6, 3, 1)
+medal_thresholds = PackedInt32Array(9, 17, 24)
+difficulties = Array[ExtResource("1_hmfnv")]([ExtResource("2_k34au"), ExtResource("3_x8pfy"), ExtResource("4_wk2bn")])
+prerequisite_cup_id = &"extrema"
+sort_order = 5

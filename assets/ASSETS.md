@@ -5,6 +5,21 @@ Todos los recursos enumerados aquí están dedicados al dominio público mediant
 Creative Commons Zero 1.0; la atribución no es obligatoria, pero se mantiene
 el origen para facilitar auditorías y actualizaciones.
 
+## Kenney Car Kit 3.1
+
+- Autor: Kenney
+- Fuente: <https://kenney.nl/assets/car-kit>
+- Licencia: CC0 1.0
+- Versión: 3.1, distribución consultada el 12 de agosto de 2026
+- Archivos utilizados: `sedan.glb`, `suv-luxury.glb`, `taxi.glb`, `van.glb`,
+  los cinco `kart-oo*.glb`, `sedan-sports.glb`, `hatchback-sports.glb`,
+  `race.glb`, `race-future.glb` y `Textures/colormap.png`.
+
+Cada modelo se instancia mediante una escena wrapper que fija orientación,
+escala, sombra y apoyo visual. La colisión y la física siguen perteneciendo a
+`Kart`. El texto original se conserva en
+`assets/vendor/kenney/car-kit/License.txt`.
+
 ## Kenney Nature Kit 2.1
 
 - Autor: Kenney
@@ -91,3 +106,24 @@ original se conserva en
 Estos efectos identifican activación, despliegue y lanzamiento. El texto
 original se conserva en
 `assets/vendor/kenney/digital-audio/License.txt`.
+
+## Música CC0 de OpenGameArt
+
+- `menu_theme.ogg` — “Racing Game Menu”, MintoDog, CC0 1.0,
+  <https://opengameart.org/content/racing-game-menu>.
+- `coastal.ogg` — “Pure Raceway”, MintoDog, CC0 1.0,
+  <https://opengameart.org/content/pure-raceway>.
+- `garden.ogg` — “Rhythm Garden”, congusbongus, CC0 1.0,
+  <https://opengameart.org/content/rhythm-garden>.
+- `bahia_turbo.ogg` — “Hot Roadway”, MintoDog, CC0 1.0,
+  <https://opengameart.org/content/hot-roadway>.
+- `cup_victory.ogg` — “Race Finish Best (Jingle)”, MintoDog, CC0 1.0,
+  <https://opengameart.org/content/racing-game-finish-jingle>.
+
+Los temas de fondo se reproducen en bucle; el jingle de Copa, una sola vez.
+
+Las nueve pistas adicionales reutilizan estos tres temas CC0 en rotación. No se
+han incorporado copias renombradas ni audio de procedencia incierta: el selector
+del editor guarda el `AudioStream` elegido directamente en cada definición.
+Su decoración temática reutiliza los modelos CC0 de Nature Kit y Starter Kit
+Racing enumerados arriba, con paletas, escala y distribución propias por pista.

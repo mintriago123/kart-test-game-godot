@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" format=3]
+
+[ext_resource type="Resource" path="res://progression/variants/kart_oopi.tres" id="1_ay17a"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="2_wuvhj"]
+
+[resource]
+script = ExtResource("2_wuvhj")
+id = &"career_12"
+display_name = "Kart Oopi"
+requirement_type = 1
+required_points = 12
+kart_variant = ExtResource("1_ay17a")

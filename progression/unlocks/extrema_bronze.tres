@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" format=3]
+
+[ext_resource type="Resource" path="res://progression/variants/kart_oozi.tres" id="1_jfw5u"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="2_jysub"]
+
+[resource]
+script = ExtResource("2_jysub")
+id = &"extrema_bronze"
+display_name = "Kart Oozi"
+cup_id = &"extrema"
+kart_variant = ExtResource("1_jfw5u")

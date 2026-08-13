@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="DifficultyDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/difficulty_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"competitive"
+display_name = "Competitiva"
+description = "El comportamiento base de cada rival."
+progress_multiplier = 2
+sort_order = 1

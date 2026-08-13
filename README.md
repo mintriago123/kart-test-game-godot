@@ -1,14 +1,78 @@
 # MichiKart xd
 
-Prototipo original de carreras arcade para Android creado con Godot 4.7. Incluye
-dos pistas seleccionables, tres atajos físicos, barreras continuas, assets
+Juego de carreras arcade para Android, Linux y Windows creado con Godot 4.7.1.
+Incluye doce pistas seleccionables, barreras continuas, atajos físicos, assets
 low-poly CC0, tres rivales, derrape con miniturbo y seis objetos tropicales.
 Las carreras ofrecen 50, 100, 150 y 200 CC con física, cámara, IA y récords
 independientes; 150 CC es la selección inicial.
 
+El selector también ofrece **Contrarreloj**: una sesión de un solo kart, sin IA
+ni objetos, con récords separados y un fantasma personal compatible con pista y
+cilindrada. La reproducción del fantasma puede ocultarse desde Ajustes sin dejar
+de grabar nuevos intentos.
+
 El catálogo incluye Impulso, Coco turbo, Burbuja marina, Cáscara resbalosa,
 Piña perseguidora y Onda tropical. Todos usan la misma ranura y el mismo botón;
 la probabilidad se adapta a la posición de carrera.
+
+## Flujo de juego
+
+**Jugar** utiliza este recorrido:
+
+```text
+Modo → Pista o Copa → Vehículo → Preparación → Carrera
+```
+
+- **Carrera rápida** permite elegir pista, vehículo, CC, participantes y
+  objetos antes de competir contra tres rivales.
+- **Contrarreloj** inicia una sesión individual sin IA ni objetos. Conserva
+  récords por pista y CC, graba un fantasma personal y muestra en el minimapa
+  únicamente al jugador y la línea de meta.
+- **Copa** usa una campaña de siete eventos de tres circuitos. Tropical,
+  Horizontes, Salvaje y Extrema forman la escalera principal; Contrastes,
+  Expedición y Festival se abren juntas al conseguir cualquier medalla en
+  Extrema.
+
+Cada combinación de Copa y dificultad conserva sólo su mejor medalla. Bronce,
+Plata y Oro aportan 1, 2 y 3 puntos de carrera, multiplicados ×1 en Relajada,
+×2 en Competitiva y ×3 en Experta. Repetir un resultado inferior no aumenta el
+progreso; el máximo de la campaña es 126 puntos.
+
+Sólo puede existir una Copa activa. Su vehículo, CC y dificultad quedan fijados
+hasta completarla o abandonarla. El menú permite continuar desde la siguiente
+carrera y solicita confirmación antes de reemplazarla por otra Copa.
+
+Al terminar la tercera carrera, la celebración avanza por clasificación final,
+medalla y recompensas. Una misma finalización puede entregar el premio de Copa
+y uno o más hitos globales. Los vehículos obtenidos conservan la marca **Nuevo**
+hasta inspeccionarlos en la galería. Las partidas de los esquemas 1–3 migran al
+esquema 4 sin perder medallas, telemetría, vehículo equipado, premios vistos ni
+una Copa activa.
+
+## Perfil y preparación
+
+**Perfil** resume carreras, victorias, podios, récords y colección. También
+muestra los puntos de carrera, el siguiente hito y la mejor medalla por
+dificultad de cada Copa, y abre el Garaje; el equipamiento sigue realizándose
+exclusivamente desde la galería.
+
+**Preparación** adapta su distribución al ancho disponible. En escritorio
+separa evento, showroom y opciones; en pantallas compactas apila el contenido
+en una vista desplazable y conserva las acciones al pie. CC y dificultad se
+eligen mediante controles táctiles de al menos 48 px.
+
+## Garaje y vehículos
+
+El selector previo a una carrera y el **Garaje** del menú comparten la misma
+galería y el mismo showroom 3D. La galería admite teclado, mando, toque,
+deslizamiento y flechas laterales.
+
+El Sedán está disponible explícitamente desde el inicio. Otros ocho vehículos
+se obtienen con medallas de las cuatro Copas principales y cuatro más en los
+hitos de 12, 30, 56 y 90 puntos. Pueden aparecer como **Equipado**,
+**Disponible**, **Bloqueado** o **Nuevo**. Un vehículo bloqueado se puede
+inspeccionar, pero no equipar. El panel compara velocidad, aceleración, manejo,
+peso y miniturbo con el vehículo equipado.
 
 ## Editor de pistas
 
@@ -27,13 +91,18 @@ normalizadas; deshacer y rehacer restaura la carretera y sus dependencias como
 una operación. Las escenas antiguas se reparan al abrirlas sin sobrescribirse
 hasta pulsar **Guardar**.
 
-## Selector de pistas
+## Selector de eventos
 
-El menú principal conserva únicamente las acciones principales. **Jugar** abre
-una pantalla desplazable con la descripción, vueltas, distancia, atajos, récord
-y un plano automático de cada circuito. Las pistas publicadas desde el editor
-aparecen automáticamente en **Mis pistas**, separadas de las pistas oficiales.
-Una portada opcional puede sustituir el plano sin cargar la pista 3D en el menú.
+El menú principal conserva únicamente las acciones principales. Carrera rápida
+y Contrarreloj abren una lista vertical desplazable con descripción, vueltas,
+distancia, atajos, récord y plano automático de cada circuito. Las pistas
+publicadas desde el editor aparecen automáticamente en **Mis pistas**, separadas
+de las pistas oficiales. Una portada opcional puede sustituir el plano sin
+cargar la pista 3D en el menú.
+
+Copa abre un selector independiente alimentado por el catálogo de progresión.
+Las Copas se ordenan por `sort_order`; las bloqueadas muestran su requisito y
+el panel resume puntos actuales y próximo hito.
 
 La guía completa para crear una pista, configurar atajos y registrar assets está
 en [docs/track-editor.md](docs/track-editor.md).
@@ -56,50 +125,78 @@ FRENO, la aceleración automática se suspende para permitir frenar o usar rever
 
 ## Ejecutar
 
-1. Abrir el directorio con Godot 4.7.
+1. Abrir el directorio con Godot 4.7.1.
 2. Ejecutar la escena principal con `F6`/`F5`.
-3. Para la prueba integral sin interfaz, ejecutar:
+3. Para ejecutar la validación habitual sin interfaz:
 
    ```sh
-   godot --headless --path . --script tests/headless_smoke.gd
+   tools/run_tests.sh quick
    ```
 
-Las pruebas específicas del sistema de pistas se ejecutan con:
+En esta máquina, los ejemplos siguientes usan esta variable para abreviar el
+binario de Godot:
 
 ```sh
-godot --headless --path . --script tests/track_authoring.gd
-godot --headless --path . --script tests/track_editor.gd
-godot --headless --path . --script tests/track_barriers.gd
-godot --headless --path . --script tests/track_minimap.gd
-godot --headless --path . --script tests/race_intro.gd
-godot --headless --path . --script tests/driving_physics.gd
-godot --headless --path . --script tests/shortcut_drive.gd
-godot --headless --path . --script tests/race_stability.gd
-godot --headless --path . --script tests/item_physics.gd
-godot --headless --path . --script tests/item_catalog.gd
-godot --headless --path . --script tests/item_behaviors.gd
+GODOT_BIN=/home/mintriago/Godot_v4.7.1-stable_linux.x86_64
+```
+
+El runner asigna un directorio `user://` aislado y escribible a cada prueba.
+Esto evita que la persistencia o la rotación de logs de una suite contaminen a
+la siguiente. Para usar otro binario:
+
+```sh
+GODOT_BIN=/ruta/a/Godot_v4.7.1-stable_linux.x86_64 \
+  tools/run_tests.sh quick
+```
+
+La matriz completa de los doce circuitos, cuatro cilindradas, atajos y
+aproximaciones queda reservada para la validación nocturna o previa a una beta:
+
+```sh
+tools/run_tests.sh exhaustive
+```
+
+Las dos pruebas largas también aceptan filtros para reproducir un caso:
+
+```sh
+"$GODOT_BIN" --headless --path . --script tests/shortcut_drive.gd -- \
+  --track=dunas_doradas --cc=200 --shortcut=0 --approach=right
+"$GODOT_BIN" --headless --path . --script tests/race_stability.gd -- \
+  --track=nen_medianoche --cc=200
 ```
 
 Para abrir directamente la carrera durante una captura o perfilado:
 
 ```sh
-godot --path . -- --auto-race
+"$GODOT_BIN" --path . -- --auto-race
+"$GODOT_BIN" --path . -- --auto-time-trial
 ```
 
-## Exportar a Android
+## Exportar la beta
 
-El preset `Android` genera un APK ARM64 de desarrollo en
-`build/michikart-xd-debug.apk`. Antes de exportar, configura el SDK de Android y
+La versión actual es `1.1.0-beta.1`. El preset `Android` genera un APK ARM64
+para Android 9 (API 28) o superior y declara target SDK 35. Los presets de
+Linux y Windows generan ejecutables autocontenidos en `build/`.
+Antes de exportar, configura el SDK de Android y
 las plantillas de exportación **4.7.1** en el editor. También se requiere un JDK
-completo compatible (configurado en este proyecto con JDK 21) en
+completo compatible; esta beta se validó con JDK 21. Selecciónalo en
 `Editor Settings > Export > Android`.
-El proyecto está diseñado para orientación horizontal y Android 9 o superior.
 
-La exportación por terminal se ejecuta con:
+Las exportaciones de depuración para la beta se ejecutan con:
 
 ```sh
-godot --headless --path . --export-debug Android build/michikart-xd-debug.apk
+"$GODOT_BIN" --headless --path . --install-android-build-template \
+  --export-debug Android build/android/michikart-xd.apk
+"$GODOT_BIN" --headless --path . \
+  --export-debug Linux build/linux/michikart-xd.x86_64
+"$GODOT_BIN" --headless --path . \
+  --export-debug Windows build/windows/michikart-xd.exe
 ```
+
+Antes de distribuir, ejecutar `tools/run_tests.sh exhaustive`, comprobar una
+partida nueva y una migrada, y verificar controles, audio y fluidez en cada
+plataforma. La publicación en tiendas, firma de producción y metadatos
+comerciales no forman parte de esta beta.
 
 ## Rendimiento
 
@@ -109,5 +206,5 @@ godot --headless --path . --export-debug Android build/michikart-xd-debug.apk
 
 La identidad, la geometría de carretera y el código son originales. Algunos
 props low-poly proceden de packs CC0 de Kenney y están documentados en
-[assets/ASSETS.md](assets/ASSETS.md). El prototipo no utiliza personajes,
+[assets/ASSETS.md](assets/ASSETS.md). El juego no utiliza personajes,
 nombres, música ni recursos de Nintendo.

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" format=3]
+
+[ext_resource type="Resource" path="res://progression/variants/kart_oodi.tres" id="1_0g8v8"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="2_xayl2"]
+
+[resource]
+script = ExtResource("2_xayl2")
+id = &"horizontes_bronze"
+display_name = "Kart Oodi"
+cup_id = &"horizontes"
+kart_variant = ExtResource("1_0g8v8")

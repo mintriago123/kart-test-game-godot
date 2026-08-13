@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" format=3]
+
+[ext_resource type="Resource" path="res://progression/variants/race.tres" id="1_yqahq"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="2_i8ytl"]
+
+[resource]
+script = ExtResource("2_i8ytl")
+id = &"career_56"
+display_name = "Race"
+requirement_type = 1
+required_points = 56
+kart_variant = ExtResource("1_yqahq")

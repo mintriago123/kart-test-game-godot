@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SurfaceDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/surface_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"sand"
+display_name = "Arena"
+grip_multiplier = 0.68
+drift_grip_multiplier = 0.60
+rolling_resistance_multiplier = 1.75
+acceleration_multiplier = 0.72
+boost_multiplier = 0.75
+color = Color(0.89, 0.72, 0.39, 1)
+audio_pitch = 0.68
+audio_volume = 0.86
+audio_roughness = 0.55
+particle_color = Color(0.95, 0.78, 0.43, 1)

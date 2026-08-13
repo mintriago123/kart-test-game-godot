@@ -13,7 +13,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_check(TRACK_CATALOG.tracks.size() == 2, "Track catalog contains two entries.")
+	_check(TRACK_CATALOG.tracks.size() == 12, "Track catalog contains all twelve published entries.")
 	_check(
 		ASSET_LIBRARY.get_valid_entries().size() == 7,
 		"Editor asset library exposes seven valid CC0 entries."
@@ -63,6 +63,7 @@ func _test_authored_track(track_definition: TrackDefinition) -> void:
 		track.get_node_or_null("MainRoadCollision") != null,
 		"%s generates its continuous road collision." % track_definition.display_name
 	)
+	await _test_visible_drivable_surface(track)
 	_test_official_tree_calibration(track)
 	var source_child_count := track.get_child_count()
 	track.clear_generated_track()
@@ -85,7 +86,86 @@ func _test_authored_track(track_definition: TrackDefinition) -> void:
 	await process_frame
 
 
+func _test_visible_drivable_surface(track: TrackLevel) -> void:
+	var road := track.get_node_or_null("MainRoad") as MeshInstance3D
+	var road_material := (
+		road.material_override as StandardMaterial3D
+		if road != null
+		else null
+	)
+	var theme := track.track_theme
+	var color_separation := (
+		_color_distance(theme.road_color, theme.terrain_color)
+		if theme != null
+		else 1.0
+	)
+	_check(
+		road != null and road.mesh != null and road.visible,
+		"%s generates a visible road mesh." % track.display_name
+	)
+	_check(
+		road_material != null and road_material.albedo_color.a > 0.99,
+		"%s road material is opaque." % track.display_name
+	)
+	_check(
+		color_separation >= 0.16,
+		"%s road remains distinguishable from its terrain (%.2f contrast)."
+		% [track.display_name, color_separation]
+	)
+	var all_points_clear_terrain := true
+	for point in track.route_points:
+		all_points_clear_terrain = (
+			all_points_clear_terrain
+			and point.y >= TrackLevel.MINIMUM_DRIVABLE_HEIGHT - 0.001
+		)
+	_check(
+		all_points_clear_terrain,
+		"%s keeps every road segment above the terrain." % track.display_name
+	)
+	var grid_is_on_road := true
+	for slot in 4:
+		var spawn := track.get_spawn_transform(slot).origin
+		var closest_distance := INF
+		for point in track.route_points:
+			closest_distance = minf(
+				closest_distance,
+				Vector2(spawn.x, spawn.z).distance_to(Vector2(point.x, point.z))
+			)
+		grid_is_on_road = grid_is_on_road and closest_distance <= CoastalTrack.ROAD_WIDTH * 0.5
+	_check(grid_is_on_road, "%s keeps the complete starting grid on asphalt." % track.display_name)
+	await physics_frame
+	var road_is_top_surface := true
+	var space := root.world_3d.direct_space_state
+	var sample_step := maxi(1, track.route_points.size() / 12)
+	for point_index in range(0, track.route_points.size(), sample_step):
+		var point := track.route_points[point_index]
+		var query := PhysicsRayQueryParameters3D.create(
+			point + Vector3.UP * 3.0,
+			point + Vector3.DOWN * 2.0,
+			PhysicsLayers.WORLD
+		)
+		var hit := space.intersect_ray(query)
+		var collider := hit.get("collider") as Node
+		road_is_top_surface = (
+			road_is_top_surface
+			and collider != null
+			and collider.name == &"MainRoadCollision"
+		)
+	_check(
+		road_is_top_surface,
+		"%s exposes asphalt, not terrain, across the whole route." % track.display_name
+	)
+
+
+func _color_distance(first: Color, second: Color) -> float:
+	return Vector3(first.r, first.g, first.b).distance_to(
+		Vector3(second.r, second.g, second.b)
+	)
+
+
 func _test_official_tree_calibration(track: TrackLevel) -> void:
+	if track.track_id not in [&"coastal", &"garden"]:
+		return
 	var expected_prefix := "Palm" if track.track_id == &"coastal" else "Oak"
 	var expected_asset_id := &"palm_tree" if track.track_id == &"coastal" else &"oak_tree"
 	var expected_scale := 5.203778 if track.track_id == &"coastal" else 5.436674

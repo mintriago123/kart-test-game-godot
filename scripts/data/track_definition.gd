@@ -9,7 +9,11 @@ extends Resource
 @export var preview_texture: Texture2D
 @export var preview_map: TrackMinimapData
 @export var scene: PackedScene
+@export var music: AudioStream
+@export_enum("Media", "Difícil") var difficulty := "Media"
 @export_range(1, 9, 1) var laps := 3
+@export_range(0.1, 99.0, 0.1, "suffix:km") var length_km := 1.0
+@export_range(0, 12, 1) var shortcut_count := 0
 
 
 func is_valid() -> bool:

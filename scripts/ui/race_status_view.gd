@@ -15,6 +15,11 @@ var shield_bar: ProgressBar
 var countdown_label: Label
 var drift_bar: ProgressBar
 var race_elements: Array[CanvasItem] = []
+var split_panel: PanelContainer
+var split_label: Label
+var delta_label: Label
+var _split_generation := 0
+var _game_mode := GameModeDefinition.RACE
 
 
 func build_interface() -> void:
@@ -41,8 +46,17 @@ func build_interface() -> void:
 	top_bar.add_child(spacer)
 	time_label = RaceHudStyle.create_chip("00:00.000", 22)
 	top_bar.add_child(time_label)
+	delta_label = RaceHudStyle.create_chip("FANTASMA  SIN REFERENCIA", 18)
+	delta_label.visible = false
+	top_bar.add_child(delta_label)
 	speed_label = RaceHudStyle.create_chip("000 km/h", 20)
-	top_bar.add_child(speed_label)
+	speed_label.name = "SpeedAndMiniTurbo"
+	speed_label.custom_minimum_size = Vector2(190.0, 64.0)
+	speed_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	speed_label.position = Vector2(-95.0, -126.0)
+	speed_label.size = Vector2(190.0, 64.0)
+	add_child(speed_label)
+	race_elements.append(speed_label)
 
 	item_chip = PanelContainer.new()
 	item_chip.name = "ItemChip"
@@ -79,6 +93,7 @@ func build_interface() -> void:
 	item_row.add_child(item_label)
 
 	_build_shield_status()
+	_build_split_status()
 
 	drift_bar = ProgressBar.new()
 	drift_bar.min_value = 0.0
@@ -86,7 +101,7 @@ func build_interface() -> void:
 	drift_bar.value = 0.0
 	drift_bar.show_percentage = false
 	drift_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	drift_bar.position = Vector2(-90.0, -52.0)
+	drift_bar.position = Vector2(-90.0, -54.0)
 	drift_bar.size = Vector2(180.0, 13.0)
 	drift_bar.add_theme_stylebox_override(
 		"background",
@@ -179,12 +194,59 @@ func show_boost(charge_ratio: float) -> void:
 	drift_bar.value = charge_ratio
 
 
+func set_game_mode(game_mode: int) -> void:
+	_game_mode = GameModeDefinition.sanitize(game_mode)
+	var is_time_trial := game_mode == GameModeDefinition.TIME_TRIAL
+	position_label.visible = not is_time_trial
+	item_chip.visible = not is_time_trial
+	delta_label.visible = is_time_trial
+
+
+func update_ghost_delta(delta: float) -> void:
+	if not is_finite(delta):
+		delta_label.text = "FANTASMA  SIN REFERENCIA"
+		delta_label.add_theme_color_override("font_color", Color("#f5d66f"))
+		return
+	delta_label.text = "FANTASMA  %s%s" % ["-" if delta < 0.0 else "+", RaceHudStyle.format_time(absf(delta))]
+	delta_label.add_theme_color_override("font_color", Color("#75e6a4") if delta < 0.0 else Color("#ef8b78"))
+
+
+func show_lap_split(lap_number: int, lap_time: float, previous_best: float) -> void:
+	_split_generation += 1
+	var generation := _split_generation
+	var comparison := "PRIMER REGISTRO"
+	var color := Color("#f5d66f")
+	if previous_best > 0.0:
+		var delta := lap_time - previous_best
+		comparison = "VS. MEJOR VUELTA  %+.3f s" % delta
+		color = Color("#75e6a4") if delta < 0.0 else Color("#ef8b78")
+	split_label.text = "VUELTA %d · %s\n%s" % [
+		lap_number,
+		RaceHudStyle.format_time(lap_time),
+		comparison,
+	]
+	split_label.add_theme_color_override("font_color", color)
+	split_panel.visible = true
+	get_tree().create_timer(2.5).timeout.connect(func() -> void:
+		if generation == _split_generation and is_instance_valid(split_panel):
+			split_panel.visible = false
+	)
+
+
 func set_race_elements_visible(
 	is_visible: bool,
 	has_active_shield: bool
 ) -> void:
 	for element in race_elements:
 		element.visible = is_visible
+	# Transient panels must never be resurrected merely by leaving the intro.
+	if is_visible:
+		split_panel.visible = false
+		countdown_label.visible = not countdown_label.text.is_empty()
+	if _game_mode == GameModeDefinition.TIME_TRIAL:
+		position_label.visible = false
+		item_chip.visible = false
+		delta_label.visible = is_visible
 	if is_visible and not has_active_shield:
 		shield_panel.visible = false
 
@@ -239,3 +301,22 @@ func _build_shield_status() -> void:
 		RaceHudStyle.style(Color("#77d9df"), 6)
 	)
 	details.add_child(shield_bar)
+
+
+func _build_split_status() -> void:
+	split_panel = PanelContainer.new()
+	split_panel.name = "LapSplit"
+	split_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	split_panel.position = Vector2(-155.0, 228.0)
+	split_panel.size = Vector2(310.0, 80.0)
+	split_panel.visible = false
+	split_panel.add_theme_stylebox_override(
+		"panel", RaceHudStyle.style(Color(0.02, 0.12, 0.14, 0.94), 14)
+	)
+	add_child(split_panel)
+	race_elements.append(split_panel)
+	split_label = Label.new()
+	split_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	split_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	split_label.add_theme_font_size_override("font_size", 18)
+	split_panel.add_child(split_label)

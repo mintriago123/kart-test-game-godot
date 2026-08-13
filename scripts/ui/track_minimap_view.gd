@@ -1,22 +1,26 @@
 class_name TrackMinimapView
 extends Control
 
-const BACKGROUND_COLOR := Color("#1b2529")
-const GRID_COLOR := Color("#303a3e")
+const BACKGROUND_COLOR := Color("#101922")
+const GRID_COLOR := Color(0.18, 0.27, 0.32, 0.35)
 const ROAD_EDGE_COLOR := Color("#080d0f")
-const ROAD_COLOR := Color("#e9eee8")
-const SHORTCUT_COLOR := Color("#43d6c8")
+const ROAD_COLOR := Color("#FFF7DF")
+const SHORTCUT_COLOR := Color("#39D9F5")
 const DIRECTION_COLOR := Color("#ffd34e")
 const ERROR_COLOR := Color("#ff8a6c")
 const MUTED_TEXT_COLOR := Color("#d4dedb")
-const MAP_PADDING := 48.0
+const MAP_PADDING := 18.0
 const MINIMUM_WORLD_EXTENT := 24.0
-const ROAD_EDGE_WIDTH := 22.0
-const ROAD_WIDTH := 13.0
-const SHORTCUT_EDGE_WIDTH := 16.0
-const SHORTCUT_WIDTH := 9.0
+const ROAD_EDGE_WIDTH := 12.0
+const ROAD_WIDTH := 7.0
+const SHORTCUT_EDGE_WIDTH := 10.0
+const SHORTCUT_WIDTH := 5.0
 
 var minimap_data: TrackMinimapData
+var background_color := BACKGROUND_COLOR
+var grid_visible := true
+var direction_arrows_visible := true
+var map_padding := MAP_PADDING
 
 var _map_bounds := Rect2(
 	Vector2(-MINIMUM_WORLD_EXTENT * 0.5, -MINIMUM_WORLD_EXTENT * 0.5),
@@ -44,8 +48,10 @@ func is_map_available() -> bool:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), BACKGROUND_COLOR)
-	_draw_grid()
+	if background_color.a > 0.0:
+		draw_rect(Rect2(Vector2.ZERO, size), background_color)
+	if grid_visible:
+		_draw_grid()
 	if not is_map_available():
 		_draw_unavailable_placeholder()
 		return
@@ -74,7 +80,8 @@ func _draw() -> void:
 			true
 		)
 
-	_draw_direction_arrows(route_points)
+	if direction_arrows_visible:
+		_draw_direction_arrows(route_points)
 	_draw_finish_line()
 
 
@@ -235,7 +242,7 @@ func _map_points(points: PackedVector2Array) -> PackedVector2Array:
 
 func _map_point_to_screen(point: Vector2) -> Vector2:
 	var available_size := (
-		size - Vector2.ONE * MAP_PADDING * 2.0
+		size - Vector2.ONE * map_padding * 2.0
 	).max(Vector2.ONE)
 	var map_scale := minf(
 		available_size.x / _map_bounds.size.x,

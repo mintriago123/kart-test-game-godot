@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" format=3]
+
+[ext_resource type="Resource" path="res://progression/variants/sedan_sports.tres" id="1_1san3"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="2_ro7bi"]
+
+[resource]
+script = ExtResource("2_ro7bi")
+id = &"extrema_silver"
+display_name = "Sedán Sports"
+cup_id = &"extrema"
+required_medal = 2
+kart_variant = ExtResource("1_1san3")
