@@ -1,6 +1,8 @@
 class_name CoastalJoystick
 extends Control
 
+signal steering_changed(strength: float)
+
 const MAX_DRAG_DISTANCE := 78.0
 const STEERING_DEADZONE := 0.08
 const STEERING_RESPONSE := 11.0
@@ -148,6 +150,7 @@ func _apply_actions() -> void:
 		Input.action_press(&"steer_right", right_strength)
 	else:
 		Input.action_release(&"steer_right")
+	steering_changed.emit(_steering_strength)
 
 
 func _release_actions() -> void:
@@ -160,6 +163,7 @@ func _release_actions() -> void:
 	_steering_strength = 0.0
 	Input.action_release(&"steer_left")
 	Input.action_release(&"steer_right")
+	steering_changed.emit(0.0)
 	queue_redraw()
 
 
