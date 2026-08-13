@@ -37,6 +37,22 @@ Sólo puede existir una Copa activa. Su vehículo, CC y dificultad quedan fijado
 hasta completarla o abandonarla. El menú permite continuar desde la siguiente
 carrera y solicita confirmación antes de reemplazarla por otra Copa.
 
+Al terminar la tercera carrera, la celebración avanza por clasificación final,
+medalla y recompensas. Los vehículos obtenidos conservan la marca **Nuevo**
+hasta inspeccionarlos en la galería. Las partidas schema 2 migran a schema 3
+sin perder medallas, telemetría, vehículo equipado ni una Copa activa.
+
+## Perfil y preparación
+
+**Perfil** resume carreras, victorias, podios, récords y colección. También
+muestra la mejor medalla por dificultad de cada Copa y abre el Garaje; el
+equipamiento sigue realizándose exclusivamente desde la galería.
+
+**Preparación** adapta su distribución al ancho disponible. En escritorio
+separa evento, showroom y opciones; en pantallas compactas apila el contenido
+en una vista desplazable y conserva las acciones al pie. CC y dificultad se
+eligen mediante controles táctiles de al menos 48 px.
+
 ## Garaje y vehículos
 
 El selector previo a una carrera y el **Garaje** del menú comparten la misma
