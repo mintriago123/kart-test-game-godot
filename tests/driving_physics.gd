@@ -439,7 +439,7 @@ func _test_shared_race_class_and_camera() -> void:
 	race_world.play_intro = false
 	root.add_child(race_world)
 	await process_frame
-	var racers_share_cc := race_world.race_manager.racers.size() == 4
+	var racers_share_cc := race_world.race_manager.racers.size() == 8
 	for racer in race_world.race_manager.racers:
 		racers_share_cc = (
 			racers_share_cc

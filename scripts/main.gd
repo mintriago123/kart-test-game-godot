@@ -68,11 +68,38 @@ func start_game(
 	session.track = track_definition
 	session.race_class = RaceClassDefinition.get_by_id(settings.selected_cc_id)
 	session.game_mode = game_mode
-	session.racers = PROGRESSION_CATALOG.racers.racers.duplicate()
-	session.player_racer_id = &"marea"
-	session.equipped_variant = PROGRESSION_CATALOG.unlocks.get_variant(player_progress.equipped_kart_variant_id)
+	session.grid_size = 8
+	if game_mode == GameModeDefinition.LOCAL_MULTIPLAYER:
+		var local_participants: Array = main_menu.get_multiplayer_participants() if main_menu != null else []
+		session.set_participants(_complete_multiplayer_grid(local_participants))
+	else:
+		session.racers = PROGRESSION_CATALOG.racers.racers.duplicate()
+		session.player_racer_id = &"marea"
+		session.equipped_variant = PROGRESSION_CATALOG.unlocks.get_variant(player_progress.equipped_kart_variant_id)
+		session.ensure_participants()
 	session.race_seed = randi()
 	_start_session(session, should_play_intro)
+
+
+func _complete_multiplayer_grid(humans: Array) -> Array[RaceParticipantConfig]:
+	var result: Array[RaceParticipantConfig] = []
+	var selected_racers := {}
+	for value in humans:
+		if value is RaceParticipantConfig and value.racer != null:
+			var participant := value as RaceParticipantConfig
+			participant.slot_id = result.size()
+			result.append(participant)
+			selected_racers[participant.racer.id] = true
+	for racer in PROGRESSION_CATALOG.racers.racers:
+		if result.size() >= 8:
+			break
+		if selected_racers.has(racer.id):
+			continue
+		result.append(RaceParticipantConfig.create(
+			result.size(), racer, racer.default_kart_visual,
+			RaceParticipantConfig.ControlType.AI
+		))
+	return result
 
 
 func _start_session(session: RaceSessionConfig, should_play_intro: bool) -> void:
@@ -202,6 +229,11 @@ func _restart_game() -> void:
 			_return_to_menu()
 		else:
 			_start_session(cup_manager.create_session(), false)
+		return
+	if race_world != null and race_world.session != null and GameModeDefinition.is_multiplayer(race_world.session.game_mode):
+		var retry_session := race_world.session
+		retry_session.race_seed = randi()
+		_start_session(retry_session, false)
 		return
 	start_game(settings.selected_track_id, settings.selected_cc_id, settings.selected_game_mode, false)
 

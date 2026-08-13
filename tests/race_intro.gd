@@ -147,7 +147,7 @@ func _test_skip_sequence_and_pause() -> void:
 		manager.state == RaceManager.RaceState.RACING
 		and _all_racers_have_control(manager, true)
 		and _all_ai_drivers_processing(world, true),
-		"All four racers activate only when the countdown reaches ¡YA!."
+		"All configured racers activate only when the countdown reaches ¡YA!."
 	)
 	_check(
 		_all_item_boxes_monitoring(world, true),

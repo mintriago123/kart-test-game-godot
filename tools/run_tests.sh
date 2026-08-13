@@ -33,6 +33,7 @@ echo "==> Importing project resources"
 )
 
 CORE_SUITES=(
+	tests/multiplayer_session.gd
 	tests/cup_progression.gd
 	tests/cup_editor.gd
 	tests/frontend_layout.gd

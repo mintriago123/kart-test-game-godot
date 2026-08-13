@@ -157,6 +157,7 @@ func _physics_process(delta: float) -> void:
 	var line_steer := clampf(angular_error * 1.9 - projection.lateral_error * lateral_gain - target_sample.curvature * 2.4, -1.0, 1.0)
 	var sensors := _sense_barriers(speed)
 	var steer := _apply_barrier_steering(line_steer, sensors, target_sample.forward)
+	steer = _apply_racer_avoidance(steer, forward)
 	var steer_response := lerpf(4.5, 8.5, 1.0 - profile.reaction_time)
 	_smoothed_steer = move_toward(_smoothed_steer, steer, delta * steer_response)
 	steer = _smoothed_steer
@@ -434,6 +435,7 @@ func _legacy_drive(delta: float) -> void:
 		throttle = 0.72
 	var sensors := _sense_barriers(speed)
 	steer = _apply_barrier_steering(steer, sensors, to_target)
+	steer = _apply_racer_avoidance(steer, forward)
 	_smoothed_steer = move_toward(_smoothed_steer, steer, delta * 8.0)
 	steer = _smoothed_steer
 	if float(sensors.front) < 0.22:
@@ -457,6 +459,42 @@ func _legacy_drive(delta: float) -> void:
 	telemetry.braking_time += delta if brake > 0.2 else 0.0
 	telemetry.drift_time += delta if drift else 0.0
 	telemetry.avoidance_time += delta if _drive_state != DriveState.DRIVING else 0.0
+
+
+func _apply_racer_avoidance(line_steer: float, forward: Vector3) -> float:
+	# A full eight-kart grid puts several rivals directly behind each other. Let
+	# AI karts choose an overtaking side before CharacterBody collision can turn
+	# a stationary local player into a permanent roadblock.
+	var nearest_distance := INF
+	var nearest_lateral := 0.0
+	var right := kart.global_transform.basis.x.normalized()
+	for candidate_value in race_manager.racers:
+		var candidate := candidate_value as Kart
+		if candidate == null or candidate == kart:
+			continue
+		var offset := candidate.global_position - kart.global_position
+		offset.y = 0.0
+		var distance := offset.length()
+		if distance < 0.1 or distance > 10.0:
+			continue
+		var forward_distance := offset.dot(forward)
+		var lateral_distance := offset.dot(right)
+		if forward_distance <= 0.5 or absf(lateral_distance) > 2.8:
+			continue
+		if forward.dot(offset / distance) < 0.72 or distance >= nearest_distance:
+			continue
+		nearest_distance = distance
+		nearest_lateral = lateral_distance
+	if not is_finite(nearest_distance):
+		return line_steer
+	var avoidance_side := 0.0
+	if absf(nearest_lateral) > 0.25:
+		avoidance_side = -signf(nearest_lateral)
+	else:
+		var grid_row := maxi(kart.participant_slot, 0) / 2
+		avoidance_side = 1.0 if grid_row % 2 == 1 else -1.0
+	var weight := clampf((10.0 - nearest_distance) / 7.5, 0.0, 0.9)
+	return lerpf(line_steer, avoidance_side, weight)
 
 
 func _update_progress_recovery(

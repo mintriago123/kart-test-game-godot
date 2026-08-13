@@ -115,7 +115,12 @@ func get_selected_cc_id() -> StringName:
 func select_game_mode(game_mode: int, should_emit := true) -> void:
 	_selected_game_mode = GameModeDefinition.sanitize(game_mode)
 	if _mode_label != null:
-		_mode_label.text = ["CARRERA RÁPIDA", "CONTRARRELOJ", "COPA"][_selected_game_mode]
+		_mode_label.text = {
+			GameModeDefinition.RACE: "CARRERA RÁPIDA",
+			GameModeDefinition.TIME_TRIAL: "CONTRARRELOJ",
+			GameModeDefinition.CUP: "COPA",
+			GameModeDefinition.LOCAL_MULTIPLAYER: "PANTALLA DIVIDIDA",
+		}.get(_selected_game_mode, "CARRERA RÁPIDA")
 	for button_mode in game_mode_buttons:
 		(game_mode_buttons[button_mode] as Button).set_pressed_no_signal(button_mode == _selected_game_mode)
 	if _difficulty_label != null:

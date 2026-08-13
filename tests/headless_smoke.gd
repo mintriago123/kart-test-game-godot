@@ -91,7 +91,7 @@ func _run() -> void:
 	await process_frame
 	_check(main.race_world != null, "Race world is created.")
 	if main.race_world != null:
-		_check(main.race_world.race_manager.racers.size() == 4, "Four racers are registered.")
+		_check(main.race_world.race_manager.racers.size() == 8, "Eight racers are registered in quick race.")
 		_check(main.race_world.race_manager.route_points.size() >= 40, "Track route is complete.")
 		_check(main.race_world.player_kart != null, "Player kart is available.")
 		var racers_share_catalog := true
@@ -115,9 +115,9 @@ func _run() -> void:
 		for racer in main.race_world.race_manager.racers:
 			if racer.is_control_enabled:
 				active_racers += 1
-		_check(active_racers == 4, "All racers receive control after the countdown.")
+		_check(active_racers == 8, "All racers receive control after the countdown.")
 		var moving_ai := 0
-		for racer_index in range(1, 4):
+		for racer_index in range(1, main.race_world.race_manager.racers.size()):
 			var ai_racer: Node = main.race_world.race_manager.racers[racer_index]
 			if Vector2(ai_racer.velocity.x, ai_racer.velocity.z).length() > 0.5:
 				moving_ai += 1
@@ -246,7 +246,7 @@ func _run() -> void:
 			) != 0,
 			"Player collides with main and shortcut barriers."
 		)
-		for racer_index in range(1, 4):
+		for racer_index in range(1, manager.racers.size()):
 			var ai_kart: Kart = manager.racers[racer_index]
 			_check(
 				ai_kart.collision_mask == player.collision_mask,

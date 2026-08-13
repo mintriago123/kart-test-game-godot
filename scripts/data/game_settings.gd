@@ -158,6 +158,8 @@ func get_best_lap_time(
 func register_race_result(result: RaceResult) -> bool:
 	if result == null or result.player_result == null:
 		return false
+	if not GameModeDefinition.records_track_time(result.game_mode):
+		return false
 	var changed := register_race_time(
 		result.player_result.finish_time,
 		result.track_id,

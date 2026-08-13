@@ -5,8 +5,10 @@ signal countdown_changed(text: String)
 signal countdown_progress(remaining: float)
 signal race_started
 signal race_info_changed(lap: int, total_laps: int, position: int, total_racers: int, time: float)
+signal race_info_changed_for(kart: Node, lap: int, total_laps: int, position: int, total_racers: int, time: float)
 signal racer_finished(racer: Node, position: int, time: float)
 signal player_finished(position: int, time: float)
+signal human_finished(racer: Node, position: int, time: float)
 signal race_completed(result: RaceResult)
 signal provisional_standings_changed(standings: Array[RacerRaceResult])
 signal results_countdown_changed(remaining: float)
@@ -24,7 +26,7 @@ enum RaceState {
 const CHECKPOINT_RADIUS := 9.0
 const CHECKPOINT_CORRIDOR_WIDTH := 12.0
 const MAX_CHECKPOINTS_PER_FRAME := 5
-const RESULTS_WAIT_DURATION := 15.0
+const RESULTS_WAIT_DURATION := 30.0
 
 @export var total_laps := 3
 
@@ -32,6 +34,8 @@ var state := RaceState.PRE_RACE
 var route_points: Array[Vector3] = []
 var racers: Array[Node] = []
 var player_kart: Node
+var human_karts: Array[Node] = []
+var local_player_karts: Array[Node] = []
 var race_time := 0.0
 var track_id: StringName
 var cc_id: StringName
@@ -44,13 +48,20 @@ var _countdown_remaining := 3.0
 var _last_countdown_text := ""
 var _finish_count := 0
 var _results_wait_remaining := 0.0
+var _local_player_indices: Dictionary = {}
 
 
 func configure(points: Array[Vector3]) -> void:
 	route_points = points
 
 
-func register_kart(kart: Node, is_player: bool = false, start_position: int = 0) -> void:
+func register_kart(
+	kart: Node,
+	is_player: bool = false,
+	start_position: int = 0,
+	local_player_index: int = -1,
+	is_human: bool = false
+) -> void:
 	racers.append(kart)
 	_race_data[kart.get_instance_id()] = {
 		"lap": 0,
@@ -70,7 +81,13 @@ func register_kart(kart: Node, is_player: bool = false, start_position: int = 0)
 	}
 	kart.race_manager = self
 	kart.is_control_enabled = false
-	if is_player:
+	if is_player or is_human:
+		human_karts.append(kart)
+	if is_player or local_player_index >= 0:
+		if not local_player_karts.has(kart):
+			local_player_karts.append(kart)
+		_local_player_indices[kart.get_instance_id()] = local_player_index if local_player_index >= 0 else local_player_karts.size() - 1
+	if player_kart == null and (is_player or local_player_index >= 0):
 		player_kart = kart
 
 
@@ -214,14 +231,15 @@ func _finish_racer(kart: Node, data: Dictionary) -> void:
 	_race_data[kart.get_instance_id()] = data
 	kart.is_control_enabled = false
 	racer_finished.emit(kart, _finish_count, race_time)
-	if kart == player_kart:
-		if game_mode == GameModeDefinition.TIME_TRIAL or _finish_count == racers.size():
+	if kart in human_karts:
+		human_finished.emit(kart, _finish_count, race_time)
+		if kart == player_kart:
 			player_finished.emit(_finish_count, race_time)
+		if game_mode == GameModeDefinition.TIME_TRIAL or _finish_count == racers.size():
 			_complete_race(false)
-		else:
+		elif state != RaceState.WAITING_FOR_RIVALS:
 			state = RaceState.WAITING_FOR_RIVALS
 			_results_wait_remaining = RESULTS_WAIT_DURATION
-			player_finished.emit(_finish_count, race_time)
 			results_countdown_changed.emit(_results_wait_remaining)
 			provisional_standings_changed.emit(get_provisional_standings())
 	elif _finish_count == racers.size() and state == RaceState.WAITING_FOR_RIVALS:
@@ -311,11 +329,17 @@ func _complete_race(mark_unfinished_dnf: bool) -> void:
 			_race_data[racer.get_instance_id()] = racer_data
 		var racer_result := _build_racer_result(racer, racer_data)
 		result.standings.append(racer_result)
-		if racer == player_kart:
-			result.player_result = racer_result
+		if racer in local_player_karts:
+			result.player_results.append(racer_result)
 		if racer.has_method("set_drive_input"):
 			racer.set_drive_input(0.0, 0.0, 0.0, false, false)
 		racer.is_control_enabled = false
+	result.player_results.sort_custom(func(a: RacerRaceResult, b: RacerRaceResult) -> bool:
+		return a.local_player_index < b.local_player_index
+	)
+	if not result.player_results.is_empty():
+		result.local_player_index = 0
+		result.player_result = result.player_results[0]
 	result.finalize_records()
 	race_completed.emit(result)
 
@@ -325,7 +349,10 @@ func _build_racer_result(kart: Node, data: Dictionary) -> RacerRaceResult:
 	var raw_racer_id: Variant = kart.get("racer_id")
 	result.racer_id = str(raw_racer_id) if raw_racer_id != null else &""
 	result.racer_name = str(kart.get("racer_name"))
-	result.is_player = kart == player_kart
+	result.is_player = kart in human_karts
+	result.local_player_index = int(_local_player_indices.get(kart.get_instance_id(), -1))
+	var raw_slot: Variant = kart.get("participant_slot")
+	result.participant_slot = int(raw_slot) if raw_slot != null else -1
 	result.start_position = int(data.get("start_position", 0))
 	result.finish_position = int(data.get("finish_position", 0))
 	result.laps_completed = int(data.get("lap", 0))
@@ -347,15 +374,27 @@ func _build_racer_result(kart: Node, data: Dictionary) -> RacerRaceResult:
 func _emit_player_info() -> void:
 	if player_kart == null:
 		return
-	var data: Dictionary = _race_data[player_kart.get_instance_id()]
-	var displayed_lap := clampi(int(data.lap) + 1, 1, total_laps)
-	race_info_changed.emit(
-		displayed_lap,
-		total_laps,
-		get_race_position(player_kart),
-		racers.size(),
-		race_time
-	)
+	for local_kart in local_player_karts:
+		if not is_instance_valid(local_kart):
+			continue
+		var data: Dictionary = _race_data[local_kart.get_instance_id()]
+		var displayed_lap := clampi(int(data.lap) + 1, 1, total_laps)
+		race_info_changed_for.emit(
+			local_kart,
+			displayed_lap,
+			total_laps,
+			get_race_position(local_kart),
+			racers.size(),
+			race_time
+		)
+		if local_kart == player_kart:
+			race_info_changed.emit(
+				displayed_lap,
+				total_laps,
+				get_race_position(local_kart),
+				racers.size(),
+				race_time
+			)
 
 
 func _emit_countdown(text: String) -> void:

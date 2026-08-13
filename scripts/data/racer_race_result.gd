@@ -4,6 +4,8 @@ extends RefCounted
 var racer_name := ""
 var racer_id: StringName
 var is_player := false
+var local_player_index := -1
+var participant_slot := -1
 var start_position := 0
 var finish_position := 0
 var laps_completed := 0
@@ -30,6 +32,8 @@ func duplicate_result() -> RacerRaceResult:
 	copy.racer_id = racer_id
 	copy.racer_name = racer_name
 	copy.is_player = is_player
+	copy.local_player_index = local_player_index
+	copy.participant_slot = participant_slot
 	copy.start_position = start_position
 	copy.finish_position = finish_position
 	copy.laps_completed = laps_completed

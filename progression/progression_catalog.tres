@@ -47,6 +47,10 @@
 [ext_resource type="Resource" path="res://progression/racers/lima.tres" id="r2"]
 [ext_resource type="Resource" path="res://progression/racers/coral.tres" id="r3"]
 [ext_resource type="Resource" path="res://progression/racers/brisa.tres" id="r4"]
+[ext_resource type="Resource" path="res://progression/racers/sol.tres" id="r5"]
+[ext_resource type="Resource" path="res://progression/racers/coco.tres" id="r6"]
+[ext_resource type="Resource" path="res://progression/racers/perla.tres" id="r7"]
+[ext_resource type="Resource" path="res://progression/racers/nube.tres" id="r8"]
 
 [sub_resource type="Resource" id="Resource_harkj"]
 script = ExtResource("17_12rvf")
@@ -423,7 +427,7 @@ difficulties = Array[ExtResource("4_7jeev")]([ExtResource("d1"), ExtResource("d2
 
 [sub_resource type="Resource" id="Racers"]
 script = ExtResource("3")
-racers = Array[ExtResource("9_na7yx")]([ExtResource("r1"), ExtResource("r2"), ExtResource("r3"), ExtResource("r4")])
+racers = Array[ExtResource("9_na7yx")]([ExtResource("r1"), ExtResource("r2"), ExtResource("r3"), ExtResource("r4"), ExtResource("r5"), ExtResource("r6"), ExtResource("r7"), ExtResource("r8")])
 
 [sub_resource type="Resource" id="Resource_1eftb"]
 script = ExtResource("17_12rvf")

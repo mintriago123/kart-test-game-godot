@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="RacerDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/kart_stats.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/ai_profile.gd" id="3"]
+[ext_resource type="Resource" path="res://progression/variants/kart_oobi.tres" id="4"]
+
+[sub_resource type="Resource" id="AI"]
+script = ExtResource("3")
+precision = 0.78
+aggression = 0.3
+drift_usage = 0.45
+risk_tolerance = 0.2
+shortcut_probability = 0.25
+item_efficiency = 0.58
+reaction_time = 0.24
+
+[sub_resource type="Resource" id="Stats"]
+script = ExtResource("2")
+max_speed = 25.2
+steering_speed = 2.4
+grip = 8.6
+
+[resource]
+script = ExtResource("1")
+id = &"coco"
+display_name = "Coco"
+body_color = Color(0.65098, 0.415686, 0.247059, 1)
+kart_stats = SubResource("Stats")
+ai_profile = SubResource("AI")
+default_kart_visual = ExtResource("4")

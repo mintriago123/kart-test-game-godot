@@ -11,14 +11,14 @@ func _init() -> void:
 	_test_access_ladder()
 	_test_points_and_rewards()
 	_test_run()
-	for schema in range(1, 4): _test_migration(schema)
+	for schema in range(1, 5): _test_migration(schema)
 	quit(1 if failures else 0)
 
 
 func _test_catalog_shape() -> void:
 	var cups := CATALOG.cups.get_valid_cups()
 	_check(cups.size() == 7, "Seven valid cups load.")
-	_check(CATALOG.racers.racers.size() == 4, "Four racers load.")
+	_check(CATALOG.racers.racers.size() == 8, "Eight unique racers load.")
 	_check(CATALOG.difficulties.difficulties.size() == 3, "Three difficulties load.")
 	_check(CATALOG.unlocks.variants.size() == 13 and CATALOG.unlocks.initial_variant.id == &"sedan", "Thirteen variants load with Sedan as the explicit initial vehicle.")
 	_check(CATALOG.unlocks.unlocks.size() == 12, "Twelve unlockable rewards load.")
@@ -149,13 +149,14 @@ func _test_migration(schema: int) -> void:
 	var expected_new := [&"tropical_bronze", &"horizontes_bronze", &"salvaje_bronze", &"career_12", &"extrema_bronze", &"extrema_silver", &"career_30", &"career_56", &"career_90"]
 	_check(expected_new.all(func(id): return loaded.unlocked_reward_ids.has(id)) and old_ids.all(func(id): return not loaded.unlocked_reward_ids.has(id)), "Schema %d maps all nine legacy reward IDs by vehicle." % schema)
 	_check(loaded.equipped_kart_variant_id == (&"sedan" if schema == 1 else &"race_future") and not loaded.active_cup.is_empty() and loaded.races_played == schema, "Schema %d preserves active cup, telemetry and equipped vehicle, defaulting an empty vehicle to Sedan." % schema)
+	_check(loaded.local_multiplayer.races_played == 0 and loaded.lan_multiplayer.races_played == 0, "Schema %d initializes multiplayer telemetry at zero." % schema)
 	if schema < 3:
 		_check(loaded.get_new_reward_count() == 0, "Schema %d migrates historical rewards as already seen." % schema)
 	else:
 		_check(loaded.seen_reward_ids.has(&"tropical_bronze") and loaded.seen_reward_ids.has(&"career_90") and loaded.get_new_reward_count() == 7, "Schema 3 preserves seen and unseen reward state through ID migration.")
 	loaded.save_to_disk()
 	var migrated_file := ConfigFile.new(); migrated_file.load(path)
-	_check(int(migrated_file.get_value("progress", "schema_version", 0)) == PlayerProgress.SCHEMA_VERSION, "Schema %d saves back as schema 4." % schema)
+	_check(int(migrated_file.get_value("progress", "schema_version", 0)) == PlayerProgress.SCHEMA_VERSION, "Schema %d saves back as schema 5." % schema)
 	DirAccess.remove_absolute(path)
 
 

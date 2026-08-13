@@ -26,6 +26,10 @@ var ghost_recording: GhostRecording
 var track_fingerprint := ""
 var race_manager: RaceManager
 var player_kart: Kart
+var human_karts: Array[Kart] = []
+var local_player_karts: Array[Kart] = []
+var local_huds: Array[RaceHud] = []
+var local_cameras: Array[FollowCamera] = []
 var item_catalog: ItemCatalog = DEFAULT_ITEM_CATALOG
 var previous_best_time := -1.0
 var previous_best_lap_time := -1.0
@@ -65,6 +69,10 @@ var _ghost_recorder: GhostRecorder
 var _ghost_playback: GhostPlayback
 var _interaction_manager: KartInteractionManager
 var _threat_indicators: ThreatIndicatorController
+var _split_screen_layer: CanvasLayer
+var _split_viewports: Array[SubViewport] = []
+var _hud_by_kart: Dictionary = {}
+var _camera_by_kart: Dictionary = {}
 
 
 func _ready() -> void:
@@ -80,13 +88,16 @@ func _ready() -> void:
 	_item_rng.randomize()
 	_build_track()
 	_build_environment()
-	if GameModeDefinition.has_items(game_mode):
+	if _items_enabled():
 		_build_active_item_container()
 	_build_race()
 
 
 func _build_environment() -> void:
-	var quality := PresentationQuality.get_budget(graphics_profile)
+	# Split-screen applies a temporary render budget without changing the saved
+	# graphics profile. Two 3D views are substantially more expensive than one.
+	var effective_profile := "low" if game_mode == GameModeDefinition.LOCAL_MULTIPLAYER else graphics_profile
+	var quality := PresentationQuality.get_budget(effective_profile)
 	match int(quality.msaa):
 		4: get_viewport().msaa_3d = Viewport.MSAA_4X
 		2: get_viewport().msaa_3d = Viewport.MSAA_2X
@@ -172,7 +183,7 @@ func _build_race() -> void:
 	_track.shortcut_completed.connect(race_manager.complete_shortcut)
 	race_manager.shortcut_accepted.connect(_handle_shortcut_accepted)
 
-	if GameModeDefinition.has_items(game_mode):
+	if _items_enabled():
 		_item_executor = ItemExecutor.new()
 		_item_executor.name = "ItemExecutor"
 		add_child(_item_executor)
@@ -183,19 +194,36 @@ func _build_race() -> void:
 
 	var configured_racers: Array[RacerDefinition] = []
 	if session != null:
+		session.ensure_participants()
 		configured_racers.assign(session.racers)
 	if configured_racers.is_empty():
 		push_error("RaceWorld.setup(session) requires configured racers.")
 		return
-	var kart_count := configured_racers.size() if GameModeDefinition.has_rivals(game_mode) else 1
+	var configured_participants: Array[RaceParticipantConfig] = []
+	configured_participants.assign(session.participants)
+	var kart_count := mini(configured_participants.size(), session.grid_size) if GameModeDefinition.has_rivals(game_mode) else 1
+	var local_count := 0
+	for participant in configured_participants.slice(0, kart_count):
+		if participant != null and participant.is_local():
+			local_count += 1
+	if local_count > 1:
+		_prepare_split_screen(local_count)
+	var next_local_index := 0
 	for slot in kart_count:
 		var kart := Kart.new()
-		var racer := configured_racers[slot]
+		var participant := configured_participants[slot]
+		var racer := participant.racer
 		kart.racer_id = racer.id
 		kart.racer_name = racer.display_name
 		kart.body_color = racer.body_color
-		kart.is_player = racer.id == session.player_racer_id
-		kart.visual_variant = session.equipped_variant if kart.is_player and session.equipped_variant != null else racer.default_kart_visual
+		kart.participant_slot = participant.slot_id
+		kart.network_peer_id = participant.peer_id
+		kart.is_player = participant.is_human()
+		if participant.is_local():
+			kart.local_player_index = next_local_index
+			next_local_index += 1
+		kart.input_source = RacerInputSource.for_participant(participant)
+		kart.visual_variant = participant.vehicle if participant.vehicle != null else racer.default_kart_visual
 		var effective_stats := racer.kart_stats.copy()
 		if kart.visual_variant != null:
 			effective_stats.max_speed *= kart.visual_variant.speed
@@ -205,7 +233,7 @@ func _build_race() -> void:
 			effective_stats.weight = kart.visual_variant.weight
 			effective_stats.mini_turbo_duration_multiplier = kart.visual_variant.mini_turbo_duration_multiplier
 		kart.configure_for_race(effective_stats, race_class, session.driving_tuning)
-		kart.item_catalog = item_catalog if GameModeDefinition.has_items(game_mode) else null
+		kart.item_catalog = item_catalog if _items_enabled() else null
 		kart.item_rng = _item_rng
 		add_child(kart)
 		var sparks := DriftSparkController.new()
@@ -217,20 +245,30 @@ func _build_race() -> void:
 		var visual_feedback := KartVisualFeedback.new()
 		kart.add_child(visual_feedback)
 		visual_feedback.setup(kart, graphics_profile, speed_lines_enabled)
-		var grid_slot := (3 if kart.is_player else slot - 1) if GameModeDefinition.has_rivals(game_mode) else 0
+		var grid_slot := participant.slot_id if GameModeDefinition.has_rivals(game_mode) else 0
 		kart.global_transform = _track.get_spawn_transform(grid_slot)
 		kart.set_respawn_transform(kart.global_transform)
-		race_manager.register_kart(kart, kart.is_player, grid_slot + 1)
-		if GameModeDefinition.has_items(game_mode):
+		race_manager.register_kart(
+			kart,
+			participant.is_local() and kart.local_player_index == 0,
+			grid_slot + 1,
+			kart.local_player_index,
+			participant.is_human()
+		)
+		if _items_enabled():
 			kart.item_use_requested.connect(_handle_item_use_requested.bind(kart))
 		kart.hit_blocked.connect(_handle_shield_blocked.bind(kart))
 		kart.recovered.connect(race_manager.record_recovery.bind(kart))
-		if kart.is_player:
-			player_kart = kart
-			_add_camera(kart)
-			visual_feedback.attach_to_camera(_follow_camera.get_camera())
-			kart.hit_received.connect(_handle_player_hit)
-		else:
+		if participant.is_human():
+			human_karts.append(kart)
+		if participant.is_local():
+			local_player_karts.append(kart)
+			if player_kart == null:
+				player_kart = kart
+			var camera := _add_camera(kart, kart.local_player_index)
+			visual_feedback.attach_to_camera(camera.get_camera())
+			kart.hit_received.connect(_handle_local_player_hit.bind(kart))
+		elif participant.control_type == RaceParticipantConfig.ControlType.AI:
 			var ai := AiDriver.new()
 			kart.add_child(ai)
 			ai.setup(kart, race_manager, racing_line, racer, race_seed, session.difficulty)
@@ -248,7 +286,7 @@ func _build_race() -> void:
 		_interaction_manager.setup(race_manager, session.driving_tuning)
 		add_child(_interaction_manager)
 
-	if GameModeDefinition.has_items(game_mode):
+	if _items_enabled():
 		for item_position in _track.item_spawn_points:
 			var item_box := ItemBox.new()
 			item_box.position = item_position
@@ -259,40 +297,14 @@ func _build_race() -> void:
 	else:
 		_setup_ghosts()
 
-	_hud = RaceHud.new()
-	_hud.vibration_enabled = vibration_enabled
-	_hud.vibration_intensity = vibration_intensity
-	_hud.mobile_controls_enabled = (
-		OS.has_feature("android")
-		or OS.has_feature("ios")
-		or DisplayServer.is_touchscreen_available()
-		or "--mobile-controls" in OS.get_cmdline_user_args()
-	)
-	add_child(_hud)
-	_hud.bind_player(player_kart)
-	_hud.configure_minimap(_track, race_manager.racers)
-	if threat_indicators_enabled and _active_items != null:
-		_threat_indicators = ThreatIndicatorController.new()
-		_hud.add_child(_threat_indicators)
-		_threat_indicators.setup(player_kart, _active_items, _follow_camera.get_camera())
-	_hud.set_game_mode(game_mode)
-	_hud.update_race_info(1, race_manager.total_laps, race_manager.get_race_position(player_kart), kart_count, 0.0)
-	_hud.retry_requested.connect(_handle_retry_requested)
-	_hud.menu_requested.connect(_handle_menu_requested)
-	_hud.restart_requested.connect(_handle_retry_requested)
-	_hud.quit_requested.connect(_handle_menu_requested)
-	_hud.settings_requested.connect(func() -> void: settings_requested.emit())
-	_hud.controls_requested.connect(func() -> void: controls_requested.emit())
-	_hud.intro_skip_requested.connect(_handle_intro_skip_requested)
-	race_manager.countdown_changed.connect(_hud.show_countdown)
+	_build_local_huds(kart_count)
+	_hud = local_huds.front() if not local_huds.is_empty() else null
 	race_manager.countdown_changed.connect(_sound.play_countdown)
-	race_manager.race_info_changed.connect(_hud.update_race_info)
 	race_manager.lap_completed.connect(_handle_lap_completed)
 	race_manager.race_completed.connect(_handle_race_completed)
 	race_manager.player_finished.connect(_handle_player_finished)
+	race_manager.human_finished.connect(_handle_human_finished)
 	race_manager.racer_finished.connect(_handle_racer_finished)
-	race_manager.provisional_standings_changed.connect(_hud.update_provisional_standings)
-	race_manager.results_countdown_changed.connect(_hud.update_results_countdown)
 	race_manager.race_started.connect(_handle_race_started)
 	_start_pre_race.call_deferred()
 
@@ -303,16 +315,100 @@ func _get_track_theme() -> TrackTheme:
 	return null
 
 
-func _add_camera(kart: Kart) -> void:
-	_follow_camera = FollowCamera.new()
-	_follow_camera.name = "CameraRig"
-	add_child(_follow_camera)
-	_follow_camera.setup(kart)
-	_follow_camera.motion_mode = camera_motion
+func _prepare_split_screen(player_count: int) -> void:
+	_split_screen_layer = CanvasLayer.new()
+	_split_screen_layer.name = "SplitScreen"
+	_split_screen_layer.layer = 1
+	add_child(_split_screen_layer)
+	var rows := VBoxContainer.new()
+	rows.name = "Viewports"
+	rows.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rows.add_theme_constant_override("separation", 2)
+	_split_screen_layer.add_child(rows)
+	for index in player_count:
+		var container := SubViewportContainer.new()
+		container.name = "Player%dView" % (index + 1)
+		container.stretch = true
+		container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		rows.add_child(container)
+		var viewport := SubViewport.new()
+		viewport.name = "Viewport"
+		viewport.world_3d = get_viewport().world_3d
+		viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		viewport.handle_input_locally = false
+		viewport.msaa_3d = Viewport.MSAA_DISABLED
+		container.add_child(viewport)
+		_split_viewports.append(viewport)
+
+
+func _add_camera(kart: Kart, local_index: int = 0) -> FollowCamera:
+	var camera := FollowCamera.new()
+	camera.name = "CameraRigP%d" % (local_index + 1)
+	if local_index >= 0 and local_index < _split_viewports.size():
+		_split_viewports[local_index].add_child(camera)
+	else:
+		add_child(camera)
+	camera.setup(kart)
+	camera.motion_mode = camera_motion
+	local_cameras.append(camera)
+	_camera_by_kart[kart] = camera
+	if _follow_camera == null:
+		_follow_camera = camera
+	return camera
+
+
+func _build_local_huds(kart_count: int) -> void:
+	for local_index in local_player_karts.size():
+		var kart := local_player_karts[local_index]
+		var hud := RaceHud.new()
+		hud.name = "RaceHudP%d" % (local_index + 1)
+		hud.vibration_enabled = vibration_enabled
+		hud.vibration_intensity = vibration_intensity
+		hud.mobile_controls_enabled = local_player_karts.size() == 1 and (
+			OS.has_feature("android")
+			or OS.has_feature("ios")
+			or DisplayServer.is_touchscreen_available()
+			or "--mobile-controls" in OS.get_cmdline_user_args()
+		)
+		if local_index < _split_viewports.size():
+			_split_viewports[local_index].add_child(hud)
+		else:
+			add_child(hud)
+		hud.bind_player(kart)
+		hud.configure_minimap(_track, race_manager.racers)
+		hud.set_game_mode(game_mode)
+		hud.set_compact_mode(local_player_karts.size() > 1, local_index == 0)
+		hud.update_race_info(1, race_manager.total_laps, race_manager.get_race_position(kart), kart_count, 0.0)
+		_bind_hud_actions(hud)
+		local_huds.append(hud)
+		_hud_by_kart[kart] = hud
+		race_manager.countdown_changed.connect(hud.show_countdown)
+		race_manager.provisional_standings_changed.connect(hud.update_provisional_standings)
+		race_manager.results_countdown_changed.connect(hud.update_results_countdown)
+	if threat_indicators_enabled and _active_items != null and player_kart != null and not local_huds.is_empty():
+		_threat_indicators = ThreatIndicatorController.new()
+		local_huds[0].add_child(_threat_indicators)
+		_threat_indicators.setup(player_kart, _active_items, (_camera_by_kart[player_kart] as FollowCamera).get_camera())
+	for kart in local_player_karts:
+		race_manager.race_info_changed_for.connect(func(changed_kart: Node, lap: int, laps: int, position: int, racers: int, time: float) -> void:
+			if changed_kart == kart and _hud_by_kart.has(kart):
+				(_hud_by_kart[kart] as RaceHud).update_race_info(lap, laps, position, racers, time)
+		)
+
+
+func _bind_hud_actions(hud: RaceHud) -> void:
+	hud.retry_requested.connect(_handle_retry_requested)
+	hud.menu_requested.connect(_handle_menu_requested)
+	hud.restart_requested.connect(_handle_retry_requested)
+	hud.quit_requested.connect(_handle_menu_requested)
+	hud.settings_requested.connect(func() -> void: settings_requested.emit())
+	hud.controls_requested.connect(func() -> void: controls_requested.emit())
+	hud.intro_skip_requested.connect(_handle_intro_skip_requested)
 
 
 func _start_pre_race() -> void:
-	if not play_intro:
+	if not play_intro or local_player_karts.size() > 1:
 		_begin_race()
 		return
 
@@ -346,7 +442,8 @@ func _begin_race() -> void:
 	_has_begun_race = true
 	if _follow_camera != null:
 		_follow_camera.activate()
-	_hud.hide_intro()
+	for hud in local_huds:
+		hud.hide_intro()
 	race_manager.begin()
 
 
@@ -386,15 +483,20 @@ func _handle_race_started() -> void:
 func _handle_item_collected(kart: Node) -> void:
 	race_manager.record_item_collected(kart)
 	_sound.play_pickup()
-	if kart == player_kart and vibration_enabled:
-		Input.vibrate_handheld(35, 0.35)
+	if kart in local_player_karts and vibration_enabled:
+		_vibrate_local_kart(kart as Kart, 35, 0.35)
 
 
 func _handle_player_hit() -> void:
+	_handle_local_player_hit(player_kart)
+
+
+func _handle_local_player_hit(kart: Kart) -> void:
 	if vibration_enabled and vibration_intensity > 0.0:
-		Input.vibrate_handheld(roundi(120.0 * vibration_intensity), 0.55 * vibration_intensity)
-	if _follow_camera != null:
-		_follow_camera.add_impact(1.0)
+		_vibrate_local_kart(kart, roundi(120.0 * vibration_intensity), 0.55 * vibration_intensity)
+	var camera := _camera_by_kart.get(kart) as FollowCamera
+	if camera != null:
+		camera.add_impact(1.0)
 
 
 func _handle_item_use_requested(
@@ -427,7 +529,7 @@ func _handle_item_activated(
 
 
 func _handle_item_hit(
-	_item: ItemDefinition,
+	item: ItemDefinition,
 	source_kart: Kart,
 	kart: Node3D,
 	result: int
@@ -437,14 +539,29 @@ func _handle_item_hit(
 		_sound.play_item_impact()
 
 
+func _items_enabled() -> bool:
+	return (
+		GameModeDefinition.has_items(game_mode)
+		and (session == null or session.items_enabled)
+	)
+
+
 func _handle_shield_blocked(threat: Node, source_kart: Kart) -> void:
 	_sound.play_shield_block()
-	if source_kart == player_kart and vibration_enabled:
-		Input.vibrate_handheld(roundi(85.0 * vibration_intensity), 0.46 * vibration_intensity)
-		if _follow_camera != null:
-			_follow_camera.add_impact(0.3)
-		if _threat_indicators != null:
+	if source_kart in local_player_karts and vibration_enabled:
+		_vibrate_local_kart(source_kart, roundi(85.0 * vibration_intensity), 0.46 * vibration_intensity)
+		var camera := _camera_by_kart.get(source_kart) as FollowCamera
+		if camera != null:
+			camera.add_impact(0.3)
+		if source_kart == player_kart and _threat_indicators != null:
 			_threat_indicators.remove_threat(threat)
+
+
+func _vibrate_local_kart(kart: Kart, duration_ms: int, strength: float) -> void:
+	if kart != null and kart.input_source != null and kart.input_source.device_type == RaceParticipantConfig.DEVICE_GAMEPAD:
+		Input.start_joy_vibration(kart.input_source.device_id, strength, strength, float(duration_ms) / 1000.0)
+	elif kart == player_kart:
+		Input.vibrate_handheld(duration_ms, strength)
 
 
 func _handle_retry_requested() -> void:
@@ -480,25 +597,35 @@ func _clear_container(container: Node3D) -> void:
 
 
 func _handle_shortcut_accepted(kart: Node) -> void:
-	if kart != player_kart:
+	if kart not in local_player_karts:
 		return
 	_sound.play_pickup()
 	if vibration_enabled:
-		Input.vibrate_handheld(70, 0.42)
+		_vibrate_local_kart(kart as Kart, 70, 0.42)
 
 
 func _handle_lap_completed(racer: Node, lap_number: int, lap_time: float) -> void:
-	if racer == player_kart:
-		_hud.show_lap_split(lap_number, lap_time, previous_best_lap_time)
+	var hud := _hud_by_kart.get(racer) as RaceHud
+	if hud != null:
+		hud.show_lap_split(lap_number, lap_time, previous_best_lap_time)
 
 
 func _handle_player_finished(_position: int, _time: float) -> void:
-	if race_manager.state == RaceManager.RaceState.WAITING_FOR_RIVALS:
-		_hud.show_provisional(
+	pass # Compatibility signal; per-human handling lives in _handle_human_finished.
+
+
+func _handle_human_finished(racer: Node, _position: int, _time: float) -> void:
+	if race_manager.state != RaceManager.RaceState.WAITING_FOR_RIVALS:
+		return
+	for hud in local_huds:
+		hud.show_provisional(
 			race_manager.get_provisional_standings(),
 			race_manager.get_results_wait_remaining()
 		)
-		_follow_best_active_racer()
+	var camera := _camera_by_kart.get(racer) as FollowCamera
+	var active_racer := race_manager.get_best_active_racer() as Kart
+	if camera != null and active_racer != null:
+		camera.set_target(active_racer)
 
 
 func _handle_racer_finished(_racer: Node, _position: int, _time: float) -> void:
@@ -521,12 +648,14 @@ func _handle_race_completed(result: RaceResult) -> void:
 		result.set_meta("ghost_recording", _ghost_recorder.finish(result))
 	_clear_active_items()
 	_sound.play_finish()
-	if vibration_enabled:
-		Input.vibrate_handheld(220, 0.6)
+	if vibration_enabled and player_kart != null:
+		_vibrate_local_kart(player_kart, 220, 0.6)
 	race_completed.emit(result)
 	if result.cup_summary != null and result.cup_summary.completed:
 		_sound.play_cup_victory()
-	_hud.show_results(result)
+	for index in local_huds.size():
+		local_huds[index].show_results(result.for_local_player(index))
+
 
 
 func shutdown() -> void:
