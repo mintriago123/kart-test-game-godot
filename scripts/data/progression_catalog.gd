@@ -1,3 +1,4 @@
+@tool
 class_name ProgressionCatalog
 extends Resource
 @export var cups: CupCatalog

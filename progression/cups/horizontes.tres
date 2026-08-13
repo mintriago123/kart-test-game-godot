@@ -1,0 +1,119 @@
+[gd_resource type="Resource" script_class="CupDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/difficulty_definition.gd" id="1_tn5r3"]
+[ext_resource type="Resource" path="res://progression/difficulties/relaxed.tres" id="2_mspcf"]
+[ext_resource type="Resource" path="res://progression/difficulties/competitive.tres" id="3_7l4xb"]
+[ext_resource type="Resource" path="res://progression/difficulties/expert.tres" id="4_u2cxf"]
+[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="5_r44b6"]
+[ext_resource type="Resource" path="res://progression/racers/lima.tres" id="6_0vndo"]
+[ext_resource type="Resource" path="res://progression/racers/coral.tres" id="7_rixtc"]
+[ext_resource type="Resource" path="res://progression/racers/brisa.tres" id="8_x8cge"]
+[ext_resource type="Resource" path="res://progression/racers/marea.tres" id="9_50jrb"]
+[ext_resource type="Script" path="res://scripts/data/cup_definition.gd" id="10_2s1r1"]
+[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="11_aqtyj"]
+[ext_resource type="AudioStream" path="res://assets/music/bahia_turbo.ogg" id="12_nrdbs"]
+[ext_resource type="Script" path="res://scripts/data/track_minimap_data.gd" id="13_bx64a"]
+[ext_resource type="PackedScene" path="res://levels/tracks/dunas_doradas.tscn" id="14_82yle"]
+[ext_resource type="PackedScene" path="res://levels/tracks/valle_de_otoo.tscn" id="15_0rlqd"]
+[ext_resource type="AudioStream" path="res://assets/music/garden.ogg" id="16_pq7c0"]
+[ext_resource type="PackedScene" path="res://levels/tracks/baha_pirata.tscn" id="17_m7xyc"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="18_jyfxv"]
+[ext_resource type="Resource" path="res://progression/variants/kart_oodi.tres" id="19_lti1k"]
+[ext_resource type="Resource" path="res://progression/variants/van.tres" id="20_1487b"]
+
+[sub_resource type="Resource" id="Resource_q5pq8"]
+script = ExtResource("13_bx64a")
+route_points = PackedVector2Array(-13.286804, 104.63359, 14.970843, 120.39863, 26.658955, 124.68022, 38.87972, 126.984856, 48.819443, 126.66204, 58.340664, 123.816284, 66.87312, 118.69918, 74.31729, 112.08255, 92.22711, 88.19695, 119.994354, 43.846443, 126.18743, 30.27454, 129.08911, 15.6424675, 129.61096, -1.7844634, 128.66338, -19.198786, 125.7556, -36.388092, 118.03933, -57.392693, 106.68904, -73.71405, 91.333374, -86.34552, 69.03826, -97.40277, 24.29662, -112.882484, 4.8283277, -117.02371, -39.962177, -115.90908, -64.67326, -112.9143, -78.82158, -108.16265, -89.437935, -101.685074, -100.142715, -91.28205, -109.86375, -76.83393, -117.54109, -58.468834, -122.07209, -39.07669, -123.42338, -21.714647, -121.45415, -6.9161563, -95.25416, 65.71995, -90.04882, 77.03411, -84.42827, 85.24245, -76.46384, 91.073204, -69.12055, 90.91179, -60.41608, 86.13341, -42.72161, 72.378876, -33.3574, 69.6658, -27.610727, 74.00969, -21.550179, 95.51992)
+shortcut_points = PackedVector2Array(-13.286759, 104.63324, -6.1383686, 104.72343, 3.6637359, 97.17021, 38.47058, 51.771084, 48.93791, 41.2166, 60.462055, 36.59112, 115.47065, 20.895124, 126.1418, 14.607283, 129.5259, 8.177416)
+shortcut_ranges = PackedInt32Array(0, 9)
+start_position = Vector2(-13.286804, 104.63359)
+start_direction = Vector2(0.8732854, 0.4872089)
+length_meters = 819.887421131134
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_cqx33"]
+script = ExtResource("11_aqtyj")
+id = &"dunas_doradas"
+display_name = "Dunas Doradas"
+description = "Desierto abierto entre oasis y ruinas, con amplias curvas sobre arena."
+preview_color = Color(0.88, 0.58, 0.22, 1)
+preview_map = SubResource("Resource_q5pq8")
+scene = ExtResource("14_82yle")
+music = ExtResource("12_nrdbs")
+length_km = 0.8
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_p1dd2"]
+script = ExtResource("13_bx64a")
+route_points = PackedVector2Array(-15.089008, 98.5164, 1.687576, 103.144554, 24.087784, 104.01349, 46.32062, 101.0519, 67.83437, 94.70894, 90.56349, 84.46745, 111.81675, 71.435875, 136.75528, 50.74208, 150.15848, 35.996117, 156.31186, 25.177315, 159.4429, 13.150512, 158.90985, -1.7500015, 155.25475, -16.233757, 148.38214, -32.25837, 137.92271, -49.225964, 125.0457, -64.44454, 111.77831, -75.77073, 83.73098, -91.95014, 51.062817, -104.20514, 24.282513, -109.90917, -0.5926572, -109.26756, -47.18568, -100.75885, -77.81385, -90.2444, -123.45402, -64.593094, -137.3686, -54.06253, -147.56873, -43.14657, -152.5798, -34.545963, -155.46434, -25.022072, -156.43636, -15.110676, -155.47844, -2.6968136, -152.63057, 9.430816, -147.22794, 23.369175, -139.93407, 36.41814, -132.17448, 46.157837, -121.08928, 56.1909, -106.59961, 65.90977, -93.189026, 72.53773, -78.94909, 77.07494, -66.7247, 75.70429, -43.489006, 61.32861, -38.8499, 59.567913, -33.94932, 59.906, -29.063562, 65.29445, -22.173403, 91.74079)
+shortcut_points = PackedVector2Array(-15.09251, 98.53927, -10.251193, 99.31145, -5.4475455, 98.139915, 7.2648287, 90.49938, 63.395493, 38.10905, 75.164, 34.356308, 121.663124, 26.740742, 140.9852, 22.274887, 154.5683, 16.338509, 158.16417, 12.954954, 159.75815, 8.344508)
+shortcut_ranges = PackedInt32Array(0, 11)
+start_position = Vector2(-15.089008, 98.5164)
+start_direction = Vector2(0.96399075, 0.2659358)
+length_meters = 855.6063737869263
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_g0avn"]
+script = ExtResource("11_aqtyj")
+id = &"valle_de_otoo"
+display_name = "Valle de Otoño"
+description = "Un trazado fluido entre campos dorados, robles y flores."
+preview_color = Color(0.62, 0.48, 0.16, 1)
+preview_map = SubResource("Resource_p1dd2")
+scene = ExtResource("15_0rlqd")
+music = ExtResource("12_nrdbs")
+length_km = 0.9
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_knu8l"]
+script = ExtResource("13_bx64a")
+route_points = PackedVector2Array(-17.144295, 105.30441, 9.122825, 113.055626, 36.32889, 116.22972, 58.671764, 114.63646, 82.39081, 107.12993, 112.82416, 90.145805, 137.76135, 69.52564, 152.85078, 49.809704, 157.88686, 38.45335, 160.18958, 28.779312, 160.85117, 18.85014, 159.61217, 6.465902, 152.44356, -14.730693, 138.18474, -38.106743, 118.43789, -60.528465, 95.18722, -79.28276, 69.44825, -94.459465, 41.925114, -106.07409, 15.344416, -112.665985, -9.508786, -114.13066, -34.28544, -111.55068, -58.38246, -105.256226, -83.48868, -94.28843, -112.85962, -75.511246, -135.51663, -56.049152, -148.75513, -38.038734, -153.89398, -21.468987, -154.3317, -11.523361, -152.84126, 0.8347283, -145.07846, 24.471434, -132.73253, 46.07257, -116.14374, 64.61332, -98.261604, 78.04498, -84.33978, 83.02856, -74.584145, 81.2897, -52.068253, 70.64208, -42.30963, 70.18966, -36.71066, 74.93118, -26.825897, 97.71902)
+shortcut_points = PackedVector2Array(-17.147314, 105.32295, -4.9018683, 105.11966, 16.54413, 99.110016, 48.873474, 86.61216, 80.27435, 71.94783, 111.82367, 52.356426, 139.89758, 32.033035, 156.03847, 16.721567, 159.88347, 7.856342)
+shortcut_ranges = PackedInt32Array(0, 9)
+start_position = Vector2(-17.144295, 105.30441)
+start_direction = Vector2(0.95911217, 0.2830262)
+length_meters = 867.5608947277069
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_x1k1c"]
+script = ExtResource("11_aqtyj")
+id = &"baha_pirata"
+display_name = "Bahía Pirata"
+description = "Costa de palmeras, muelles y tesoros, con una escapada por la playa."
+preview_color = Color(0.79, 0.66, 0.38, 1)
+preview_map = SubResource("Resource_knu8l")
+scene = ExtResource("17_m7xyc")
+music = ExtResource("16_pq7c0")
+length_km = 0.9
+shortcut_count = 1
+
+[sub_resource type="Resource" id="Resource_awpue"]
+script = ExtResource("18_jyfxv")
+id = &"horizontes_bronze"
+display_name = "Kart Oodi"
+cup_id = &"horizontes"
+kart_variant = ExtResource("19_lti1k")
+
+[sub_resource type="Resource" id="Resource_7e0st"]
+script = ExtResource("18_jyfxv")
+id = &"horizontes_silver"
+display_name = "Van"
+cup_id = &"horizontes"
+required_medal = 2
+kart_variant = ExtResource("20_1487b")
+
+[resource]
+script = ExtResource("10_2s1r1")
+id = &"horizontes"
+display_name = "Copa Horizontes"
+description = "Desiertos, valles dorados y una bahía pirata."
+tracks = Array[ExtResource("11_aqtyj")]([SubResource("Resource_cqx33"), SubResource("Resource_g0avn"), SubResource("Resource_x1k1c")])
+player_racer = ExtResource("9_50jrb")
+opponents = Array[ExtResource("5_r44b6")]([ExtResource("6_0vndo"), ExtResource("7_rixtc"), ExtResource("8_x8cge")])
+scoring_table = PackedInt32Array(9, 6, 3, 1)
+medal_thresholds = PackedInt32Array(9, 17, 24)
+difficulties = Array[ExtResource("1_tn5r3")]([ExtResource("2_mspcf"), ExtResource("3_7l4xb"), ExtResource("4_u2cxf")])
+unlocks = Array[ExtResource("18_jyfxv")]([SubResource("Resource_awpue"), SubResource("Resource_7e0st")])
+prerequisite_cup_id = &"tropical"
+prerequisite_difficulty_id = &"relaxed"
+sort_order = 1

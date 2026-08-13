@@ -1,3 +1,4 @@
+@tool
 class_name DifficultyCatalog
 extends Resource
 @export var difficulties: Array[DifficultyDefinition] = []

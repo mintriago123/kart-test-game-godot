@@ -18,6 +18,8 @@ func _ready() -> void:
 	settings.load_from_disk()
 	_ensure_audio_buses()
 	player_progress.load_from_disk()
+	var migrated_rewards := player_progress.evaluate_rewards(PROGRESSION_CATALOG)
+	if player_progress.loaded_schema_version < PlayerProgress.SCHEMA_VERSION or not migrated_rewards.is_empty(): player_progress.save_to_disk()
 	cup_manager = CupManager.new(PROGRESSION_CATALOG, player_progress)
 	for diagnostic in PROGRESSION_CATALOG.validate():
 		push_warning("Progression catalog: %s" % diagnostic)

@@ -1,33 +1,47 @@
-[gd_resource type="Resource" script_class="CupDefinition" load_steps=20 format=3]
+[gd_resource type="Resource" script_class="CupDefinition" format=3]
+
 [ext_resource type="Script" path="res://scripts/data/cup_definition.gd" id="1"]
-[ext_resource type="Resource" path="res://levels/definitions/coastal.tres" id="t1"]
-[ext_resource type="Resource" path="res://levels/definitions/garden.tres" id="t2"]
-[ext_resource type="Resource" path="res://levels/definitions/bahia_turbo.tres" id="t3"]
+[ext_resource type="Script" path="res://scripts/data/difficulty_definition.gd" id="1_s4dqg"]
+[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="5_pp4yt"]
+[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="11_bylw2"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="15_k5a3v"]
+[ext_resource type="Resource" path="res://progression/variants/kart_oobi.tres" id="16_0puct"]
+[ext_resource type="Resource" path="res://progression/variants/taxi.tres" id="17_s0eia"]
+[ext_resource type="Resource" path="res://progression/difficulties/relaxed.tres" id="d1"]
+[ext_resource type="Resource" path="res://progression/difficulties/competitive.tres" id="d2"]
+[ext_resource type="Resource" path="res://progression/difficulties/expert.tres" id="d3"]
 [ext_resource type="Resource" path="res://progression/racers/marea.tres" id="r1"]
 [ext_resource type="Resource" path="res://progression/racers/lima.tres" id="r2"]
 [ext_resource type="Resource" path="res://progression/racers/coral.tres" id="r3"]
 [ext_resource type="Resource" path="res://progression/racers/brisa.tres" id="r4"]
-[ext_resource type="Resource" path="res://progression/difficulties/relaxed.tres" id="d1"]
-[ext_resource type="Resource" path="res://progression/difficulties/competitive.tres" id="d2"]
-[ext_resource type="Resource" path="res://progression/difficulties/expert.tres" id="d3"]
-[ext_resource type="Resource" path="res://progression/unlocks/relaxed_bronze.tres" id="u1"]
-[ext_resource type="Resource" path="res://progression/unlocks/relaxed_silver.tres" id="u2"]
-[ext_resource type="Resource" path="res://progression/unlocks/relaxed_gold.tres" id="u3"]
-[ext_resource type="Resource" path="res://progression/unlocks/competitive_bronze.tres" id="u4"]
-[ext_resource type="Resource" path="res://progression/unlocks/competitive_silver.tres" id="u5"]
-[ext_resource type="Resource" path="res://progression/unlocks/competitive_gold.tres" id="u6"]
-[ext_resource type="Resource" path="res://progression/unlocks/expert_bronze.tres" id="u7"]
-[ext_resource type="Resource" path="res://progression/unlocks/expert_silver.tres" id="u8"]
-[ext_resource type="Resource" path="res://progression/unlocks/expert_gold.tres" id="u9"]
+[ext_resource type="Resource" path="res://levels/definitions/coastal.tres" id="t1"]
+[ext_resource type="Resource" path="res://levels/definitions/garden.tres" id="t2"]
+[ext_resource type="Resource" path="res://levels/definitions/bahia_turbo.tres" id="t3"]
+
+[sub_resource type="Resource" id="Resource_harkj"]
+script = ExtResource("15_k5a3v")
+id = &"tropical_bronze"
+display_name = "Kart Oobi"
+cup_id = &"tropical"
+kart_variant = ExtResource("16_0puct")
+
+[sub_resource type="Resource" id="Resource_wi277"]
+script = ExtResource("15_k5a3v")
+id = &"tropical_silver"
+display_name = "Taxi"
+cup_id = &"tropical"
+required_medal = 2
+kart_variant = ExtResource("17_s0eia")
+
 [resource]
 script = ExtResource("1")
 id = &"tropical"
 display_name = "Copa Tropical"
-description = "Tres circuitos entre costa, jardín y bahía."
-tracks = [ExtResource("t1"), ExtResource("t2"), ExtResource("t3")]
+description = "Costa, jardines y velocidad frente al mar."
+tracks = Array[ExtResource("11_bylw2")]([ExtResource("t1"), ExtResource("t2"), ExtResource("t3")])
 player_racer = ExtResource("r1")
-opponents = [ExtResource("r2"), ExtResource("r3"), ExtResource("r4")]
+opponents = Array[ExtResource("5_pp4yt")]([ExtResource("r2"), ExtResource("r3"), ExtResource("r4")])
 scoring_table = PackedInt32Array(9, 6, 3, 1)
 medal_thresholds = PackedInt32Array(9, 17, 24)
-difficulties = [ExtResource("d1"), ExtResource("d2"), ExtResource("d3")]
-unlocks = [ExtResource("u1"), ExtResource("u2"), ExtResource("u3"), ExtResource("u4"), ExtResource("u5"), ExtResource("u6"), ExtResource("u7"), ExtResource("u8"), ExtResource("u9")]
+difficulties = Array[ExtResource("1_s4dqg")]([ExtResource("d1"), ExtResource("d2"), ExtResource("d3")])
+unlocks = Array[ExtResource("15_k5a3v")]([SubResource("Resource_harkj"), SubResource("Resource_wi277")])

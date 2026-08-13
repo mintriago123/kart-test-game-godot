@@ -1,5 +1,7 @@
-[gd_resource type="Resource" script_class="DifficultyDefinition" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="DifficultyDefinition" format=3]
+
 [ext_resource type="Script" path="res://scripts/data/difficulty_definition.gd" id="1"]
+
 [resource]
 script = ExtResource("1")
 id = &"relaxed"
@@ -9,4 +11,3 @@ precision_multiplier = 0.82
 reaction_time_multiplier = 1.3
 risk_multiplier = 0.85
 item_efficiency_multiplier = 0.8
-sort_order = 0

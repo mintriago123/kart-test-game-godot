@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" format=3]
+
+[ext_resource type="Resource" path="res://progression/variants/hatchback_sports.tres" id="1_a26ly"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="2_vjxle"]
+
+[resource]
+script = ExtResource("2_vjxle")
+id = &"career_30"
+display_name = "Hatchback Sports"
+requirement_type = 1
+required_points = 30
+kart_variant = ExtResource("1_a26ly")

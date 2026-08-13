@@ -1,3 +1,4 @@
+@tool
 class_name RacerCatalog
 extends Resource
 @export var racers: Array[RacerDefinition] = []

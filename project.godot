@@ -30,7 +30,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/track_editor/plugin.cfg", "res://addons/input_prompts/plugin.cfg")
+enabled=PackedStringArray("res://addons/track_editor/plugin.cfg", "res://addons/cup_editor/plugin.cfg", "res://addons/input_prompts/plugin.cfg")
 
 [layer_names]
 

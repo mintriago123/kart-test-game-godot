@@ -1,3 +1,4 @@
+@tool
 class_name CupDefinition
 extends Resource
 
@@ -12,6 +13,9 @@ extends Resource
 @export var medal_thresholds := PackedInt32Array([9, 17, 24])
 @export var difficulties: Array[DifficultyDefinition] = []
 @export var unlocks: Array[UnlockDefinition] = []
+@export var prerequisite_cup_id: StringName
+@export var prerequisite_difficulty_id: StringName
+@export_enum("Bronce:1", "Plata:2", "Oro:3") var prerequisite_medal: int = UnlockDefinition.BRONZE
 @export var sort_order := 0
 
 func validate() -> PackedStringArray:
@@ -39,6 +43,11 @@ func validate() -> PackedStringArray:
 	if medal_thresholds.size() != 3 or not (medal_thresholds[0] < medal_thresholds[1] and medal_thresholds[1] < medal_thresholds[2] and medal_thresholds[2] <= scoring_table[0] * 3):
 		errors.append("Cup %s medal thresholds must be bronze < silver < gold <= maximum points." % id)
 	if difficulties.is_empty(): errors.append("Cup %s has no difficulties." % id)
+	if not prerequisite_cup_id.is_empty():
+		if prerequisite_cup_id == id: errors.append("Cup %s cannot require itself." % id)
+		if prerequisite_medal not in [UnlockDefinition.BRONZE, UnlockDefinition.SILVER, UnlockDefinition.GOLD]:
+			errors.append("Cup %s has an invalid prerequisite medal." % id)
+	elif not prerequisite_difficulty_id.is_empty(): errors.append("Cup %s defines a prerequisite difficulty without a prerequisite cup." % id)
 	return errors
 
 func medal_for_points(points: int) -> int:

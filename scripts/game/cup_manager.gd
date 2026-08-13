@@ -9,9 +9,10 @@ func _init(value_catalog: ProgressionCatalog = null, value_progress: PlayerProgr
 	catalog = value_catalog
 	progress = value_progress
 func start(cup_id: StringName, difficulty_id: StringName, cc_id: StringName, seed: int = 0) -> bool:
+	if catalog == null or progress == null or catalog.cups == null or catalog.difficulties == null: return false
 	var cup := catalog.cups.get_cup(cup_id)
 	var difficulty := catalog.difficulties.get_difficulty(difficulty_id)
-	if cup == null or difficulty == null or not difficulty in cup.difficulties: return false
+	if cup == null or difficulty == null or not difficulty in cup.difficulties or not progress.is_cup_unlocked(cup, catalog): return false
 	active_run = CupRunState.new()
 	active_run.run_id = StringName("%s-%s" % [Time.get_unix_time_from_system(), randi()])
 	active_run.cup_id = cup_id
@@ -86,10 +87,15 @@ func commit_race_result(result: RaceResult) -> bool:
 			summary.player_points = int(row.get("points", 0))
 			break
 	if active_run.is_completed:
-		var player_points := int(active_run.standings[cup.player_racer.id].points)
-		last_medal = cup.medal_for_points(player_points)
+		var evaluation := CupEvaluator.evaluate_standings(
+			cup,
+			catalog.difficulties.get_difficulty(active_run.difficulty_id),
+			active_run.standings
+		)
+		var player_points := evaluation.player_points
+		last_medal = evaluation.medal
 		summary.previous_best_medal = progress.get_medal(cup.id, active_run.difficulty_id)
-		last_granted_rewards = progress.record_medal(cup, catalog.difficulties.get_difficulty(active_run.difficulty_id), last_medal)
+		last_granted_rewards = progress.record_medal(cup, catalog.difficulties.get_difficulty(active_run.difficulty_id), last_medal, catalog)
 		summary.medal = last_medal
 		summary.new_reward_ids = last_granted_rewards
 		progress.active_cup = {}

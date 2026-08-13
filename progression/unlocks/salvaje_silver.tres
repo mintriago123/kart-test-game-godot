@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="UnlockDefinition" format=3]
+
+[ext_resource type="Resource" path="res://progression/variants/suv_luxury.tres" id="1_a2thy"]
+[ext_resource type="Script" path="res://scripts/data/unlock_definition.gd" id="2_vv1jj"]
+
+[resource]
+script = ExtResource("2_vv1jj")
+id = &"salvaje_silver"
+display_name = "SUV Luxury"
+cup_id = &"salvaje"
+required_medal = 2
+kart_variant = ExtResource("1_a2thy")
