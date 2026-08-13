@@ -35,6 +35,8 @@ Modo → Pista o Copa → Vehículo → Preparación → Carrera
 - **Pantalla dividida** enfrenta a J1 y J2 con seis rivales IA. J1 puede usar
   teclado o mando; J2 requiere un mando libre. Ambos eligen piloto único y un
   vehículo de la colección desbloqueada por J1.
+- **Red local** conecta hasta cuatro PCs Windows/Linux y completa la parrilla
+  de ocho con IA del anfitrión. Admite descubrimiento o IP/puerto manual.
 
 Cada combinación de Copa y dificultad conserva sólo su mejor medalla. Bronce,
 Plata y Oro aportan 1, 2 y 3 puntos de carrera, multiplicados ×1 en Relajada,
@@ -147,7 +149,12 @@ GODOT_BIN=/home/mintriago/Godot_v4.7.1-stable_linux.x86_64
 
 El runner asigna un directorio `user://` aislado y escribible a cada prueba.
 Esto evita que la persistencia o la rotación de logs de una suite contaminen a
-la siguiente.
+la siguiente. `quick` también abre sockets UDP locales para su host + tres
+clientes LAN. Para ejecutar únicamente esa integración:
+
+```sh
+tools/run_lan_loopback.sh
+```
 
 Para usar otro binario:
 

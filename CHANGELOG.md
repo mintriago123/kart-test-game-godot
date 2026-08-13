@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.0-beta.1 - 2026-08-13
+
+### Red local
+
+- Sala ENet autoritativa para hasta cuatro PCs, con IA hasta completar ocho.
+- Descubrimiento UDP, conexión por IP, validación de protocolo/fingerprint y mensajes de incompatibilidad.
+- Inputs a 30 Hz, snapshots a 20 Hz, interpolación, predicción local y reconciliación.
+- Slots reservados con IA temporal y reconexión por token; caída del host finaliza la partida.
+
+### Compatibilidad
+
+- Guardado schema 5 con telemetría separada para pantalla dividida y LAN.
+- Los modos multijugador no conceden medallas, desbloqueos ni récords de pista.
+
 ## 1.2.0 - 2026-08-13
 
 ### Multijugador local
@@ -9,11 +23,6 @@
 - Sala local de dos jugadores, input por dispositivo y selección de piloto único/vehículo independiente.
 - Pantalla dividida horizontal con cámara, minimapa y HUD por jugador, resultados múltiples y DNF a 30 segundos.
 - Perfil gráfico temporal para sostener dos vistas sin modificar los ajustes guardados.
-
-### Compatibilidad
-
-- Guardado schema 5 con telemetría multijugador separada y migración de schemas 1–4.
-- El multijugador local no concede medallas, desbloqueos ni récords de pista.
 
 ## 1.1.0-beta.1 - 2026-08-13
 
