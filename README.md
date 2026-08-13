@@ -1,9 +1,8 @@
 # MichiKart xd
 
 Juego de carreras arcade para Android, Linux y Windows creado con Godot 4.7.1.
-Incluye tres pistas seleccionables, cuatro atajos físicos declarados, barreras
-continuas, assets low-poly CC0, tres rivales, derrape con miniturbo y seis
-objetos tropicales.
+Incluye doce pistas seleccionables, barreras continuas, atajos físicos, assets
+low-poly CC0, tres rivales, derrape con miniturbo y seis objetos tropicales.
 Las carreras ofrecen 50, 100, 150 y 200 CC con física, cámara, IA y récords
 independientes; 150 CC es la selección inicial.
 
@@ -29,24 +28,33 @@ Modo → Pista o Copa → Vehículo → Preparación → Carrera
 - **Contrarreloj** inicia una sesión individual sin IA ni objetos. Conserva
   récords por pista y CC, graba un fantasma personal y muestra en el minimapa
   únicamente al jugador y la línea de meta.
-- **Copa** usa el catálogo de progresión. La Copa Tropical contiene Costa
-  Turbo, Circuito Jardín y Bahía Turbo, con tres dificultades, puntuación,
-  medallas y vehículos desbloqueables.
+- **Copa** usa una campaña de siete eventos de tres circuitos. Tropical,
+  Horizontes, Salvaje y Extrema forman la escalera principal; Contrastes,
+  Expedición y Festival se abren juntas al conseguir cualquier medalla en
+  Extrema.
+
+Cada combinación de Copa y dificultad conserva sólo su mejor medalla. Bronce,
+Plata y Oro aportan 1, 2 y 3 puntos de carrera, multiplicados ×1 en Relajada,
+×2 en Competitiva y ×3 en Experta. Repetir un resultado inferior no aumenta el
+progreso; el máximo de la campaña es 126 puntos.
 
 Sólo puede existir una Copa activa. Su vehículo, CC y dificultad quedan fijados
 hasta completarla o abandonarla. El menú permite continuar desde la siguiente
 carrera y solicita confirmación antes de reemplazarla por otra Copa.
 
 Al terminar la tercera carrera, la celebración avanza por clasificación final,
-medalla y recompensas. Los vehículos obtenidos conservan la marca **Nuevo**
-hasta inspeccionarlos en la galería. Las partidas schema 2 migran a schema 3
-sin perder medallas, telemetría, vehículo equipado ni una Copa activa.
+medalla y recompensas. Una misma finalización puede entregar el premio de Copa
+y uno o más hitos globales. Los vehículos obtenidos conservan la marca **Nuevo**
+hasta inspeccionarlos en la galería. Las partidas de los esquemas 1–3 migran al
+esquema 4 sin perder medallas, telemetría, vehículo equipado, premios vistos ni
+una Copa activa.
 
 ## Perfil y preparación
 
 **Perfil** resume carreras, victorias, podios, récords y colección. También
-muestra la mejor medalla por dificultad de cada Copa y abre el Garaje; el
-equipamiento sigue realizándose exclusivamente desde la galería.
+muestra los puntos de carrera, el siguiente hito y la mejor medalla por
+dificultad de cada Copa, y abre el Garaje; el equipamiento sigue realizándose
+exclusivamente desde la galería.
 
 **Preparación** adapta su distribución al ancho disponible. En escritorio
 separa evento, showroom y opciones; en pantallas compactas apila el contenido
@@ -59,11 +67,12 @@ El selector previo a una carrera y el **Garaje** del menú comparten la misma
 galería y el mismo showroom 3D. La galería admite teclado, mando, toque,
 deslizamiento y flechas laterales.
 
-Los vehículos pueden aparecer como **Equipado**, **Disponible**, **Bloqueado**
-o **Nuevo**. Un vehículo bloqueado se puede inspeccionar, pero no equipar. El
-panel compara velocidad, aceleración, manejo, peso y miniturbo con el vehículo
-equipado. Equipar una variante se guarda inmediatamente y afecta al menú, la
-pantalla de Preparación y la física de la próxima carrera.
+El Sedán está disponible explícitamente desde el inicio. Otros ocho vehículos
+se obtienen con medallas de las cuatro Copas principales y cuatro más en los
+hitos de 12, 30, 56 y 90 puntos. Pueden aparecer como **Equipado**,
+**Disponible**, **Bloqueado** o **Nuevo**. Un vehículo bloqueado se puede
+inspeccionar, pero no equipar. El panel compara velocidad, aceleración, manejo,
+peso y miniturbo con el vehículo equipado.
 
 ## Editor de pistas
 
@@ -91,9 +100,9 @@ publicadas desde el editor aparecen automáticamente en **Mis pistas**, separada
 de las pistas oficiales. Una portada opcional puede sustituir el plano sin
 cargar la pista 3D en el menú.
 
-Copa abre un selector independiente alimentado por `CupCatalog`. Las Copas se
-ordenan por `sort_order`; por ello, añadir una definición válida al catálogo no
-requiere modificar la interfaz.
+Copa abre un selector independiente alimentado por el catálogo de progresión.
+Las Copas se ordenan por `sort_order`; las bloqueadas muestran su requisito y
+el panel resume puntos actuales y próximo hito.
 
 La guía completa para crear una pista, configurar atajos y registrar assets está
 en [docs/track-editor.md](docs/track-editor.md).

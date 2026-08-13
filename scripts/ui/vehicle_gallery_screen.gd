@@ -17,6 +17,9 @@ var status_label: Label
 var requirement_label: Label
 var stats: VBoxContainer
 var primary: ActionButton
+var details_panel: VBoxContainer
+var left_button: Button
+var right_button: Button
 var _variants: Array[KartVariantDefinition] = []
 var _swipe_start := Vector2.ZERO
 var _pending_configuration: Array = []
@@ -26,9 +29,10 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var bg := ColorRect.new(); bg.color = UiTokens.INK; bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); add_child(bg)
 	showroom = VehicleViewport.new(); showroom.set_anchors_preset(Control.PRESET_LEFT_WIDE); showroom.anchor_right = 0.7; showroom.offset_left = 20; showroom.offset_top = 20; showroom.offset_bottom = -150; showroom.set_framing(VehicleViewport.Framing.GARAGE); add_child(showroom)
-	var left := Button.new(); left.text = "‹"; left.custom_minimum_size = Vector2(52, 64); left.set_anchors_preset(Control.PRESET_CENTER_LEFT); left.position.x = 22; left.pressed.connect(_move.bind(-1)); add_child(left)
-	var right := Button.new(); right.text = "›"; right.custom_minimum_size = Vector2(52, 64); right.set_anchors_preset(Control.PRESET_CENTER); right.anchor_left = 0.7; right.anchor_right = 0.7; right.position = Vector2(-74, -32); right.pressed.connect(_move.bind(1)); add_child(right)
-	var panel := VBoxContainer.new(); panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE); panel.anchor_left = 0.7; panel.offset_left = 12; panel.offset_right = -24; panel.offset_top = 28; panel.offset_bottom = -158; panel.add_theme_constant_override("separation", 8); add_child(panel)
+	left_button = Button.new(); left_button.text = "‹"; left_button.custom_minimum_size = Vector2(52, 64); left_button.set_anchors_preset(Control.PRESET_CENTER_LEFT); left_button.position.x = 22; left_button.pressed.connect(_move.bind(-1)); add_child(left_button)
+	right_button = Button.new(); right_button.text = "›"; right_button.custom_minimum_size = Vector2(52, 64); right_button.set_anchors_preset(Control.PRESET_CENTER); right_button.anchor_left = 0.7; right_button.anchor_right = 0.7; right_button.position = Vector2(-74, -32); right_button.pressed.connect(_move.bind(1)); add_child(right_button)
+	details_panel = VBoxContainer.new(); details_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE); details_panel.anchor_left = 0.7; details_panel.offset_left = 12; details_panel.offset_right = -24; details_panel.offset_top = 28; details_panel.offset_bottom = -158; details_panel.add_theme_constant_override("separation", 8); add_child(details_panel)
+	var panel := details_panel
 	title_label = Label.new(); title_label.add_theme_font_size_override("font_size", 32); panel.add_child(title_label)
 	status_label = Label.new(); status_label.add_theme_font_size_override("font_size", 18); panel.add_child(status_label)
 	requirement_label = Label.new(); requirement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; panel.add_child(requirement_label)
@@ -42,16 +46,17 @@ func _ready() -> void:
 		_pending_configuration = []
 		configure(pending[0], pending[1], pending[2])
 	resized.connect(_refresh_gallery_spacing)
+	resized.connect(_update_layout)
 	card_scroll.resized.connect(_refresh_gallery_spacing)
+	_update_layout()
 
 func configure(value_catalog: ProgressionCatalog, value_progress: PlayerProgress, value_payload: Dictionary) -> void:
 	if not is_node_ready() or showroom == null:
 		_pending_configuration = [value_catalog, value_progress, value_payload.duplicate(true)]
 		return
 	catalog = value_catalog; progress = value_progress; payload = value_payload.duplicate(true); _variants.clear()
-	if catalog != null:
-		for unlock in catalog.unlocks.unlocks:
-			if unlock != null and unlock.kart_variant != null: _variants.append(unlock.kart_variant)
+	if catalog != null and catalog.unlocks != null:
+		_variants.assign(catalog.unlocks.variants)
 	_build_cards()
 	var requested := StringName(payload.get("variant_id", &""))
 	if requested.is_empty() and str(payload.get("source", "standalone")) == "standalone": requested = last_inspected_variant_id
@@ -81,6 +86,20 @@ func _refresh_gallery_spacing() -> void:
 	(cards.get_child(cards.get_child_count() - 1) as Control).custom_minimum_size.x = spacer
 	_center_focused_card.call_deferred(false)
 
+func _update_layout() -> void:
+	if showroom == null or details_panel == null or card_scroll == null: return
+	var compact_width := size.x < 900.0
+	var compact_height := size.y < 500.0
+	var split := 0.5 if compact_width else 0.7
+	showroom.anchor_right = split
+	details_panel.anchor_left = split
+	right_button.anchor_left = split; right_button.anchor_right = split
+	card_scroll.visible = not compact_height
+	stats.visible = not compact_height
+	showroom.offset_bottom = -18.0 if compact_height else -150.0
+	details_panel.offset_top = 12.0 if compact_height else 28.0
+	details_panel.offset_bottom = -18.0 if compact_height else -158.0
+
 func focus_variant(variant_id: StringName) -> void:
 	var variant := _get_variant(variant_id)
 	if variant == null:
@@ -101,7 +120,7 @@ func focus_variant(variant_id: StringName) -> void:
 	elif unlocked:
 		requirement_label.text = "Listo para competir."
 	elif unlock != null:
-		requirement_label.text = "Requisito · %s / %s / %s" % [unlock.cup_id, unlock.difficulty_id, ["", "BRONCE", "PLATA", "ORO"][unlock.required_medal]]
+		requirement_label.text = "Requisito · %s" % unlock.requirement_text(catalog)
 	else:
 		requirement_label.text = "No disponible"
 	_build_stats(variant)
@@ -176,13 +195,12 @@ func _unhandled_input(event: InputEvent) -> void:
 func _is_unlocked(variant_id: StringName) -> bool:
 	if progress == null or catalog == null: return false
 	if progress.equipped_kart_variant_id == variant_id: return true
+	if catalog.unlocks.is_initial_variant(variant_id): return true
 	var unlock := _get_unlock(variant_id)
-	return unlock != null and (progress.unlocked_reward_ids.has(unlock.id) or (catalog.unlocks.unlocks.size() > 0 and catalog.unlocks.unlocks[0] == unlock))
+	return unlock != null and progress.unlocked_reward_ids.has(unlock.id)
 
 func _get_unlock(variant_id: StringName) -> UnlockDefinition:
-	for unlock in catalog.unlocks.unlocks:
-		if unlock != null and unlock.kart_variant != null and unlock.kart_variant.id == variant_id: return unlock
-	return null
+	return catalog.unlocks.get_unlock_for_variant(variant_id) if catalog != null and catalog.unlocks != null else null
 
 func _get_variant(variant_id: StringName) -> KartVariantDefinition:
 	return catalog.unlocks.get_variant(variant_id) if catalog != null else null

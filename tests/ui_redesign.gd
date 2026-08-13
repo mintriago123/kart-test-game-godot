@@ -230,7 +230,7 @@ func _test_progress_schema_two() -> void:
 	var loaded := PlayerProgress.new(); loaded.save_path = path; loaded.load_from_disk()
 	_check(loaded.races_played == 4 and loaded.victories == 1 and loaded.podiums == 3 and loaded.items_used == 2, "Schema 2 telemetry persists and reloads.")
 	_check(loaded.get_medal(&"tropical", &"competitive") == 2 and loaded.equipped_kart_variant_id == &"taxi" and not loaded.active_cup.is_empty(), "Schema 2 medals, equipped vehicle, and active cup survive migration.")
-	_check(loaded.seen_reward_ids.has(&"competitive_bronze") and loaded.get_new_reward_count() == 0, "Schema 2 rewards migrate as already seen.")
+	_check(loaded.seen_reward_ids.has(&"career_12") and not loaded.seen_reward_ids.has(&"competitive_bronze") and loaded.get_new_reward_count() == 0, "Schema 2 rewards migrate to their vehicle-equivalent IDs as already seen.")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 

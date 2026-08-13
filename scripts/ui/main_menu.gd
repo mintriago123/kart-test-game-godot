@@ -394,12 +394,18 @@ func _build_profile_panel() -> Control:
 	title.add_theme_font_size_override("font_size", 38)
 	card.add_child(title)
 	var progress := Label.new()
-	var unlocked := player_progress.unlocked_reward_ids.size() if player_progress != null else 0
-	var total := progression_catalog.unlocks.unlocks.size() if progression_catalog != null else 0
+	var unlocked := player_progress.get_unlocked_variant_count(progression_catalog.unlocks) if player_progress != null and progression_catalog != null else 0
+	var total := progression_catalog.unlocks.variants.size() if progression_catalog != null else 0
 	progress.text = "RESUMEN DE PILOTO\nCARRERAS  %d     VICTORIAS  %d     PODIOS  %d\nMEJOR POSICIÓN  %s     TIEMPO  %s     RÉCORDS  %d\nOBJETOS  %d/%d     ATAJOS  %d     RECUPERACIONES  %d" % [player_progress.races_played if player_progress else 0, player_progress.victories if player_progress else 0, player_progress.podiums if player_progress else 0, str(player_progress.best_finish_position) if player_progress and player_progress.best_finish_position > 0 else "—", _format_duration(player_progress.driving_time_seconds if player_progress else 0.0), _best_times.size(), player_progress.items_collected if player_progress else 0, player_progress.items_used if player_progress else 0, player_progress.shortcuts_used if player_progress else 0, player_progress.recoveries if player_progress else 0]
 	progress.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	progress.add_theme_font_size_override("font_size", 22)
 	card.add_child(progress)
+	if progression_catalog != null and player_progress != null:
+		var career := Label.new(); career.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; career.add_theme_font_size_override("font_size", 22)
+		var career_points := player_progress.get_career_points(progression_catalog)
+		var next_reward := player_progress.get_next_career_reward(progression_catalog)
+		career.text = "PROGRESO GLOBAL · %d/%d PUNTOS\nSIGUIENTE HITO · %s" % [career_points, player_progress.get_max_career_points(progression_catalog), "%d PUNTOS · %s" % [next_reward.required_points, next_reward.display_name.to_upper()] if next_reward != null else "COMPLETADO"]
+		card.add_child(career)
 	var cup_heading := Label.new(); cup_heading.text = "COPAS"; cup_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; cup_heading.add_theme_font_size_override("font_size", 26); card.add_child(cup_heading)
 	if progression_catalog != null and progression_catalog.cups != null:
 		for cup in progression_catalog.cups.get_valid_cups():
@@ -486,25 +492,26 @@ func _build_garage_panel() -> Control:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	list.add_child(title)
 	if progression_catalog != null and player_progress != null:
-		for unlock in progression_catalog.unlocks.unlocks:
-			var unlocked := player_progress.unlocked_reward_ids.has(unlock.id)
-			var button := _create_button(unlock.display_name if unlocked else "%s · %s/%s/%s" % [unlock.display_name, unlock.cup_id, unlock.difficulty_id, ["", "BRONCE", "PLATA", "ORO"][unlock.required_medal]], Color("#75e6a4") if unlocked else Color("#637b80"), Vector2(600.0, 52.0))
+		for variant in progression_catalog.unlocks.variants:
+			var unlock := progression_catalog.unlocks.get_unlock_for_variant(variant.id)
+			var unlocked := player_progress.can_equip(variant.id, progression_catalog.unlocks)
+			var button := _create_button(variant.display_name if unlocked else "%s · %s" % [variant.display_name, unlock.requirement_text(progression_catalog) if unlock != null else "Bloqueado"], Color("#75e6a4") if unlocked else Color("#637b80"), Vector2(600.0, 52.0))
 			button.disabled = false
 			button.pressed.connect(func() -> void:
-				if unlocked: equip_variant_requested.emit(unlock.kart_variant.id)
+				if unlocked: equip_variant_requested.emit(variant.id)
 				else: _ui_sound.play_ui_error()
 			)
-			button.focus_entered.connect(func() -> void: _garage_showroom.show_variant(unlock.kart_variant))
-			button.mouse_entered.connect(func() -> void: _garage_showroom.show_variant(unlock.kart_variant))
+			button.focus_entered.connect(func() -> void: _garage_showroom.show_variant(variant))
+			button.mouse_entered.connect(func() -> void: _garage_showroom.show_variant(variant))
 			list.add_child(button)
-			if unlock.kart_variant != null:
+			if variant != null:
 				var stats_row := VBoxContainer.new()
 				for stat in [
-					["Velocidad", unlock.kart_variant.speed, 0.8, 1.2],
-					["Aceleración", unlock.kart_variant.acceleration, 0.8, 1.2],
-					["Manejo", unlock.kart_variant.handling, 0.8, 1.2],
-					["Peso", unlock.kart_variant.weight, 0.8, 1.25],
-					["Miniturbo", unlock.kart_variant.mini_turbo_duration_multiplier, 0.8, 1.25],
+					["Velocidad", variant.speed, 0.8, 1.2],
+					["Aceleración", variant.acceleration, 0.8, 1.2],
+					["Manejo", variant.handling, 0.8, 1.2],
+					["Peso", variant.weight, 0.8, 1.25],
+					["Miniturbo", variant.mini_turbo_duration_multiplier, 0.8, 1.25],
 				]:
 					var line := HBoxContainer.new()
 					stats_row.add_child(line)
@@ -573,7 +580,7 @@ func _handle_mode_card_selected(mode: int) -> void:
 	_select_game_mode(mode, true)
 	if mode == GameModeDefinition.CUP:
 		var cup_payload := {"source": "play", "mode": mode, "track_id": &"", "cup_id": &"", "variant_id": player_progress.equipped_kart_variant_id if player_progress else &"", "cc_id": _selected_cc_id, "difficulty_id": &"competitive", "ghost_enabled": false, "continue_active": false}
-		_cup_selector.configure(progression_catalog.cups if progression_catalog else null, player_progress, cup_payload)
+		_cup_selector.configure(progression_catalog, player_progress, cup_payload)
 		_router.navigate(MenuRoute.Id.PLAY_CUP, cup_payload)
 	else:
 		_show_track_selector()
@@ -659,10 +666,7 @@ func _get_equipped_variant() -> KartVariantDefinition:
 	var equipped := progression_catalog.unlocks.get_variant(player_progress.equipped_kart_variant_id)
 	if equipped != null:
 		return equipped
-	for unlock in progression_catalog.unlocks.unlocks:
-		if unlock.kart_variant != null:
-			return unlock.kart_variant
-	return null
+	return progression_catalog.unlocks.initial_variant
 
 func _format_duration(seconds: float) -> String:
 	var total := maxi(roundi(seconds), 0)
