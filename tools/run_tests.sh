@@ -22,6 +22,16 @@ fi
 TEST_DATA_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/michikart-tests.XXXXXX")"
 trap 'rm -rf -- "$TEST_DATA_ROOT"' EXIT
 
+IMPORT_DATA_HOME="$TEST_DATA_ROOT/import"
+mkdir -p "$IMPORT_DATA_HOME"
+echo "==> Importing project resources"
+(
+	export XDG_DATA_HOME="$IMPORT_DATA_HOME"
+	cd "$PROJECT_ROOT"
+	timeout "${TEST_IMPORT_TIMEOUT_SECONDS:-600}" "$GODOT_EXECUTABLE" \
+		--headless --path . --import
+)
+
 CORE_SUITES=(
 	tests/cup_progression.gd
 	tests/cup_editor.gd
