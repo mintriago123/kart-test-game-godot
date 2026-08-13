@@ -13,7 +13,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_check(TRACK_CATALOG.tracks.size() == 2, "Track catalog contains two entries.")
+	_check(TRACK_CATALOG.tracks.size() == 3, "Track catalog contains all three published entries.")
 	_check(
 		ASSET_LIBRARY.get_valid_entries().size() == 7,
 		"Editor asset library exposes seven valid CC0 entries."
@@ -86,6 +86,8 @@ func _test_authored_track(track_definition: TrackDefinition) -> void:
 
 
 func _test_official_tree_calibration(track: TrackLevel) -> void:
+	if track.track_id not in [&"coastal", &"garden"]:
+		return
 	var expected_prefix := "Palm" if track.track_id == &"coastal" else "Oak"
 	var expected_asset_id := &"palm_tree" if track.track_id == &"coastal" else &"oak_tree"
 	var expected_scale := 5.203778 if track.track_id == &"coastal" else 5.436674

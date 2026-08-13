@@ -5,6 +5,9 @@
 script = ExtResource("1")
 id = &"hatchback_sports"
 display_name = "Hatchback Sports"
+speed = 1.03
+acceleration = 1.05
+handling = 1.04
 visual_scene = ExtResource("2")
 weight = 0.94
 mini_turbo_duration_multiplier = 1.11

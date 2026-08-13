@@ -50,6 +50,10 @@ func _build() -> void:
 	card.size = Vector2(620, 640)
 	card.theme = UiTokens.create_theme()
 	scrim.add_child(card)
+	resized.connect(func() -> void:
+		card.size = Vector2(minf(620.0, size.x - 32.0), minf(640.0, size.y - 32.0))
+		card.position = -card.size * 0.5
+	)
 	var scroll := ScrollContainer.new()
 	card.add_child(scroll)
 	var content := VBoxContainer.new()

@@ -36,7 +36,8 @@ func start_game(
 	track_id: StringName = settings.selected_track_id,
 	cc_id_or_intro: Variant = settings.selected_cc_id,
 	game_mode: int = GameModeDefinition.RACE,
-	should_play_intro: bool = true
+	should_play_intro: bool = true,
+	cup_id: StringName = &""
 ) -> void:
 	# Compatibility with the former start_game(track_id, should_play_intro).
 	var cc_id := settings.selected_cc_id
@@ -45,7 +46,10 @@ func start_game(
 	else:
 		cc_id = StringName(str(cc_id_or_intro))
 	if game_mode == GameModeDefinition.CUP:
-		if cup_manager.active_run == null and not cup_manager.start(&"tropical", selected_cup_difficulty_id, cc_id):
+		var selected_cup_id := cup_id
+		if selected_cup_id.is_empty() and main_menu != null and main_menu._preparation_screen != null:
+			selected_cup_id = StringName(main_menu._preparation_screen.payload.get("cup_id", &""))
+		if cup_manager.active_run == null and not cup_manager.start(selected_cup_id, selected_cup_difficulty_id, cc_id):
 			push_error("Unable to start the configured cup.")
 			return
 		_start_session(cup_manager.create_session(), should_play_intro)
@@ -104,7 +108,21 @@ func _start_session(session: RaceSessionConfig, should_play_intro: bool) -> void
 	race_world.retry_requested.connect(_restart_game)
 	race_world.menu_requested.connect(_return_to_menu)
 	race_world.race_completed.connect(_register_race_time)
+	race_world.settings_requested.connect(_open_race_settings)
+	race_world.controls_requested.connect(_open_race_controls)
 	add_child(race_world)
+
+func _open_race_settings() -> void:
+	if race_world == null: return
+	var screen := SettingsScreen.new(); race_world.add_child(screen); screen.apply_snapshot(settings)
+	screen.graphics_profile_changed.connect(_set_graphics_profile); screen.vibration_changed.connect(_set_vibration_enabled); screen.volume_changed.connect(_set_master_volume); screen.music_volume_changed.connect(_set_music_volume); screen.effects_volume_changed.connect(_set_effects_volume); screen.camera_motion_changed.connect(_set_camera_motion); screen.speed_lines_changed.connect(_set_speed_lines_enabled); screen.threat_indicators_changed.connect(_set_threat_indicators_enabled); screen.vibration_intensity_changed.connect(_set_vibration_intensity)
+	screen.reduced_motion_changed.connect(func(value: bool): settings.ui_reduced_motion = value; settings.save_to_disk())
+	screen.restore_defaults_requested.connect(_restore_presentation_defaults)
+	screen.back_requested.connect(screen.queue_free)
+
+func _open_race_controls() -> void:
+	if race_world == null: return
+	var screen := ControlsScreen.new(); race_world.add_child(screen); screen.back_requested.connect(screen.queue_free)
 
 
 func _show_main_menu() -> void:
@@ -131,7 +149,10 @@ func _show_main_menu() -> void:
 	main_menu.vibration_intensity_changed.connect(_set_vibration_intensity)
 	main_menu.restore_defaults_requested.connect(_restore_presentation_defaults)
 	main_menu.continue_cup_requested.connect(_continue_cup)
+	main_menu.abandon_cup_requested.connect(func(): cup_manager.abandon())
 	main_menu.equip_variant_requested.connect(_equip_variant)
+	main_menu.gamepad_family_changed.connect(_set_gamepad_family)
+	main_menu.reduced_motion_changed.connect(_set_reduced_motion)
 	add_child(main_menu)
 	main_menu.apply_settings(
 		settings.graphics_profile,
@@ -147,7 +168,9 @@ func _show_main_menu() -> void:
 		settings.camera_motion,
 		settings.speed_lines_enabled,
 		settings.threat_indicators_enabled,
-		settings.vibration_intensity
+		settings.vibration_intensity,
+		settings.gamepad_visual_family,
+		settings.ui_reduced_motion
 	)
 	_refresh_ghost_availability()
 
@@ -158,7 +181,16 @@ func _continue_cup() -> void:
 
 
 func _equip_variant(variant_id: StringName) -> void:
-	player_progress.equip(variant_id, PROGRESSION_CATALOG.unlocks)
+	if player_progress.equip(variant_id, PROGRESSION_CATALOG.unlocks) and main_menu != null:
+		main_menu.refresh_equipped_variant()
+
+func _set_gamepad_family(family: StringName) -> void:
+	settings.gamepad_visual_family = family
+	settings.save_to_disk()
+
+func _set_reduced_motion(enabled: bool) -> void:
+	settings.ui_reduced_motion = enabled
+	settings.save_to_disk()
 
 
 func _restart_game() -> void:
@@ -260,7 +292,11 @@ func _handle_play_requested(track_id: StringName, cc_id: StringName, game_mode: 
 	settings.select_cc(cc_id)
 	settings.select_game_mode(game_mode)
 	selected_cup_difficulty_id = difficulty_id
-	start_game(track_id, cc_id, game_mode, true)
+	var cup_id := StringName(main_menu._preparation_screen.payload.get("cup_id", &"")) if main_menu != null and main_menu._preparation_screen != null else &""
+	if game_mode == GameModeDefinition.CUP and bool(main_menu._preparation_screen.payload.get("continue_active", false)):
+		_continue_cup()
+		return
+	start_game(track_id, cc_id, game_mode, true, cup_id)
 
 
 func _set_selected_game_mode(game_mode: int) -> void:
@@ -295,6 +331,7 @@ func _set_bus_volume(bus_name: StringName, value: float) -> void:
 
 
 func _register_race_time(result: RaceResult) -> void:
+	player_progress.record_race_result(result)
 	if result.game_mode == GameModeDefinition.CUP:
 		if cup_manager.commit_race_result(result):
 			result.set_meta("cup_standings", cup_manager.get_ordered_standings())

@@ -9,10 +9,108 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_tokens_and_input_modes()
+	await _test_router_and_shell()
+	_test_binding_profiles()
+	await _test_input_prompts()
+	await _test_title_input_gate()
 	await _test_settings_screen()
 	await _test_pause_contract()
 	_test_reduced_motion_persistence()
+	await _test_shared_components_and_flow()
+	_test_progress_schema_two()
 	quit(1 if failed else 0)
+
+
+func _test_router_and_shell() -> void:
+	var router := MenuRouter.new()
+	root.add_child(router)
+	var main := Control.new()
+	var garage := Control.new()
+	router.add_child(main)
+	router.add_child(garage)
+	router.register_screen(MenuRoute.Id.MAIN, main)
+	router.register_screen(MenuRoute.Id.GARAGE, garage)
+	router.replace(MenuRoute.Id.MAIN)
+	router.navigate(MenuRoute.Id.GARAGE, {"source": "test"})
+	_check(router.current_route == MenuRoute.Id.GARAGE and garage.visible, "Typed router navigates with payloads.")
+	_check(router.back() and router.current_route == MenuRoute.Id.MAIN, "Universal back restores the previous route.")
+	var shell := MenuShell.new()
+	root.add_child(shell)
+	await process_frame
+	shell.size = Vector2(640, 360)
+	shell._update_layout()
+	_check(shell.layout == MenuShell.Layout.COMPACT and shell.safe_margin >= 16, "Shell applies compact safe-area layout at 640x360.")
+	router.queue_free()
+	shell.queue_free()
+	await process_frame
+
+
+func _test_binding_profiles() -> void:
+	for action in InputBindingProfile.REQUIRED_ACTIONS:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		if InputMap.action_get_events(action).is_empty():
+			var key := InputEventKey.new()
+			key.physical_keycode = KEY_ENTER if action == &"ui_accept" else KEY_ESCAPE
+			InputMap.action_add_event(action, key)
+	var profile := InputBindingProfile.new()
+	profile.capture_from_input_map(InputBindingProfile.REQUIRED_ACTIONS)
+	_check(profile.is_valid(), "Binding profiles preserve confirm, back and pause.")
+	var conflict_event := (profile.bindings[&"ui_accept"] as Array).front() as InputEvent
+	_check(profile.find_conflict(conflict_event, &"pause") == &"ui_accept", "Binding conflicts are detected before replacement.")
+	_check(not profile.assign(&"pause", conflict_event, &"cancel"), "Conflict cancellation leaves the profile unchanged.")
+	var screen := ControlsScreen.new()
+	root.add_child(screen)
+	screen.begin_capture(&"pause")
+	screen._pending_event = conflict_event
+	screen._pending_conflict = &"ui_accept"
+	screen._show_conflict(&"pause", &"ui_accept", conflict_event)
+	_check(screen._conflict_modal != null and screen._conflict_modal.find_children("*", "Button", true, false).size() == 3, "Binding conflicts offer swap, replace, and cancel.")
+	screen.queue_free()
+
+
+func _test_input_prompts() -> void:
+	var prompt := ActionPromptView.new()
+	root.add_child(prompt)
+	prompt.set_action(&"ui_accept")
+	await process_frame
+	_check(prompt.prompt != null and prompt.prompt.action == "ui_accept", "Local prompt adapter delegates actions to Godot Input Prompts.")
+	var coordinator := InputDeviceCoordinator.new()
+	root.add_child(coordinator)
+	coordinator.set_manual_family(InputDeviceCoordinator.NINTENDO)
+	var prompt_manager := root.get_node_or_null("PromptManager")
+	_check(coordinator.get_visual_family() == &"nintendo" and prompt_manager != null and prompt_manager.preferred_icons == InputPrompt.Icons.NINTENDO, "Manual Nintendo family selects Nintendo glyphs.")
+	prompt.queue_free()
+	coordinator.queue_free()
+	await process_frame
+
+
+func _test_title_input_gate() -> void:
+	var menu := MainMenu.new()
+	root.add_child(menu)
+	await process_frame
+	var started := [false]
+	menu.play_requested.connect(func(_track: StringName, _cc: StringName, _mode: int, _difficulty: StringName) -> void: started[0] = true)
+	var press := InputEventKey.new()
+	press.physical_keycode = KEY_ENTER
+	press.pressed = true
+	Input.parse_input_event(press)
+	await process_frame
+	_check(menu._title_screen.visible, "Title remains above the menu while confirm is held.")
+	var release := press.duplicate() as InputEventKey
+	release.pressed = false
+	Input.parse_input_event(release)
+	await process_frame
+	await process_frame
+	await process_frame
+	_check(not menu._title_screen.visible and not started[0] and not menu._track_selector.visible, "Confirm opens only the main menu and cannot leak into Play.")
+	menu._router.navigate(MenuRoute.Id.GARAGE)
+	_check(menu._router.current_route == MenuRoute.Id.GARAGE and menu._garage_panel.visible, "Garage is a real routed screen.")
+	menu._router.navigate(MenuRoute.Id.SETTINGS)
+	menu._router.navigate(MenuRoute.Id.CONTROLS)
+	_check(menu._controls_panel.visible and menu._router.back() and menu._settings_panel.visible, "Settings and controls share router history.")
+	menu.queue_free()
+	await process_frame
 
 
 func _test_tokens_and_input_modes() -> void:
@@ -77,6 +175,53 @@ func _test_reduced_motion_persistence() -> void:
 	loaded.settings_path = path
 	loaded.load_from_disk()
 	_check(loaded.ui_reduced_motion, "Reduced motion persists in GameSettings.")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+func _test_shared_components_and_flow() -> void:
+	var components: Array[Control] = [ActionButton.new(), MenuList.new(), EventCard.new(), StatBar.new(), SettingRow.new(), ConfirmationModal.new(), Toast.new(), RewardReveal.new()]
+	for component in components: root.add_child(component)
+	await process_frame
+	_check((components[0] as ActionButton).custom_minimum_size.y >= 48.0 and components.size() == 8, "All eight shared UI components instantiate with accessible actions.")
+	var showroom := VehicleViewport.new(); showroom.size = Vector2(480, 270); root.add_child(showroom); await process_frame
+	showroom.set_framing(VehicleViewport.Framing.GARAGE); showroom.reduced_motion = true
+	_check(showroom.viewport != null and showroom.camera != null and showroom.reduced_motion, "Shared showroom builds and respects reduced motion.")
+	var second_showroom := VehicleViewport.new(); second_showroom.size = Vector2(480, 270); root.add_child(second_showroom); await process_frame
+	_check(showroom.viewport.own_world_3d and second_showroom.viewport.own_world_3d and showroom.viewport.world_3d != second_showroom.viewport.world_3d, "Every showroom owns an isolated 3D world and cannot render another showroom's kart.")
+	var progression: ProgressionCatalog = load("res://progression/progression_catalog.tres")
+	for unlock in progression.unlocks.unlocks:
+		showroom.show_variant(unlock.kart_variant)
+	await process_frame
+	await process_frame
+	var visible_models := 0
+	for candidate in showroom.model_holder.get_children():
+		if candidate is Node3D and (candidate as Node3D).visible:
+			visible_models += 1
+	_check(visible_models == 1, "Shared showroom commits only the latest vehicle requested during rapid changes.")
+	_check(showroom.model_holder.get_child_count() == 1, "Shared showroom releases superseded vehicle models after the frame.")
+	var visible_characters := 0
+	for character in showroom.model.find_children("character", "MeshInstance3D", true, false):
+		if (character as MeshInstance3D).visible:
+			visible_characters += 1
+	_check(visible_characters == 0, "Garage showroom hides the generic driver and presents only one vehicle silhouette.")
+	var modes := ModeSelectScreen.new(); root.add_child(modes); await process_frame
+	var selected := [-1]; modes.mode_selected.connect(func(mode: int): selected[0] = mode); modes._choose(GameModeDefinition.TIME_TRIAL)
+	_check(selected[0] == GameModeDefinition.TIME_TRIAL and modes.last_focused_mode == GameModeDefinition.TIME_TRIAL, "Mode selection emits its payload and remembers focus.")
+	var race_minimap := RaceMinimap.new(); root.add_child(race_minimap); await process_frame
+	race_minimap.set_game_mode(GameModeDefinition.TIME_TRIAL)
+	_check(not race_minimap.direction_arrows_visible, "Time trial minimap hides direction chevrons that resemble rival markers.")
+	race_minimap.set_game_mode(GameModeDefinition.RACE)
+	_check(race_minimap.direction_arrows_visible, "Race minimap retains track direction chevrons.")
+	for component in components: component.queue_free()
+	showroom.queue_free(); second_showroom.queue_free(); modes.queue_free(); race_minimap.queue_free(); await process_frame
+
+func _test_progress_schema_two() -> void:
+	var path := "user://progress_schema_two_test.cfg"
+	var progress := PlayerProgress.new(); progress.save_path = path
+	var result := RaceResult.new(); result.track_id = &"coastal"; result.cc_id = &"150"
+	var player := RacerRaceResult.new(); player.racer_id = &"marea"; player.finish_position = 1; player.finish_time = 90.0; player.items_used = 2; result.player_result = player
+	_check(progress.record_race_result(result) and not progress.record_race_result(result), "Race telemetry records exactly once.")
+	var loaded := PlayerProgress.new(); loaded.save_path = path; loaded.load_from_disk()
+	_check(loaded.races_played == 1 and loaded.victories == 1 and loaded.items_used == 2, "Schema 2 telemetry persists and reloads.")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 

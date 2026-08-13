@@ -5,6 +5,9 @@
 script = ExtResource("1")
 id = &"race"
 display_name = "Race"
+speed = 1.07
+acceleration = 1.02
+handling = 1.03
 visual_scene = ExtResource("2")
 weight = 0.98
 mini_turbo_duration_multiplier = 1.07

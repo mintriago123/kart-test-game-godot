@@ -15,6 +15,7 @@ var speed_lines_enabled := true
 var threat_indicators_enabled := true
 var vibration_intensity := 1.0
 var ui_reduced_motion := false
+var gamepad_visual_family: StringName = &"automatic"
 var best_time := -1.0
 var selected_track_id: StringName = DEFAULT_TRACK_ID
 var selected_cc_id: StringName = DEFAULT_CC_ID
@@ -45,6 +46,9 @@ func load_from_disk() -> void:
 	threat_indicators_enabled = bool(config.get_value("gameplay", "threat_indicators", true))
 	vibration_intensity = clampf(float(config.get_value("gameplay", "vibration_intensity", 1.0 if vibration_enabled else 0.0)), 0.0, 1.0)
 	ui_reduced_motion = bool(config.get_value("accessibility", "ui_reduced_motion", false))
+	gamepad_visual_family = StringName(config.get_value("controls", "gamepad_visual_family", "automatic"))
+	if gamepad_visual_family not in [&"automatic", &"xbox", &"playstation", &"nintendo", &"generic"]:
+		gamepad_visual_family = &"automatic"
 	selected_track_id = StringName(
 		str(config.get_value("gameplay", "selected_track", DEFAULT_TRACK_ID))
 	)
@@ -83,6 +87,7 @@ func save_to_disk() -> void:
 	config.set_value("gameplay", "threat_indicators", threat_indicators_enabled)
 	config.set_value("accessibility", "camera_motion", camera_motion)
 	config.set_value("accessibility", "ui_reduced_motion", ui_reduced_motion)
+	config.set_value("controls", "gamepad_visual_family", gamepad_visual_family)
 	config.set_value("gameplay", "selected_track", selected_track_id)
 	config.set_value("gameplay", "selected_cc", selected_cc_id)
 	config.set_value("gameplay", "selected_game_mode", selected_game_mode)

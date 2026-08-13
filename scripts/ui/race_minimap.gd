@@ -24,6 +24,13 @@ func configure_track(track: TrackLevel) -> void:
 	set_minimap_data(TrackMinimapBuilder.build(track))
 
 
+func set_game_mode(game_mode: int) -> void:
+	# Direction chevrons resemble rival markers at HUD scale. A time trial only
+	# shows the player's live marker (and the ghost elsewhere in the HUD).
+	direction_arrows_visible = game_mode != GameModeDefinition.TIME_TRIAL
+	queue_redraw()
+
+
 func register_racers(racers: Array[Node], player: Node3D) -> void:
 	_racers.clear()
 	for racer in racers:

@@ -29,6 +29,9 @@ var provisional_details: VBoxContainer
 var is_intro_visible := false
 var pause_title: Label
 var _is_resuming := false
+var reduced_motion := false
+var _primary_result_action: StringName = &"menu"
+var _resume_progress: ProgressBar
 
 
 func build_interface() -> void:
@@ -143,6 +146,9 @@ func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> voi
 		player.finish_position,
 		RaceHudStyle.format_time(player.finish_time),
 	]
+	# Preserve the public retry contract used by the existing race flow.
+	_primary_result_action = &"retry"
+	retry_button.text = "OTRA CARRERA"
 	for child in results_details.get_children():
 		child.queue_free()
 	_add_result_label(
@@ -202,11 +208,15 @@ func _show_cup_results(result: RaceResult) -> void:
 		_add_result_label("MEDALLA · %s" % medal_names[medal], 26, Color("#f5d66f"))
 		var rewards: Array = result.get_meta("new_reward_ids", [])
 		if not rewards.is_empty():
-			_add_result_label("NUEVOS VEHÍCULOS · %s" % ", ".join(PackedStringArray(rewards)), 17, Color("#75e6a4"))
+			var reveal := RewardReveal.new()
+			results_details.add_child(reveal)
+			reveal.reveal("NUEVOS VEHÍCULOS · %s" % ", ".join(PackedStringArray(rewards)), reduced_motion)
 		retry_button.text = "MENÚ"
+		_primary_result_action = &"menu"
 	else:
 		_add_result_label("Carrera %d/3 completada" % (result.cup_race_index + 1), 18, Color("#7be0d0"))
 		retry_button.text = "SIGUIENTE CARRERA"
+		_primary_result_action = &"retry"
 	results_panel.visible = true
 	retry_button.grab_focus()
 
@@ -227,6 +237,7 @@ func _show_time_trial_results(result: RaceResult) -> void:
 		_add_result_label("FANTASMA ACTUALIZADO", 20, Color("#53e8f2"))
 	results_panel.visible = true
 	retry_button.text = "OTRO INTENTO"
+	_primary_result_action = &"retry"
 	retry_button.grab_focus()
 
 
@@ -393,6 +404,11 @@ func _build_pause_overlay() -> Control:
 	resume.name = "Resume"
 	resume.pressed.connect(request_resume)
 	content.add_child(resume)
+	_resume_progress = ProgressBar.new()
+	_resume_progress.max_value = RESUME_DELAY
+	_resume_progress.show_percentage = false
+	_resume_progress.visible = false
+	content.add_child(_resume_progress)
 	var restart := _pause_action("REINICIAR CARRERA", UiTokens.WARM_WHITE)
 	restart.pressed.connect(func() -> void: _show_confirmation("¿REINICIAR LA CARRERA?", restart_requested))
 	content.add_child(restart)
@@ -492,7 +508,7 @@ func _build_results_panel() -> Control:
 	retry_button.name = "Retry"
 	retry_button.text = "OTRA CARRERA"
 	retry_button.custom_minimum_size = Vector2(190.0, 72.0)
-	retry_button.pressed.connect(func() -> void: retry_requested.emit())
+	retry_button.pressed.connect(_activate_primary_result)
 	RaceHudStyle.apply_button_style(
 		retry_button,
 		Color("#f2c958")
@@ -547,6 +563,11 @@ func request_resume() -> void:
 		return
 	_is_resuming = true
 	pause_title.text = "REANUDANDO…"
+	_resume_progress.value = 0.0
+	_resume_progress.visible = true
+	var progress_tween := create_tween()
+	progress_tween.set_process_mode(Tween.TWEEN_PROCESS_IDLE)
+	progress_tween.tween_property(_resume_progress, "value", RESUME_DELAY, RESUME_DELAY)
 	for button in pause_overlay.find_children("*", "Button", true, false):
 		(button as Button).disabled = true
 	await get_tree().create_timer(RESUME_DELAY, true).timeout
@@ -555,9 +576,16 @@ func request_resume() -> void:
 	get_tree().paused = false
 	_is_resuming = false
 	pause_title.text = "CARRERA EN PAUSA"
+	_resume_progress.visible = false
 	for button in pause_overlay.find_children("*", "Button", true, false):
 		(button as Button).disabled = false
 	resume_requested.emit()
+
+func _activate_primary_result() -> void:
+	if _primary_result_action == &"retry":
+		retry_requested.emit()
+	else:
+		menu_requested.emit()
 
 
 func _request_intro_skip() -> void:

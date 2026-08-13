@@ -1,11 +1,14 @@
-[gd_resource type="Resource" script_class="TrackDefinition" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrackDefinition" format=3]
+
 [ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://levels/minimaps/bahia_turbo.tres" id="1_qe0em"]
 [ext_resource type="PackedScene" path="res://levels/tracks/bahia_turbo.tscn" id="2"]
+
 [resource]
 script = ExtResource("1")
 id = &"bahia_turbo"
 display_name = "Bahía Turbo"
 description = "Una ruta extensa y veloz junto a la bahía."
 preview_color = Color(0.15, 0.55, 0.75, 1)
+preview_map = ExtResource("1_qe0em")
 scene = ExtResource("2")
-laps = 3

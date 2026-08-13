@@ -56,6 +56,13 @@ func _test_track_stability(
 		* RaceClassDefinition.get_default().speed_multiplier
 		/ race_class.speed_multiplier
 	)
+	# Long authored tracks need a duration derived from their physical route,
+	# rather than the original fixed budget calibrated for the first two tracks.
+	var route_length := 0.0
+	for index in manager.route_points.size():
+		route_length += manager.route_points[index].distance_to(manager.route_points[(index + 1) % manager.route_points.size()])
+	var expected_minimum_speed := 25.0 * race_class.speed_multiplier * 0.42
+	simulation_seconds = maxf(simulation_seconds, route_length / maxf(expected_minimum_speed, 1.0))
 	await create_timer(simulation_seconds).timeout
 
 	for racer_index in range(1, manager.racers.size()):

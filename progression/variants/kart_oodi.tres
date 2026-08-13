@@ -5,6 +5,9 @@
 script = ExtResource("1")
 id = &"kart_oodi"
 display_name = "Kart Oodi"
+speed = 0.98
+acceleration = 1.07
+handling = 1.08
 visual_scene = ExtResource("2")
 weight = 0.92
 mini_turbo_duration_multiplier = 1.13

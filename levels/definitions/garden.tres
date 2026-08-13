@@ -1,11 +1,16 @@
-[gd_resource type="Resource" script_class="TrackDefinition" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrackDefinition" format=3]
+
 [ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://levels/minimaps/garden.tres" id="1_cu7oe"]
 [ext_resource type="PackedScene" path="res://levels/garden_track.tscn" id="2"]
+
 [resource]
 script = ExtResource("1")
 id = &"garden"
 display_name = "Circuito Jardín"
 description = "Un trazado compacto entre robles, flores y senderos."
 preview_color = Color(0.435, 0.651, 0.333, 1)
+preview_map = ExtResource("1_cu7oe")
 scene = ExtResource("2")
-laps = 3
+length_km = 0.4
+shortcut_count = 2

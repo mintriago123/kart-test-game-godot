@@ -5,6 +5,9 @@ extends Resource
 @export var display_name := "Vehiculo"
 @export var visual_scene: PackedScene
 @export var preview: Texture2D
+@export_range(0.5, 1.5, 0.01) var speed: float = 1.0
+@export_range(0.5, 1.5, 0.01) var acceleration: float = 1.0
+@export_range(0.5, 1.5, 0.01) var handling: float = 1.0
 @export_range(0.5, 2.0, 0.01) var weight: float = 1.0
 @export_range(0.5, 2.0, 0.01) var mini_turbo_duration_multiplier: float = 1.0
 

@@ -5,6 +5,9 @@
 script = ExtResource("1")
 id = &"suv_luxury"
 display_name = "SUV Luxury"
+speed = 1.02
+acceleration = 1.0
+handling = 1.0
 visual_scene = ExtResource("2")
 weight = 1.15
 mini_turbo_duration_multiplier = 0.90

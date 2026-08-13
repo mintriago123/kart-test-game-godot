@@ -30,6 +30,9 @@ var _preview_texture: TextureRect
 var _minimap_view: TrackMinimapView
 var _race_button: Button
 var _back_button: Button
+var _difficulty_label: Label
+var _difficulty_row: HBoxContainer
+var _mode_label: Label
 
 
 func _ready() -> void:
@@ -111,8 +114,14 @@ func get_selected_cc_id() -> StringName:
 
 func select_game_mode(game_mode: int, should_emit := true) -> void:
 	_selected_game_mode = GameModeDefinition.sanitize(game_mode)
+	if _mode_label != null:
+		_mode_label.text = ["CARRERA RÁPIDA", "CONTRARRELOJ", "COPA"][_selected_game_mode]
 	for button_mode in game_mode_buttons:
 		(game_mode_buttons[button_mode] as Button).set_pressed_no_signal(button_mode == _selected_game_mode)
+	if _difficulty_label != null:
+		_difficulty_label.visible = _selected_game_mode == GameModeDefinition.CUP
+	if _difficulty_row != null:
+		_difficulty_row.visible = _selected_game_mode == GameModeDefinition.CUP
 	_update_details()
 	if should_emit:
 		game_mode_selected.emit(_selected_game_mode)
@@ -174,6 +183,11 @@ func _build_interface() -> void:
 	page_title.add_theme_font_size_override("font_size", 36)
 	page_title.add_theme_color_override("font_color", Color("#fff0b1"))
 	heading.add_child(page_title)
+	_mode_label = Label.new()
+	_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_mode_label.add_theme_font_size_override("font_size", 18)
+	_mode_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	header.add_child(_mode_label)
 
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -193,6 +207,7 @@ func _build_interface() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.name = "TrackScroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	list_margin.add_child(scroll)
 	var track_list := VBoxContainer.new()
@@ -254,6 +269,7 @@ func _build_interface() -> void:
 	detail_panel.add_child(_ghost_available_label)
 
 	var mode_row := HBoxContainer.new()
+	mode_row.visible = false
 	mode_row.add_theme_constant_override("separation", 8)
 	detail_panel.add_child(mode_row)
 	var mode_group := ButtonGroup.new()
@@ -265,14 +281,16 @@ func _build_interface() -> void:
 		mode_row.add_child(mode_button)
 		game_mode_buttons[mode_data[0]] = mode_button
 
-	var difficulty_label := Label.new()
-	difficulty_label.text = "DIFICULTAD DE COPA"
-	difficulty_label.add_theme_font_size_override("font_size", 15)
-	difficulty_label.add_theme_color_override("font_color", Color("#7be0d0"))
-	detail_panel.add_child(difficulty_label)
-	var difficulty_row := HBoxContainer.new()
-	difficulty_row.add_theme_constant_override("separation", 8)
-	detail_panel.add_child(difficulty_row)
+	_difficulty_label = Label.new()
+	_difficulty_label.visible = false
+	_difficulty_label.text = "DIFICULTAD DE COPA"
+	_difficulty_label.add_theme_font_size_override("font_size", 15)
+	_difficulty_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	detail_panel.add_child(_difficulty_label)
+	_difficulty_row = HBoxContainer.new()
+	_difficulty_row.visible = false
+	_difficulty_row.add_theme_constant_override("separation", 8)
+	detail_panel.add_child(_difficulty_row)
 	var difficulty_group := ButtonGroup.new()
 	for difficulty_data in [[&"relaxed", "RELAJADA"], [&"competitive", "COMPETITIVA"], [&"expert", "EXPERTA"]]:
 		var difficulty_button := _create_button(difficulty_data[1], Color("#ef9c64"), Vector2(130.0, 42.0))
@@ -281,17 +299,19 @@ func _build_interface() -> void:
 		difficulty_button.pressed.connect(func() -> void:
 			_selected_difficulty_id = difficulty_data[0]
 		)
-		difficulty_row.add_child(difficulty_button)
+		_difficulty_row.add_child(difficulty_button)
 		difficulty_buttons[difficulty_data[0]] = difficulty_button
 	(difficulty_buttons[_selected_difficulty_id] as Button).set_pressed_no_signal(true)
 
 	var race_class_label := Label.new()
+	race_class_label.visible = false
 	race_class_label.text = "CLASE DE MOTOR"
 	race_class_label.add_theme_font_size_override("font_size", 15)
 	race_class_label.add_theme_color_override("font_color", Color("#7be0d0"))
 	detail_panel.add_child(race_class_label)
 
 	var race_class_row := HBoxContainer.new()
+	race_class_row.visible = false
 	race_class_row.add_theme_constant_override("separation", 8)
 	detail_panel.add_child(race_class_row)
 	var race_class_group := ButtonGroup.new()
@@ -314,6 +334,7 @@ func _build_interface() -> void:
 		race_class_buttons[definition.id] = race_class_button
 
 	_race_class_description_label = Label.new()
+	_race_class_description_label.visible = false
 	_race_class_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_race_class_description_label.add_theme_font_size_override("font_size", 15)
 	_race_class_description_label.add_theme_color_override(
@@ -322,7 +343,7 @@ func _build_interface() -> void:
 	)
 	detail_panel.add_child(_race_class_description_label)
 
-	_race_button = _create_button("CORRER", Color("#f5d25f"), Vector2(240.0, 64.0))
+	_race_button = _create_button("CONTINUAR", Color("#f5d25f"), Vector2(240.0, 64.0))
 	_race_button.pressed.connect(func() -> void:
 		if not _selected_track_id.is_empty():
 			race_requested.emit(_selected_track_id, _selected_cc_id, _selected_game_mode, _selected_difficulty_id)
@@ -502,7 +523,7 @@ func _format_track_details(
 	preview_map: TrackMinimapData
 ) -> String:
 	if preview_map == null or not preview_map.is_valid():
-		return "%d VUELTAS  ·  DISTANCIA NO DISPONIBLE" % definition.laps
+		return "%d VUELTAS  ·  %.1f KM  ·  %s" % [definition.laps, definition.length_km, "1 ATAJO" if definition.shortcut_count == 1 else "%d ATAJOS" % definition.shortcut_count]
 	var shortcut_label := (
 		"1 ATAJO"
 		if preview_map.shortcut_count == 1

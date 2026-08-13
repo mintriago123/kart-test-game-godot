@@ -1,17 +1,22 @@
-[gd_resource type="Resource" script_class="ProgressionCatalog" load_steps=21 format=3]
-[ext_resource type="Script" path="res://scripts/data/progression_catalog.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/data/cup_catalog.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/data/racer_catalog.gd" id="3"]
-[ext_resource type="Script" path="res://scripts/data/difficulty_catalog.gd" id="4"]
-[ext_resource type="Script" path="res://scripts/data/unlock_catalog.gd" id="5"]
+[gd_resource type="Resource" script_class="ProgressionCatalog" format=3 uid="uid://cuj5qeibaw2ut"]
+
+[ext_resource type="Script" uid="uid://byi8tulbgt7wy" path="res://scripts/data/progression_catalog.gd" id="1"]
+[ext_resource type="Script" uid="uid://dvecvrgiillkk" path="res://scripts/data/cup_definition.gd" id="1_trkww"]
+[ext_resource type="Script" uid="uid://c3w8udpaflaiv" path="res://scripts/data/cup_catalog.gd" id="2"]
+[ext_resource type="Script" uid="uid://briy7wdtyk2wd" path="res://scripts/data/racer_catalog.gd" id="3"]
+[ext_resource type="Script" uid="uid://cvn2vfuid4y2t" path="res://scripts/data/difficulty_catalog.gd" id="4"]
+[ext_resource type="Script" uid="uid://bpaeqo27oy3m4" path="res://scripts/data/difficulty_definition.gd" id="4_7jeev"]
+[ext_resource type="Script" uid="uid://bk0l3448khn2y" path="res://scripts/data/unlock_catalog.gd" id="5"]
+[ext_resource type="Script" uid="uid://cq4orl5qfaqur" path="res://scripts/data/racer_definition.gd" id="9_na7yx"]
+[ext_resource type="Script" uid="uid://ccgovvjcg7r7j" path="res://scripts/data/unlock_definition.gd" id="17_12rvf"]
 [ext_resource type="Resource" path="res://progression/cups/tropical.tres" id="cup"]
-[ext_resource type="Resource" path="res://progression/racers/marea.tres" id="r1"]
-[ext_resource type="Resource" path="res://progression/racers/lima.tres" id="r2"]
-[ext_resource type="Resource" path="res://progression/racers/coral.tres" id="r3"]
-[ext_resource type="Resource" path="res://progression/racers/brisa.tres" id="r4"]
 [ext_resource type="Resource" path="res://progression/difficulties/relaxed.tres" id="d1"]
 [ext_resource type="Resource" path="res://progression/difficulties/competitive.tres" id="d2"]
 [ext_resource type="Resource" path="res://progression/difficulties/expert.tres" id="d3"]
+[ext_resource type="Resource" uid="uid://car0a2i0u1d1w" path="res://progression/racers/marea.tres" id="r1"]
+[ext_resource type="Resource" uid="uid://brjsc5isbxqo3" path="res://progression/racers/lima.tres" id="r2"]
+[ext_resource type="Resource" uid="uid://lji70e275wdo" path="res://progression/racers/coral.tres" id="r3"]
+[ext_resource type="Resource" uid="uid://bfvkxms7h8xst" path="res://progression/racers/brisa.tres" id="r4"]
 [ext_resource type="Resource" path="res://progression/unlocks/relaxed_bronze.tres" id="u1"]
 [ext_resource type="Resource" path="res://progression/unlocks/relaxed_silver.tres" id="u2"]
 [ext_resource type="Resource" path="res://progression/unlocks/relaxed_gold.tres" id="u3"]
@@ -21,18 +26,23 @@
 [ext_resource type="Resource" path="res://progression/unlocks/expert_bronze.tres" id="u7"]
 [ext_resource type="Resource" path="res://progression/unlocks/expert_silver.tres" id="u8"]
 [ext_resource type="Resource" path="res://progression/unlocks/expert_gold.tres" id="u9"]
+
 [sub_resource type="Resource" id="Cups"]
 script = ExtResource("2")
-cups = [ExtResource("cup")]
-[sub_resource type="Resource" id="Racers"]
-script = ExtResource("3")
-racers = [ExtResource("r1"), ExtResource("r2"), ExtResource("r3"), ExtResource("r4")]
+cups = Array[ExtResource("1_trkww")]([ExtResource("cup")])
+
 [sub_resource type="Resource" id="Difficulties"]
 script = ExtResource("4")
-difficulties = [ExtResource("d1"), ExtResource("d2"), ExtResource("d3")]
+difficulties = Array[ExtResource("4_7jeev")]([ExtResource("d1"), ExtResource("d2"), ExtResource("d3")])
+
+[sub_resource type="Resource" id="Racers"]
+script = ExtResource("3")
+racers = Array[ExtResource("9_na7yx")]([ExtResource("r1"), ExtResource("r2"), ExtResource("r3"), ExtResource("r4")])
+
 [sub_resource type="Resource" id="Unlocks"]
 script = ExtResource("5")
-unlocks = [ExtResource("u1"), ExtResource("u2"), ExtResource("u3"), ExtResource("u4"), ExtResource("u5"), ExtResource("u6"), ExtResource("u7"), ExtResource("u8"), ExtResource("u9")]
+unlocks = Array[ExtResource("17_12rvf")]([ExtResource("u1"), ExtResource("u2"), ExtResource("u3"), ExtResource("u4"), ExtResource("u5"), ExtResource("u6"), ExtResource("u7"), ExtResource("u8"), ExtResource("u9")])
+
 [resource]
 script = ExtResource("1")
 cups = SubResource("Cups")

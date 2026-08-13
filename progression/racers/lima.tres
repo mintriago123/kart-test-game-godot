@@ -1,14 +1,10 @@
-[gd_resource type="Resource" script_class="RacerDefinition" load_steps=5 format=3]
-[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/data/kart_stats.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/data/ai_profile.gd" id="3"]
+[gd_resource type="Resource" script_class="RacerDefinition" format=3 uid="uid://brjsc5isbxqo3"]
+
+[ext_resource type="Script" uid="uid://cq4orl5qfaqur" path="res://scripts/data/racer_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://bpj1vbc708f5i" path="res://scripts/data/kart_stats.gd" id="2"]
+[ext_resource type="Script" uid="uid://qh0ympyxhwsu" path="res://scripts/data/ai_profile.gd" id="3"]
 [ext_resource type="Resource" path="res://progression/variants/suv_luxury.tres" id="4"]
-[sub_resource type="Resource" id="Stats"]
-script = ExtResource("2")
-max_speed = 24.0
-acceleration = 19.5
-steering_speed = 2.32
-grip = 9.0
+
 [sub_resource type="Resource" id="AI"]
 script = ExtResource("3")
 precision = 0.9
@@ -16,8 +12,14 @@ aggression = 0.4
 drift_usage = 0.8
 risk_tolerance = 0.3
 shortcut_probability = 0.35
-item_efficiency = 0.7
 reaction_time = 0.14
+
+[sub_resource type="Resource" id="Stats"]
+script = ExtResource("2")
+max_speed = 24.0
+acceleration = 19.5
+steering_speed = 2.32
+
 [resource]
 script = ExtResource("1")
 id = &"lima"

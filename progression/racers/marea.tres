@@ -1,16 +1,19 @@
-[gd_resource type="Resource" script_class="RacerDefinition" load_steps=5 format=3]
-[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/data/kart_stats.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/data/ai_profile.gd" id="3"]
+[gd_resource type="Resource" script_class="RacerDefinition" format=3 uid="uid://car0a2i0u1d1w"]
+
+[ext_resource type="Script" uid="uid://cq4orl5qfaqur" path="res://scripts/data/racer_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://bpj1vbc708f5i" path="res://scripts/data/kart_stats.gd" id="2"]
+[ext_resource type="Script" uid="uid://qh0ympyxhwsu" path="res://scripts/data/ai_profile.gd" id="3"]
 [ext_resource type="Resource" path="res://progression/variants/sedan.tres" id="4"]
+
+[sub_resource type="Resource" id="AI"]
+script = ExtResource("3")
+
 [sub_resource type="Resource" id="Stats"]
 script = ExtResource("2")
-max_speed = 25.0
 acceleration = 18.5
 steering_speed = 2.25
 grip = 9.2
-[sub_resource type="Resource" id="AI"]
-script = ExtResource("3")
+
 [resource]
 script = ExtResource("1")
 id = &"marea"

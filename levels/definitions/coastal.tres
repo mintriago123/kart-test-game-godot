@@ -1,11 +1,16 @@
-[gd_resource type="Resource" script_class="TrackDefinition" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrackDefinition" format=3]
+
 [ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://levels/minimaps/coastal.tres" id="1_0t0g0"]
 [ext_resource type="PackedScene" path="res://levels/coastal_track.tscn" id="2"]
+
 [resource]
 script = ExtResource("1")
 id = &"coastal"
 display_name = "Costa Turbo"
 description = "Curvas amplias, laguna y cañón junto al mar."
 preview_color = Color(0.086, 0.498, 0.576, 1)
+preview_map = ExtResource("1_0t0g0")
 scene = ExtResource("2")
-laps = 3
+length_km = 0.5
+shortcut_count = 2

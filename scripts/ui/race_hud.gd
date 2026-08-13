@@ -152,6 +152,7 @@ func show_lap_split(lap_number: int, lap_time: float, previous_best: float) -> v
 
 func set_game_mode(game_mode: int) -> void:
 	_status_view.set_game_mode(game_mode)
+	_minimap.set_game_mode(game_mode)
 	_touch_view.item_button.visible = game_mode != GameModeDefinition.TIME_TRIAL
 
 

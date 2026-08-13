@@ -168,7 +168,7 @@ func _drive_shortcut(
 		):
 			break
 	print(
-		"INFO: %s / %s / %s target=%d/%d distance=%.2f speed=%.1f recoveries=%d"
+		"INFO: %s / %s / %s target=%d/%d distance=%.2f speed=%.1f recoveries=%d reason=%s"
 		% [
 			race_label,
 			shortcut_definition.name,
@@ -178,6 +178,7 @@ func _drive_shortcut(
 			player.global_position.distance_to(drive_points.back()),
 			Vector2(player.velocity.x, player.velocity.z).length(),
 			player.recovery_count - initial_recovery_count,
+			player.last_recovery_reason,
 		]
 	)
 	_check(

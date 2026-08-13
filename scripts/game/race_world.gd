@@ -8,6 +8,8 @@ const DEFAULT_ITEM_CATALOG: ItemCatalog = preload(
 signal retry_requested
 signal menu_requested
 signal race_completed(result: RaceResult)
+signal settings_requested
+signal controls_requested
 
 var graphics_profile := "medium"
 var vibration_enabled := true
@@ -196,6 +198,10 @@ func _build_race() -> void:
 		kart.visual_variant = session.equipped_variant if kart.is_player and session.equipped_variant != null else racer.default_kart_visual
 		var effective_stats := racer.kart_stats.copy()
 		if kart.visual_variant != null:
+			effective_stats.max_speed *= kart.visual_variant.speed
+			effective_stats.acceleration *= kart.visual_variant.acceleration
+			effective_stats.steering_speed *= kart.visual_variant.handling
+			effective_stats.grip *= kart.visual_variant.handling
 			effective_stats.weight = kart.visual_variant.weight
 			effective_stats.mini_turbo_duration_multiplier = kart.visual_variant.mini_turbo_duration_multiplier
 		kart.configure_for_race(effective_stats, race_class, session.driving_tuning)
@@ -275,6 +281,8 @@ func _build_race() -> void:
 	_hud.menu_requested.connect(_handle_menu_requested)
 	_hud.restart_requested.connect(_handle_retry_requested)
 	_hud.quit_requested.connect(_handle_menu_requested)
+	_hud.settings_requested.connect(func() -> void: settings_requested.emit())
+	_hud.controls_requested.connect(func() -> void: controls_requested.emit())
 	_hud.intro_skip_requested.connect(_handle_intro_skip_requested)
 	race_manager.countdown_changed.connect(_hud.show_countdown)
 	race_manager.countdown_changed.connect(_sound.play_countdown)

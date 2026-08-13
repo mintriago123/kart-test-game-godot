@@ -5,6 +5,9 @@
 script = ExtResource("1")
 id = &"kart_oopi"
 display_name = "Kart Oopi"
+speed = 0.94
+acceleration = 1.11
+handling = 1.12
 visual_scene = ExtResource("2")
 weight = 0.86
 mini_turbo_duration_multiplier = 1.18

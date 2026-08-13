@@ -22,6 +22,7 @@ func _test_official_minimaps() -> void:
 	var expected_shortcuts := {
 		&"coastal": 2,
 		&"garden": 2,
+		&"bahia_turbo": 0,
 	}
 	for definition in TRACK_CATALOG.tracks:
 		var preview_map := definition.preview_map

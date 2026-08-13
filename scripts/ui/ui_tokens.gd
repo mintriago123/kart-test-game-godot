@@ -22,6 +22,8 @@ const RADIUS_SMALL := 8
 const RADIUS_MEDIUM := 14
 const RADIUS_LARGE := 22
 const TOUCH_TARGET := 48
+const BODY_FONT = preload("res://assets/fonts/Inter.ttf")
+const DISPLAY_FONT = preload("res://assets/fonts/BarlowCondensed-SemiBold.ttf")
 
 
 static func panel(color := INK, radius := RADIUS_MEDIUM, border_color := Color.TRANSPARENT) -> StyleBoxFlat:
@@ -43,7 +45,11 @@ static func panel(color := INK, radius := RADIUS_MEDIUM, border_color := Color.T
 
 static func create_theme() -> Theme:
 	var result := Theme.new()
+	result.default_font = BODY_FONT
 	result.default_font_size = 18
+	result.set_font("font", "Button", DISPLAY_FONT)
+	result.set_font("font", "HeaderLarge", DISPLAY_FONT)
+	result.set_font("font", "HeaderMedium", DISPLAY_FONT)
 	result.set_color("font_color", "Label", WARM_WHITE)
 	result.set_color("font_color", "Button", GRAPHITE)
 	result.set_color("font_hover_color", "Button", GRAPHITE)

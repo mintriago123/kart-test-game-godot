@@ -17,6 +17,7 @@ func start(cup_id: StringName, difficulty_id: StringName, cc_id: StringName, see
 	active_run.cup_id = cup_id
 	active_run.difficulty_id = difficulty_id
 	active_run.cc_id = cc_id
+	active_run.variant_id = progress.equipped_kart_variant_id
 	active_run.race_seed = seed if seed != 0 else randi()
 	_initialize_standings(cup)
 	_save()
@@ -49,7 +50,8 @@ func create_session() -> RaceSessionConfig:
 	session.run_id = active_run.run_id
 	session.cup_id = cup.id
 	session.cup_race_index = active_run.current_race_index
-	session.equipped_variant = catalog.unlocks.get_variant(progress.equipped_kart_variant_id)
+	var fixed_variant_id := active_run.variant_id if not active_run.variant_id.is_empty() else progress.equipped_kart_variant_id
+	session.equipped_variant = catalog.unlocks.get_variant(fixed_variant_id)
 	return session
 func commit_race_result(result: RaceResult) -> bool:
 	last_granted_rewards.clear()

@@ -125,6 +125,21 @@ func play_item_impact() -> void:
 func play_finish() -> void:
 	_play_tone(783.99, 0.48, 0.35)
 
+func play_ui_navigate() -> void:
+	_play_tone(520.0, 0.045, 0.12)
+
+func play_ui_confirm() -> void:
+	_play_tone(760.0, 0.075, 0.18)
+
+func play_ui_cancel() -> void:
+	_play_tone(330.0, 0.08, 0.16)
+
+func play_ui_error() -> void:
+	_play_tone(170.0, 0.13, 0.20)
+
+func play_ui_reward() -> void:
+	_play_tone(1046.5, 0.28, 0.24)
+
 
 func _play_stream(stream: AudioStream, bus_name := "UI") -> void:
 	var player := _acquire_player(bus_name)
