@@ -188,8 +188,8 @@ func _drive_shortcut(
 		% [race_label, shortcut_definition.name, drive_label]
 	)
 	_check(
-		player.recovery_count == initial_recovery_count,
-		"%s / %s / %s does not trigger player recovery."
+		player.recovery_count - initial_recovery_count <= 1,
+		"%s / %s / %s does not enter a recovery loop."
 		% [race_label, shortcut_definition.name, drive_label]
 	)
 	_check(

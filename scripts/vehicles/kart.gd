@@ -712,6 +712,17 @@ func clear_item_effects() -> void:
 
 func set_respawn_transform(respawn_transform: Transform3D) -> void:
 	_last_valid_transform = respawn_transform
+	# A new checkpoint may be assigned immediately after a teleport (tests,
+	# respawns and shortcut transitions). Do not carry motion samples from the
+	# previous position into the new recovery window.
+	_reset_recovery_sampling()
+
+
+func _reset_recovery_sampling() -> void:
+	_stuck_time = 0.0
+	_movement_sample_time = 0.0
+	_movement_sample_distance = 0.0
+	_last_motion_position = global_position
 
 
 func set_shortcut_surface_enabled(is_enabled: bool) -> void:
@@ -736,10 +747,7 @@ func reset_to_last_checkpoint(reason: String = "manual") -> void:
 	_barrier_contact_remaining = 0.0
 	_last_barrier_normal = Vector3.ZERO
 	floor_snap_length = 0.0
-	_stuck_time = 0.0
-	_movement_sample_time = 0.0
-	_movement_sample_distance = 0.0
-	_last_motion_position = global_position
+	_reset_recovery_sampling()
 	recovery_count += 1
 	recovered.emit()
 

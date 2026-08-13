@@ -20,6 +20,7 @@ func _run() -> void:
 	_test_race_class_scaling()
 	_test_drive_curves()
 	_test_barrier_retention()
+	_test_recovery_sampling_reset()
 	_test_record_migration_and_independence()
 	_test_settings_persistence()
 	_test_controller_bindings()
@@ -28,6 +29,33 @@ func _run() -> void:
 	await _test_race_class_selector()
 	await _test_shared_race_class_and_camera()
 	quit(1 if _has_failed else 0)
+
+
+func _test_recovery_sampling_reset() -> void:
+	var kart := Kart.new()
+	root.add_child(kart)
+	kart.set_physics_process(false)
+	kart._stuck_time = 2.5
+	kart._movement_sample_time = 1.0
+	kart._movement_sample_distance = 0.2
+	kart._last_motion_position = Vector3(100.0, 0.0, 100.0)
+	kart.set_respawn_transform(kart.global_transform)
+	_check(
+		is_zero_approx(kart._stuck_time)
+		and is_zero_approx(kart._movement_sample_time)
+		and is_zero_approx(kart._movement_sample_distance)
+		and kart._last_motion_position.is_equal_approx(kart.global_position),
+		"Assigning a respawn point clears stale recovery motion samples."
+	)
+	kart.is_control_enabled = true
+	kart._throttle_input = 1.0
+	for _sample in 3:
+		kart._check_recovery(1.25)
+	_check(
+		kart.recovery_count == 1 and kart.last_recovery_reason == "stalled",
+		"A genuinely stationary kart still recovers after three seconds."
+	)
+	kart.queue_free()
 
 
 func _ensure_input_actions() -> void:
