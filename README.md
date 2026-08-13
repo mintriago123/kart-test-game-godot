@@ -2,7 +2,7 @@
 
 Juego de carreras arcade para Android, Linux y Windows creado con Godot 4.7.1.
 Incluye doce pistas seleccionables, barreras continuas, atajos físicos, assets
-low-poly CC0, tres rivales, derrape con miniturbo y seis objetos tropicales.
+low-poly CC0, ocho pilotos, derrape con miniturbo y seis objetos tropicales.
 Las carreras ofrecen 50, 100, 150 y 200 CC con física, cámara, IA y récords
 independientes; 150 CC es la selección inicial.
 
@@ -23,8 +23,8 @@ la probabilidad se adapta a la posición de carrera.
 Modo → Pista o Copa → Vehículo → Preparación → Carrera
 ```
 
-- **Carrera rápida** permite elegir pista, vehículo, CC, participantes y
-  objetos antes de competir contra tres rivales.
+- **Carrera rápida** permite elegir pista, vehículo y CC antes de competir en
+  una parrilla de ocho corredores.
 - **Contrarreloj** inicia una sesión individual sin IA ni objetos. Conserva
   récords por pista y CC, graba un fantasma personal y muestra en el minimapa
   únicamente al jugador y la línea de meta.
@@ -32,6 +32,9 @@ Modo → Pista o Copa → Vehículo → Preparación → Carrera
   Horizontes, Salvaje y Extrema forman la escalera principal; Contrastes,
   Expedición y Festival se abren juntas al conseguir cualquier medalla en
   Extrema.
+- **Pantalla dividida** enfrenta a J1 y J2 con seis rivales IA. J1 puede usar
+  teclado o mando; J2 requiere un mando libre. Ambos eligen piloto único y un
+  vehículo de la colección desbloqueada por J1.
 
 Cada combinación de Copa y dificultad conserva sólo su mejor medalla. Bronce,
 Plata y Oro aportan 1, 2 y 3 puntos de carrera, multiplicados ×1 en Relajada,
@@ -45,8 +48,8 @@ carrera y solicita confirmación antes de reemplazarla por otra Copa.
 Al terminar la tercera carrera, la celebración avanza por clasificación final,
 medalla y recompensas. Una misma finalización puede entregar el premio de Copa
 y uno o más hitos globales. Los vehículos obtenidos conservan la marca **Nuevo**
-hasta inspeccionarlos en la galería. Las partidas de los esquemas 1–3 migran al
-esquema 4 sin perder medallas, telemetría, vehículo equipado, premios vistos ni
+hasta inspeccionarlos en la galería. Las partidas de los esquemas 1–4 migran al
+esquema 5 sin perder medallas, telemetría, vehículo equipado, premios vistos ni
 una Copa activa.
 
 ## Perfil y preparación
@@ -106,6 +109,8 @@ el panel resume puntos actuales y próximo hito.
 
 La guía completa para crear una pista, configurar atajos y registrar assets está
 en [docs/track-editor.md](docs/track-editor.md).
+La configuración, límites, puertos y modelo autoritativo del multijugador están
+en [docs/multiplayer.md](docs/multiplayer.md).
 
 ## Controles
 
@@ -142,7 +147,9 @@ GODOT_BIN=/home/mintriago/Godot_v4.7.1-stable_linux.x86_64
 
 El runner asigna un directorio `user://` aislado y escribible a cada prueba.
 Esto evita que la persistencia o la rotación de logs de una suite contaminen a
-la siguiente. Para usar otro binario:
+la siguiente.
+
+Para usar otro binario:
 
 ```sh
 GODOT_BIN=/ruta/a/Godot_v4.7.1-stable_linux.x86_64 \
@@ -174,7 +181,7 @@ Para abrir directamente la carrera durante una captura o perfilado:
 
 ## Exportar la beta
 
-La versión actual es `1.1.0-beta.1`. El preset `Android` genera un APK ARM64
+La versión actual es `1.3.0-beta.1`. El preset `Android` genera un APK ARM64
 para Android 9 (API 28) o superior y declara target SDK 35. Los presets de
 Linux y Windows generan ejecutables autocontenidos en `build/`.
 Antes de exportar, configura el SDK de Android y
@@ -202,6 +209,8 @@ comerciales no forman parte de esta beta.
 
 - El perfil **Medio** activa sombras y glow.
 - El perfil **Bajo** desactiva ambos efectos.
+- Pantalla dividida aplica automáticamente ese presupuesto a sus dos vistas sin
+  cambiar el perfil guardado.
 - El objetivo es 60 FPS en un dispositivo Android de gama media.
 
 La identidad, la geometría de carretera y el código son originales. Algunos

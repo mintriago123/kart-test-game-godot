@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.0 - 2026-08-13
+
+### Multijugador local
+
+- Catálogo ampliado a ocho pilotos con Sol, Coco, Perla y Nube.
+- Carrera rápida de ocho corredores; Copas conservan cuatro y puntuación 9/6/3/1.
+- Sala local de dos jugadores, input por dispositivo y selección de piloto único/vehículo independiente.
+- Pantalla dividida horizontal con cámara, minimapa y HUD por jugador, resultados múltiples y DNF a 30 segundos.
+- Perfil gráfico temporal para sostener dos vistas sin modificar los ajustes guardados.
+
+### Compatibilidad
+
+- Guardado schema 5 con telemetría multijugador separada y migración de schemas 1–4.
+- El multijugador local no concede medallas, desbloqueos ni récords de pista.
+
 ## 1.1.0-beta.1 - 2026-08-13
 
 ### Funcionalidades
