@@ -76,6 +76,7 @@ func _ready() -> void:
 	_router.route_changed.connect(_handle_route_changed)
 	_ui_sound = SoundManager.new()
 	add_child(_ui_sound)
+	_ui_sound.play_menu_music()
 	_build_interface()
 	_bind_ui_feedback.call_deferred()
 

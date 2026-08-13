@@ -19,6 +19,10 @@ const ITEM_IMPACT_SOUND: AudioStream = preload(
 )
 
 var _music_player: AudioStreamPlayer
+var _music_players: Array[AudioStreamPlayer] = []
+var _active_music_index := 0
+var _music_tween: Tween
+var music_catalog := MusicCatalog.new()
 var _sfx_player: AudioStreamPlayer # Compatibility alias for the most recently used pooled player.
 var _pools: Dictionary = {}
 var _pool_cursor: Dictionary = {}
@@ -30,10 +34,14 @@ const POOL_SIZES := {"UI": 4, "Impacts": 6, "Items": 6}
 func _ready() -> void:
 	_is_shutdown = false
 	_ensure_buses()
-	_music_player = AudioStreamPlayer.new()
-	_music_player.bus = &"Music"
-	_music_player.volume_db = -11.0
-	add_child(_music_player)
+	for index in 2:
+		var music_player := AudioStreamPlayer.new()
+		music_player.name = "MusicPlayer%d" % (index + 1)
+		music_player.bus = &"Music"
+		music_player.volume_db = -11.0 if index == 0 else -80.0
+		add_child(music_player)
+		_music_players.append(music_player)
+	_music_player = _music_players[0]
 	for bus_name in POOL_SIZES:
 		var players: Array[AudioStreamPlayer] = []
 		for _index in int(POOL_SIZES[bus_name]):
@@ -64,7 +72,9 @@ func shutdown() -> void:
 	if _is_shutdown:
 		return
 	_is_shutdown = true
-	_release_player(_music_player)
+	if _music_tween != null: _music_tween.kill()
+	for player in _music_players: _release_player(player)
+	_music_players.clear()
 	for players in _pools.values():
 		for player in players:
 			_release_player(player as AudioStreamPlayer)
@@ -75,11 +85,55 @@ func shutdown() -> void:
 
 
 func start_music() -> void:
-	if _is_shutdown or _music_player == null or _music_player.playing:
+	play_menu_music()
+
+func play_menu_music() -> void:
+	_crossfade_to(music_catalog.menu_theme, true)
+
+func play_track_music(track_id: StringName) -> void:
+	var stream := music_catalog.get_track_theme(track_id)
+	if stream == null:
+		push_warning("No music configured for track %s." % track_id)
+		stop_music()
 		return
-	_music_player.stream = _create_music_loop()
-	if _can_play_audio():
-		_music_player.play()
+	_crossfade_to(stream, true)
+
+func play_cup_victory() -> void:
+	_crossfade_to(music_catalog.cup_victory_sting, false)
+
+func stop_music(fade_out := true) -> void:
+	if _is_shutdown: return
+	if _music_tween != null: _music_tween.kill()
+	if not fade_out:
+		for player in _music_players:
+			player.stop(); player.stream = null
+		return
+	_music_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	for player in _music_players:
+		_music_tween.parallel().tween_property(player, "volume_db", -80.0, 0.25)
+	_music_tween.finished.connect(func():
+		for player in _music_players:
+			player.stop(); player.stream = null
+	)
+
+func _crossfade_to(stream: AudioStream, should_loop: bool) -> void:
+	if _is_shutdown or stream == null or _music_players.is_empty(): return
+	var current := _music_players[_active_music_index]
+	if current.stream == stream and current.playing: return
+	var next_index := 1 - _active_music_index
+	var incoming := _music_players[next_index]
+	if _music_tween != null: _music_tween.kill()
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = should_loop
+	incoming.stop(); incoming.stream = stream; incoming.volume_db = -80.0
+	if _can_play_audio(): incoming.play()
+	_music_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	_music_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_music_tween.parallel().tween_property(current, "volume_db", -80.0, 0.25)
+	_music_tween.parallel().tween_property(incoming, "volume_db", -11.0, 0.25)
+	_music_tween.finished.connect(func(): current.stop(); current.stream = null)
+	_active_music_index = next_index
+	_music_player = incoming
 
 
 func play_countdown(text: String) -> void:
@@ -183,36 +237,6 @@ func _release_player(player: AudioStreamPlayer) -> void:
 
 func _can_play_audio() -> bool:
 	return AudioServer.get_driver_name() != "Dummy"
-
-
-func _create_music_loop() -> AudioStreamWAV:
-	var duration := 8.0
-	var sample_count := int(SAMPLE_RATE * duration)
-	var data := PackedByteArray()
-	data.resize(sample_count * 2)
-	var melody := [261.63, 329.63, 392.0, 523.25, 392.0, 329.63, 293.66, 392.0]
-	for sample_index in sample_count:
-		var time := float(sample_index) / SAMPLE_RATE
-		var beat := int(time / 0.5) % melody.size()
-		var beat_time := fmod(time, 0.5)
-		var envelope := minf(beat_time * 18.0, 1.0) * exp(-beat_time * 2.2)
-		var melody_sample := sin(TAU * melody[beat] * time) * envelope * 0.18
-		var bass_frequency: float = melody[beat] * 0.5
-		var bass_sample := sin(TAU * bass_frequency * time) * 0.09
-		var percussion := 0.0
-		if beat_time < 0.035:
-			percussion = sin(TAU * 92.0 * time) * (1.0 - beat_time / 0.035) * 0.13
-		var sample := clampf(melody_sample + bass_sample + percussion, -1.0, 1.0)
-		data.encode_s16(sample_index * 2, int(sample * 32767.0))
-	var stream := AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = SAMPLE_RATE
-	stream.stereo = false
-	stream.data = data
-	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	stream.loop_begin = 0
-	stream.loop_end = sample_count
-	return stream
 
 
 func _create_tone(frequency: float, duration: float, volume: float) -> AudioStreamWAV:

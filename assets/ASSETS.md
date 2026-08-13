@@ -106,3 +106,18 @@ original se conserva en
 Estos efectos identifican activación, despliegue y lanzamiento. El texto
 original se conserva en
 `assets/vendor/kenney/digital-audio/License.txt`.
+
+## Música CC0 de OpenGameArt
+
+- `menu_theme.ogg` — “Racing Game Menu”, MintoDog, CC0 1.0,
+  <https://opengameart.org/content/racing-game-menu>.
+- `coastal.ogg` — “Pure Raceway”, MintoDog, CC0 1.0,
+  <https://opengameart.org/content/pure-raceway>.
+- `garden.ogg` — “Rhythm Garden”, congusbongus, CC0 1.0,
+  <https://opengameart.org/content/rhythm-garden>.
+- `bahia_turbo.ogg` — “Hot Roadway”, MintoDog, CC0 1.0,
+  <https://opengameart.org/content/hot-roadway>.
+- `cup_victory.ogg` — “Race Finish Best (Jingle)”, MintoDog, CC0 1.0,
+  <https://opengameart.org/content/racing-game-finish-jingle>.
+
+Los temas de fondo se reproducen en bucle; el jingle de Copa, una sola vez.

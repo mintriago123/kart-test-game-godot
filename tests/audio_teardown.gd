@@ -22,7 +22,7 @@ func _exercise_playback_cycle(cycle_index: int) -> void:
 	root.add_child(manager)
 	await process_frame
 
-	manager.start_music()
+	manager.play_menu_music()
 	manager.play_countdown("3")
 	manager.play_countdown("2")
 	manager.play_countdown("1")
@@ -37,7 +37,6 @@ func _exercise_playback_cycle(cycle_index: int) -> void:
 	manager.play_item_impact()
 	manager.play_finish()
 
-	var music_stream_ref: WeakRef = weakref(manager._music_player.stream)
 	var tone_stream_ref: WeakRef = weakref(manager._sfx_player.stream)
 	var manager_ref: WeakRef = weakref(manager)
 	var playback_state_is_expected := (
@@ -50,9 +49,9 @@ func _exercise_playback_cycle(cycle_index: int) -> void:
 		)
 	)
 	_check(
-		manager._music_player.stream is AudioStreamWAV
+		manager._music_player.stream is AudioStreamOggVorbis
 		and manager._sfx_player.stream is AudioStreamWAV,
-		"Playback cycle %d builds generated music and tones."
+		"Playback cycle %d uses catalog music and generated tones."
 		% (cycle_index + 1)
 	)
 	_check(
@@ -72,9 +71,8 @@ func _exercise_playback_cycle(cycle_index: int) -> void:
 	await process_frame
 	await create_timer(0.05, true, false, true).timeout
 	_check(
-		music_stream_ref.get_ref() == null
-		and tone_stream_ref.get_ref() == null,
-		"Playback cycle %d releases temporary audio streams."
+		tone_stream_ref.get_ref() == null,
+		"Playback cycle %d releases temporary generated streams."
 		% (cycle_index + 1)
 	)
 

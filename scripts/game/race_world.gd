@@ -93,7 +93,7 @@ func _build_environment() -> void:
 		_: get_viewport().msaa_3d = Viewport.MSAA_DISABLED
 	_sound = SoundManager.new()
 	add_child(_sound)
-	_sound.start_music()
+	_sound.play_track_music(session.track.id)
 
 	var world_environment := WorldEnvironment.new()
 	var environment := Environment.new()
@@ -524,6 +524,8 @@ func _handle_race_completed(result: RaceResult) -> void:
 	if vibration_enabled:
 		Input.vibrate_handheld(220, 0.6)
 	race_completed.emit(result)
+	if result.cup_summary != null and result.cup_summary.completed:
+		_sound.play_cup_victory()
 	_hud.show_results(result)
 
 
