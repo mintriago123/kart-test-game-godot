@@ -12,6 +12,7 @@ var device_type: StringName = RaceParticipantConfig.DEVICE_KEYBOARD
 var device_id := -1
 var enabled := true
 var _previous_item_pressed := false
+var _virtual_action_strengths: Dictionary = {}
 
 
 static func for_participant(participant: RaceParticipantConfig) -> RacerInputSource:
@@ -44,12 +45,25 @@ func sample() -> Dictionary:
 
 
 func get_action_strength(action: StringName) -> float:
-	var strength := 0.0
+	var strength := float(_virtual_action_strengths.get(action, 0.0))
 	for event in InputMap.action_get_events(action):
 		if not accepts_event(event):
 			continue
 		strength = maxf(strength, _event_strength(event))
 	return clampf(strength, 0.0, 1.0)
+
+
+func set_virtual_action_strength(action: StringName, strength: float) -> void:
+	var clamped_strength := clampf(strength, 0.0, 1.0)
+	if is_zero_approx(clamped_strength):
+		_virtual_action_strengths.erase(action)
+	else:
+		_virtual_action_strengths[action] = clamped_strength
+
+
+func clear_virtual_actions() -> void:
+	_virtual_action_strengths.clear()
+	_previous_item_pressed = false
 
 
 func accepts_event(event: InputEvent) -> bool:
