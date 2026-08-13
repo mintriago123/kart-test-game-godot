@@ -17,6 +17,7 @@ func _run() -> void:
 	_test_catalog_and_modes()
 	_test_session_validation()
 	_test_input_isolation()
+	_test_protocol_and_snapshots()
 	_test_multiplayer_telemetry()
 	await _test_local_world()
 	if failures == 0:
@@ -84,6 +85,25 @@ func _test_input_isolation() -> void:
 	_expect(frame.throttle == 1.0 and frame.steer == -1.0, "Network input frames expose sanitized controls.")
 
 
+func _test_protocol_and_snapshots() -> void:
+	var fingerprint := LanProtocol.calculate_catalog_fingerprint(PROGRESSION, TRACKS)
+	var valid := {"protocol": 1, "catalog_fingerprint": fingerprint, "racer_id": &"marea", "vehicle_id": &"sedan", "track_id": &"coastal"}
+	_expect(LanProtocol.validate_handshake(valid, fingerprint, PROGRESSION, TRACKS).is_empty(), "Compatible LAN handshakes pass before room entry.")
+	valid.protocol = 99
+	_expect("Versión LAN incompatible" in LanProtocol.validate_handshake(valid, fingerprint, PROGRESSION, TRACKS), "Protocol mismatches return an explicit message.")
+	var discovery := LanDiscoveryService.new()
+	_expect(discovery.ingest_announcement({"protocol": 1, "room_id": "abc", "name": "Sala"}, "192.168.1.2", 1000), "A compatible discovery announcement is accepted.")
+	_expect(discovery.prune_stale(4101) and discovery.get_rooms().is_empty(), "Rooms expire after three seconds without announcements.")
+	discovery.free()
+	var buffer := LanSnapshotBuffer.new()
+	buffer.interpolation_delay_ms = 0
+	buffer.push_snapshot({"server_time_ms": 100, "racers": [{"slot_id": 2, "position": Vector3.ZERO, "velocity": Vector3.ZERO, "rotation": Quaternion.IDENTITY}]})
+	buffer.push_snapshot({"server_time_ms": 200, "racers": [{"slot_id": 2, "position": Vector3(10, 0, 0), "velocity": Vector3(2, 0, 0), "rotation": Quaternion.IDENTITY}]})
+	_expect(is_equal_approx((buffer.sample_racer(2, 150).position as Vector3).x, 5.0), "Rival snapshots interpolate through the 100 ms buffer.")
+	var corrected := buffer.reconcile_local({"position": Vector3.ZERO, "rotation": Quaternion.IDENTITY}, {"position": Vector3(1, 0, 0), "rotation": Quaternion.IDENTITY})
+	_expect((corrected.position as Vector3).x > 0.0 and (corrected.position as Vector3).x < 1.0, "Local reconciliation applies ordinary corrections gradually.")
+
+
 func _test_multiplayer_telemetry() -> void:
 	var progress := PlayerProgress.new()
 	progress.save_path = "/tmp/michikart-multiplayer-statistics.cfg"
@@ -124,7 +144,7 @@ func _test_local_world() -> void:
 	itemless_world.setup(itemless)
 	root.add_child(itemless_world)
 	await process_frame
-	_expect(itemless_world._item_executor == null and itemless_world._item_boxes.is_empty(), "A session with items disabled creates no item executor or boxes.")
+	_expect(itemless_world._item_executor == null and itemless_world._item_boxes.is_empty(), "A host session with items disabled creates no item authority or boxes.")
 	itemless_world.shutdown()
 	itemless_world.queue_free()
 	await process_frame

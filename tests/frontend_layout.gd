@@ -23,7 +23,7 @@ func _check_size(viewport_size: Vector2i) -> void:
 	menu._title_screen.hide()
 	menu._router.replace(MenuRoute.Id.MAIN)
 	menu._cup_selector.configure(menu.progression_catalog, menu.player_progress, {"source": "play", "mode": GameModeDefinition.CUP})
-	for route in [MenuRoute.Id.PLAY_MODE, MenuRoute.Id.PLAY_CUP, MenuRoute.Id.PLAY_READY, MenuRoute.Id.PLAY_LOCAL_LOBBY, MenuRoute.Id.GARAGE, MenuRoute.Id.PROFILE, MenuRoute.Id.SETTINGS, MenuRoute.Id.CONTROLS]:
+	for route in [MenuRoute.Id.PLAY_MODE, MenuRoute.Id.PLAY_CUP, MenuRoute.Id.PLAY_READY, MenuRoute.Id.PLAY_LOCAL_LOBBY, MenuRoute.Id.PLAY_LAN_LOBBY, MenuRoute.Id.GARAGE, MenuRoute.Id.PROFILE, MenuRoute.Id.SETTINGS, MenuRoute.Id.CONTROLS]:
 		menu._router.navigate(route)
 		await process_frame
 		var screen := menu._router._screens[route] as Control

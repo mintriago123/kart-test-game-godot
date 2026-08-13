@@ -80,6 +80,9 @@ for suite in "${CORE_SUITES[@]}"; do
 	run_suite "$suite"
 done
 
+echo "==> LAN loopback · 1 host + 3 clients"
+timeout "${LAN_TEST_TIMEOUT_SECONDS:-30}" "$PROJECT_ROOT/tools/run_lan_loopback.sh"
+
 run_suite tests/shortcut_drive.gd "--profile=$TEST_PROFILE"
 run_suite tests/race_stability.gd "--profile=$TEST_PROFILE"
 
