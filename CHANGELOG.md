@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.1.0-beta.1 - 2026-08-13
+
+### Funcionalidades
+
+- Campaña de siete Copas de tres pistas: cuatro eventos principales y tres remix.
+- Progresión híbrida con ocho vehículos por medallas, cuatro por hitos globales y Sedán inicial.
+- Puntos de carrera idempotentes con multiplicadores por dificultad y un máximo de 126.
+- Selector de Copas, Perfil y Garaje con candados, requisitos, próximo hito y recompensas acumulativas.
+- Doce circuitos oficiales reorganizados en la campaña sin modificar su identidad visual.
+
+### Pruebas y estabilidad
+
+- Certificación de atajos basada en los corredores y muestras de navegación usados en producción.
+- Comprobaciones independientes para geometría, compuertas, superficie, conducción y recuperaciones.
+- Perfiles rápido y exhaustivo para estabilidad de carreras y conducción de atajos.
+- Ejecución aislada de cada suite para evitar contaminación de `user://` y rotación compartida de logs.
+
+### Compatibilidad
+
+- El guardado usa el esquema 4 y migra partidas de los esquemas 1–3 sin revocar vehículos.
+- Se conservan medallas, telemetría, Copa activa, recompensas vistas y vehículo equipado.
+- Si una partida antigua no tiene vehículo equipado, se asigna el Sedán inicial.
+
 ## 1.0.0
 
 ### Funcionalidades

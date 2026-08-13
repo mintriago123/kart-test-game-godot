@@ -127,11 +127,10 @@ FRENO, la aceleración automática se suspende para permitir frenar o usar rever
 
 1. Abrir el directorio con Godot 4.7.1.
 2. Ejecutar la escena principal con `F6`/`F5`.
-3. Para la prueba integral sin interfaz, ejecutar:
+3. Para ejecutar la validación habitual sin interfaz:
 
    ```sh
-   /home/mintriago/Godot_v4.7.1-stable_linux.x86_64 \
-     --headless --path . --script tests/headless_smoke.gd
+   tools/run_tests.sh quick
    ```
 
 En esta máquina, los ejemplos siguientes usan esta variable para abreviar el
@@ -141,37 +140,29 @@ binario de Godot:
 GODOT_BIN=/home/mintriago/Godot_v4.7.1-stable_linux.x86_64
 ```
 
-Las suites principales se ejecutan con:
+El runner asigna un directorio `user://` aislado y escribible a cada prueba.
+Esto evita que la persistencia o la rotación de logs de una suite contaminen a
+la siguiente. Para usar otro binario:
 
 ```sh
-for suite in \
-  tests/frontend_layout.gd \
-  tests/ui_redesign.gd \
-  tests/cup_progression.gd \
-  tests/driving_physics.gd \
-  tests/race_telemetry.gd \
-  tests/time_trial.gd \
-  tests/time_trial_world.gd \
-  tests/headless_smoke.gd
-do
-  "$GODOT_BIN" --headless --path . --script "$suite" || exit $?
-done
+GODOT_BIN=/ruta/a/Godot_v4.7.1-stable_linux.x86_64 \
+  tools/run_tests.sh quick
 ```
 
-Las pruebas específicas de pistas, IA, objetos y presentación incluyen:
+La matriz completa de los doce circuitos, cuatro cilindradas, atajos y
+aproximaciones queda reservada para la validación nocturna o previa a una beta:
 
 ```sh
-for suite in \
-  tests/track_authoring.gd tests/track_editor.gd \
-  tests/track_barriers.gd tests/track_minimap.gd \
-  tests/shortcut_drive.gd tests/racing_line.gd \
-  tests/ai_barrier_avoidance.gd tests/race_stability.gd \
-  tests/race_intro.gd tests/item_physics.gd \
-  tests/item_catalog.gd tests/item_behaviors.gd \
-  tests/audio_teardown.gd tests/presentation_polish.gd
-do
-  "$GODOT_BIN" --headless --path . --script "$suite" || exit $?
-done
+tools/run_tests.sh exhaustive
+```
+
+Las dos pruebas largas también aceptan filtros para reproducir un caso:
+
+```sh
+"$GODOT_BIN" --headless --path . --script tests/shortcut_drive.gd -- \
+  --track=dunas_doradas --cc=200 --shortcut=0 --approach=right
+"$GODOT_BIN" --headless --path . --script tests/race_stability.gd -- \
+  --track=nen_medianoche --cc=200
 ```
 
 Para abrir directamente la carrera durante una captura o perfilado:
@@ -181,21 +172,31 @@ Para abrir directamente la carrera durante una captura o perfilado:
 "$GODOT_BIN" --path . -- --auto-time-trial
 ```
 
-## Exportar a Android
+## Exportar la beta
 
-El preset `Android` genera un APK ARM64 en `build/android/michikart-xd.apk`.
+La versión actual es `1.1.0-beta.1`. El preset `Android` genera un APK ARM64
+para Android 9 (API 28) o superior y declara target SDK 35. Los presets de
+Linux y Windows generan ejecutables autocontenidos en `build/`.
 Antes de exportar, configura el SDK de Android y
 las plantillas de exportación **4.7.1** en el editor. También se requiere un JDK
-completo compatible (configurado en este proyecto con JDK 21) en
+completo compatible; esta beta se validó con JDK 21. Selecciónalo en
 `Editor Settings > Export > Android`.
-El proyecto está diseñado para orientación horizontal y Android 9 o superior.
 
-La exportación por terminal se ejecuta con:
+Las exportaciones de depuración para la beta se ejecutan con:
 
 ```sh
-"$GODOT_BIN" --headless --path . \
+"$GODOT_BIN" --headless --path . --install-android-build-template \
   --export-debug Android build/android/michikart-xd.apk
+"$GODOT_BIN" --headless --path . \
+  --export-debug Linux build/linux/michikart-xd.x86_64
+"$GODOT_BIN" --headless --path . \
+  --export-debug Windows build/windows/michikart-xd.exe
 ```
+
+Antes de distribuir, ejecutar `tools/run_tests.sh exhaustive`, comprobar una
+partida nueva y una migrada, y verificar controles, audio y fluidez en cada
+plataforma. La publicación en tiendas, firma de producción y metadatos
+comerciales no forman parte de esta beta.
 
 ## Rendimiento
 
