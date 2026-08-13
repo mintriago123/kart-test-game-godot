@@ -2,9 +2,10 @@
 
 ## Pantalla dividida
 
-Pantalla dividida usa dos viewports horizontales con un único `World3D`. Cada
-jugador tiene cámara, minimapa, velocidad, vuelta, posición, objeto y escudo
-propios. Pausa y estado de resultados afectan a la carrera completa.
+Pantalla dividida está disponible en Windows y Linux. Usa dos viewports
+horizontales con un único `World3D`. Cada jugador tiene cámara, minimapa,
+velocidad, vuelta, posición, objeto y escudo propios. Pausa y estado de
+resultados afectan a la carrera completa.
 
 - J1: teclado o un mando conectado.
 - J2: un mando conectado que no esté asignado a J1.
@@ -19,9 +20,12 @@ MSAA y usa el perfil bajo para sombras/efectos sin modificar Ajustes.
 
 ## LAN
 
-LAN está disponible únicamente en Windows y Linux. Usa `7777/UDP` para ENet y
-`7778/UDP` para anuncios. También se puede escribir una IP y puerto manuales.
-Una sala desaparece del navegador después de tres segundos sin anuncios.
+LAN está disponible en Android, Windows y Linux, con un humano por dispositivo.
+Usa `7777/UDP` para ENet y `7778/UDP` para anuncios. También se puede escribir
+una IP y puerto manuales; esta ruta sirve como respaldo cuando un punto de
+acceso bloquea los anuncios broadcast. Una sala desaparece del navegador
+después de tres segundos sin anuncios. El APK declara el permiso Android
+`INTERNET`, necesario para abrir sockets ENet y UDP.
 
 El anfitrión simula física, IA, cajas, objetos, impactos, vueltas, posiciones y
 resultados. Los clientes envían input numerado a 30 Hz por un canal no fiable
@@ -48,5 +52,5 @@ inicio, inputs numerados, snapshots, eventos fiables y reconexión de un slot
 reservado. Puede ejecutarse solo con `tools/run_lan_loopback.sh`; necesita
 permiso para abrir sockets UDP locales.
 `exhaustive` añade la matriz completa de pistas/CC y carreras largas; la
-certificación previa a distribución debe incluir cuatro PCs, hot-plug y mandos
-Xbox, PlayStation y genéricos.
+certificación previa a distribución debe incluir combinaciones de Android,
+Windows y Linux, además de hot-plug y mandos Xbox, PlayStation y genéricos.

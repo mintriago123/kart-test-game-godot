@@ -40,7 +40,7 @@ func _ready() -> void:
 	page.pivot_offset = page.size * 0.5
 	add_child(page)
 	var title := Label.new()
-	title.text = "RED LOCAL · HASTA 4 PCs"
+	title.text = "RED LOCAL · HASTA 4 DISPOSITIVOS"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 42)
 	page.add_child(title)

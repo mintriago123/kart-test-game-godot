@@ -4,10 +4,11 @@
 
 ### Red local
 
-- Sala ENet autoritativa para hasta cuatro PCs, con IA hasta completar ocho.
+- Sala ENet autoritativa para hasta cuatro dispositivos Android, Windows o Linux, con IA hasta completar ocho.
 - Descubrimiento UDP, conexión por IP, validación de protocolo/fingerprint y mensajes de incompatibilidad.
 - Inputs a 30 Hz, snapshots a 20 Hz, interpolación, predicción local y reconciliación.
 - Slots reservados con IA temporal y reconexión por token; caída del host finaliza la partida.
+- Android ofrece LAN con un humano por dispositivo, oculta pantalla dividida y habilita el permiso de red del APK.
 
 ### Compatibilidad
 

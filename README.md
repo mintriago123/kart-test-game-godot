@@ -32,11 +32,12 @@ Modo → Pista o Copa → Vehículo → Preparación → Carrera
   Horizontes, Salvaje y Extrema forman la escalera principal; Contrastes,
   Expedición y Festival se abren juntas al conseguir cualquier medalla en
   Extrema.
-- **Pantalla dividida** enfrenta a J1 y J2 con seis rivales IA. J1 puede usar
-  teclado o mando; J2 requiere un mando libre. Ambos eligen piloto único y un
-  vehículo de la colección desbloqueada por J1.
-- **Red local** conecta hasta cuatro PCs Windows/Linux y completa la parrilla
-  de ocho con IA del anfitrión. Admite descubrimiento o IP/puerto manual.
+- **Pantalla dividida** en Windows/Linux enfrenta a J1 y J2 con seis rivales IA.
+  J1 puede usar teclado o mando; J2 requiere un mando libre. Ambos eligen piloto
+  único y un vehículo de la colección desbloqueada por J1.
+- **Red local** conecta hasta cuatro dispositivos Android, Windows o Linux y
+  completa la parrilla de ocho con IA del anfitrión. Cada dispositivo aporta un
+  humano y admite descubrimiento o IP/puerto manual.
 
 Cada combinación de Copa y dificultad conserva sólo su mejor medalla. Bronce,
 Plata y Oro aportan 1, 2 y 3 puntos de carrera, multiplicados ×1 en Relajada,
@@ -189,8 +190,9 @@ Para abrir directamente la carrera durante una captura o perfilado:
 ## Exportar la beta
 
 La versión actual es `1.3.0-beta.1`. El preset `Android` genera un APK ARM64
-para Android 9 (API 28) o superior y declara target SDK 35. Los presets de
-Linux y Windows generan ejecutables autocontenidos en `build/`.
+para Android 9 (API 28) o superior, declara target SDK 35 y habilita el permiso
+`INTERNET` requerido por ENet y el descubrimiento UDP. Los presets de Linux y
+Windows generan ejecutables autocontenidos en `build/`.
 Antes de exportar, configura el SDK de Android y
 las plantillas de exportación **4.7.1** en el editor. También se requiere un JDK
 completo compatible; esta beta se validó con JDK 21. Selecciónalo en

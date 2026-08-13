@@ -27,6 +27,13 @@ func _run() -> void:
 
 func _test_catalog_and_modes() -> void:
 	_expect([GameModeDefinition.RACE, GameModeDefinition.TIME_TRIAL, GameModeDefinition.CUP, GameModeDefinition.LOCAL_MULTIPLAYER, GameModeDefinition.LAN_MULTIPLAYER] == [0, 1, 2, 3, 4], "Published game-mode values remain compatible and append local/LAN.")
+	var android_modes := ModeSelectScreen.available_modes_for_platform(true, false)
+	_expect(GameModeDefinition.LAN_MULTIPLAYER in android_modes and GameModeDefinition.LOCAL_MULTIPLAYER not in android_modes, "Android exposes LAN and excludes split-screen multiplayer.")
+	var desktop_modes := ModeSelectScreen.available_modes_for_platform(false, false)
+	_expect(GameModeDefinition.LAN_MULTIPLAYER in desktop_modes and GameModeDefinition.LOCAL_MULTIPLAYER in desktop_modes, "Desktop exposes both multiplayer modes.")
+	var export_config := ConfigFile.new()
+	var export_loaded := export_config.load("res://export_presets.cfg") == OK
+	_expect(export_loaded and bool(export_config.get_value("preset.0.options", "permissions/internet", false)), "The Android export enables network sockets for ENet and UDP discovery.")
 	_expect(PROGRESSION.racers.racers.size() == 8, "The shared catalog contains eight racers.")
 	var expected := {
 		&"sol": ["f6c945", &"hatchback_sports"],
