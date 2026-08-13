@@ -1,6 +1,9 @@
 class_name RaceTouchControls
 extends Control
 
+const STEERING_ZONE_TOP := 0.32
+const STEERING_ZONE_RIGHT := 0.52
+
 var steering_pad: CoastalJoystick
 var item_button: MobileActionButton
 var launch_button: MobileActionButton
@@ -22,9 +25,13 @@ func build_interface(
 
 	steering_pad = CoastalJoystick.new()
 	steering_pad.name = "SteeringPad"
-	steering_pad.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	steering_pad.position = Vector2(20.0, -212.0)
-	steering_pad.size = Vector2(250.0, 192.0)
+	steering_pad.set_anchors_preset(Control.PRESET_FULL_RECT)
+	steering_pad.anchor_top = STEERING_ZONE_TOP
+	steering_pad.anchor_right = STEERING_ZONE_RIGHT
+	steering_pad.offset_left = 0.0
+	steering_pad.offset_top = 0.0
+	steering_pad.offset_right = 0.0
+	steering_pad.offset_bottom = 0.0
 	add_child(steering_pad)
 
 	_add_action_button(

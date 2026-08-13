@@ -151,8 +151,21 @@ func _run() -> void:
 		var item_button := hud._touch_controls.get_node("ItemButton") as MobileActionButton
 		var brake_button := hud._touch_controls.get_node("BrakeButton") as MobileActionButton
 		_check(
-			steering_pad.size.x >= 240.0 and steering_pad.size.y >= 188.0,
-			"Steering uses a large thumb-friendly touch area."
+			is_equal_approx(
+				steering_pad.anchor_top,
+				RaceTouchControls.STEERING_ZONE_TOP
+			)
+			and is_equal_approx(
+				steering_pad.anchor_right,
+				RaceTouchControls.STEERING_ZONE_RIGHT
+			)
+			and steering_pad.size.x >= 240.0
+			and steering_pad.size.y >= 188.0,
+			"Steering uses a broad lower-left floating touch zone."
+		)
+		_check(
+			not steering_pad._pointer_active,
+			"Floating steering stays hidden until the player touches its zone."
 		)
 		_check(
 			drift_button.size.x >= 128.0
@@ -182,14 +195,42 @@ func _run() -> void:
 		)
 		Input.action_release(&"brake")
 		await process_frame
-		steering_pad._begin_drag(Vector2(110.0, 94.0))
-		steering_pad._update_target(Vector2(176.0, 94.0))
+		var steering_touch := InputEventScreenTouch.new()
+		steering_touch.index = 3
+		steering_touch.position = Vector2(110.0, 94.0)
+		steering_touch.pressed = true
+		steering_pad._gui_input(steering_touch)
+		_check(
+			steering_pad._pointer_active
+			and steering_pad._touch_origin == Vector2(110.0, 94.0),
+			"Floating steering appears at the player's initial thumb position."
+		)
+		var competing_touch := InputEventScreenTouch.new()
+		competing_touch.index = 4
+		competing_touch.position = Vector2(250.0, 150.0)
+		competing_touch.pressed = true
+		steering_pad._gui_input(competing_touch)
+		_check(
+			steering_pad._touch_index == 3
+			and steering_pad._touch_origin == Vector2(110.0, 94.0),
+			"A second finger cannot move an active steering origin."
+		)
+		var steering_drag := InputEventScreenDrag.new()
+		steering_drag.index = 3
+		steering_drag.position = Vector2(176.0, 94.0)
+		steering_pad._gui_input(steering_drag)
 		steering_pad._process(0.2)
 		_check(
 			Input.get_action_strength(&"steer_right") > 0.45,
 			"Floating steering pad produces progressive steering."
 		)
-		steering_pad._end_drag()
+		var steering_release := steering_touch.duplicate() as InputEventScreenTouch
+		steering_release.pressed = false
+		steering_pad._gui_input(steering_release)
+		_check(
+			not steering_pad._pointer_active,
+			"Floating steering disappears immediately when the thumb lifts."
+		)
 		drift_button._set_pressed(true)
 		_check(Input.is_action_pressed(&"drift"), "Drift supports a sustained touch.")
 		drift_button._set_pressed(false)
