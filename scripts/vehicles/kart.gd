@@ -57,6 +57,7 @@ var participant_slot := -1
 var local_player_index := -1
 var network_peer_id := 0
 var input_source: RacerInputSource
+var allow_item_execution := true
 
 var stats := KartStats.new()
 var race_class: RaceClassDefinition
@@ -133,7 +134,8 @@ func _physics_process(delta: float) -> void:
 		_read_player_input()
 	if _use_item_requested:
 		_use_item_requested = false
-		use_item()
+		if allow_item_execution:
+			use_item()
 
 	var can_drive := is_control_enabled and _stun_remaining <= 0.0
 	_capture_launch_input()

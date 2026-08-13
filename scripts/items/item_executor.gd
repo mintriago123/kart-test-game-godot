@@ -4,11 +4,14 @@ extends Node
 signal item_activated(item: ItemDefinition, source_kart: Kart)
 signal kart_hit(item: ItemDefinition, source_kart: Kart, kart: Node3D, result: int)
 signal projectile_bounced(bounce_count: int)
+signal item_entity_spawned(entity_id: int, entity_kind: StringName, item: ItemDefinition, source_kart: Kart, entity: Node3D)
+signal item_entity_destroyed(entity_id: int)
 
 var race_manager: RaceManager
 var projectiles: Node3D
 var traps: Node3D
 var effects: Node3D
+var _next_entity_id := 1
 
 
 func setup(
@@ -112,6 +115,7 @@ func _spawn_projectile(
 		+ direction.normalized() * 2.0
 		+ Vector3.UP * (item.projectile_radius + 0.25)
 	)
+	_register_network_entity(projectile, &"projectile", item, source_kart)
 	return true
 
 
@@ -134,7 +138,25 @@ func _spawn_trap(
 		+ direction.normalized() * item.trap_spawn_distance
 		+ Vector3.UP
 	)
+	_register_network_entity(trap, &"trap", item, source_kart)
 	return true
+
+
+func _register_network_entity(
+	entity: Node3D,
+	entity_kind: StringName,
+	item: ItemDefinition,
+	source_kart: Kart
+) -> void:
+	var entity_id := _next_entity_id
+	_next_entity_id += 1
+	entity.set_meta(&"lan_entity_id", entity_id)
+	entity.set_meta(&"lan_entity_kind", entity_kind)
+	entity.tree_exiting.connect(
+		func() -> void: item_entity_destroyed.emit(entity_id),
+		CONNECT_ONE_SHOT
+	)
+	item_entity_spawned.emit(entity_id, entity_kind, item, source_kart, entity)
 
 
 func _execute_area_effect(

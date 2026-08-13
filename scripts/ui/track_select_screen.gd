@@ -120,6 +120,7 @@ func select_game_mode(game_mode: int, should_emit := true) -> void:
 			GameModeDefinition.TIME_TRIAL: "CONTRARRELOJ",
 			GameModeDefinition.CUP: "COPA",
 			GameModeDefinition.LOCAL_MULTIPLAYER: "PANTALLA DIVIDIDA",
+			GameModeDefinition.LAN_MULTIPLAYER: "RED LOCAL",
 		}.get(_selected_game_mode, "CARRERA RÁPIDA")
 	for button_mode in game_mode_buttons:
 		(game_mode_buttons[button_mode] as Button).set_pressed_no_signal(button_mode == _selected_game_mode)

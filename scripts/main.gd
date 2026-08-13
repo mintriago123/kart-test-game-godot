@@ -10,6 +10,8 @@ var ghost_storage := GhostStorage.new()
 var player_progress := PlayerProgress.new()
 var cup_manager: CupManager
 var selected_cup_difficulty_id: StringName = &"competitive"
+var lan_session: LanSession
+var _pending_menu_notice := ""
 
 
 func _ready() -> void:
@@ -182,6 +184,7 @@ func _show_main_menu() -> void:
 	main_menu.equip_variant_requested.connect(_equip_variant)
 	main_menu.gamepad_family_changed.connect(_set_gamepad_family)
 	main_menu.reduced_motion_changed.connect(_set_reduced_motion)
+	main_menu.lan_race_requested.connect(_handle_lan_race_requested)
 	add_child(main_menu)
 	main_menu.apply_settings(
 		settings.graphics_profile,
@@ -202,6 +205,44 @@ func _show_main_menu() -> void:
 		settings.ui_reduced_motion
 	)
 	_refresh_ghost_availability()
+	if not _pending_menu_notice.is_empty():
+		main_menu.show_notice(_pending_menu_notice)
+		_pending_menu_notice = ""
+
+
+func _handle_lan_race_requested(value_session: LanSession, payload: Dictionary) -> void:
+	if value_session == null:
+		return
+	var detached := main_menu.detach_lan_session() if main_menu != null else value_session
+	if detached == null:
+		return
+	lan_session = detached
+	if lan_session.get_parent() != self:
+		add_child(lan_session)
+	if not lan_session.host_lost.is_connected(_handle_lan_host_lost):
+		lan_session.host_lost.connect(_handle_lan_host_lost)
+	var room: Dictionary = payload.get("settings", {})
+	var track := TRACK_CATALOG.get_track(StringName(room.get("track_id", &"")))
+	if track == null:
+		_pending_menu_notice = "El anfitrión eligió un circuito incompatible."
+		_return_to_menu()
+		return
+	var race_session := RaceSessionConfig.new()
+	race_session.track = track
+	race_session.race_class = RaceClassDefinition.get_by_id(StringName(room.get("cc_id", &"150")))
+	race_session.game_mode = GameModeDefinition.LAN_MULTIPLAYER
+	race_session.grid_size = LanProtocol.GRID_SIZE
+	race_session.items_enabled = bool(room.get("items_enabled", true))
+	race_session.set_participants(lan_session.build_participants())
+	race_session.race_seed = int(payload.get("race_seed", randi()))
+	race_session.run_id = StringName("lan-%s-%s" % [lan_session.local_token.left(12), race_session.race_seed])
+	race_session.lan_session = lan_session
+	_start_session(race_session, true)
+
+
+func _handle_lan_host_lost(message: String) -> void:
+	_pending_menu_notice = message
+	_return_to_menu()
 
 
 func _continue_cup() -> void:
@@ -244,6 +285,10 @@ func _return_to_menu() -> void:
 		race_world.queue_free()
 		race_world = null
 	get_tree().paused = false
+	if lan_session != null:
+		lan_session.close()
+		lan_session.queue_free()
+		lan_session = null
 	_show_main_menu()
 
 

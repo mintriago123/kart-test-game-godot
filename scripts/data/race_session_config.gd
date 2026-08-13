@@ -16,6 +16,7 @@ var race_seed := 0
 var run_id: StringName
 var cup_id: StringName
 var cup_race_index := -1
+var lan_session: LanSession
 
 
 static func create_default(mode: int = GameModeDefinition.RACE) -> RaceSessionConfig:

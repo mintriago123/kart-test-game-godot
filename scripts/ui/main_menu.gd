@@ -23,6 +23,7 @@ signal equip_variant_requested(variant_id: StringName)
 signal gamepad_family_changed(family: StringName)
 signal reduced_motion_changed(enabled: bool)
 signal abandon_cup_requested
+signal lan_race_requested(lan_session: LanSession, payload: Dictionary)
 
 var graphics_profile := "medium"
 var track_catalog: TrackCatalog
@@ -66,6 +67,7 @@ var _ui_sound: SoundManager
 var _garage_showroom: VehicleViewport
 var _local_lobby: LocalMultiplayerLobby
 var _pending_multiplayer_participants: Array[RaceParticipantConfig] = []
+var _lan_lobby: LanMultiplayerLobby
 
 
 func _ready() -> void:
@@ -288,6 +290,12 @@ func _build_interface() -> void:
 	_local_lobby.configure(progression_catalog, player_progress)
 	_local_lobby.participants_confirmed.connect(_handle_local_participants_confirmed)
 	_local_lobby.back_requested.connect(func() -> void: _router.back())
+	_lan_lobby = LanMultiplayerLobby.new()
+	_lan_lobby.visible = false
+	root.add_child(_lan_lobby)
+	_lan_lobby.configure(progression_catalog, track_catalog, player_progress)
+	_lan_lobby.race_requested.connect(func(value_session: LanSession, value_payload: Dictionary) -> void: lan_race_requested.emit(value_session, value_payload))
+	_lan_lobby.back_requested.connect(func() -> void: _router.back())
 
 	_settings_panel = _build_settings_panel()
 	root.add_child(_settings_panel)
@@ -304,6 +312,7 @@ func _build_interface() -> void:
 	_router.register_screen(MenuRoute.Id.PLAY_VEHICLE, _vehicle_gallery)
 	_router.register_screen(MenuRoute.Id.PLAY_READY, _preparation_screen)
 	_router.register_screen(MenuRoute.Id.PLAY_LOCAL_LOBBY, _local_lobby)
+	_router.register_screen(MenuRoute.Id.PLAY_LAN_LOBBY, _lan_lobby)
 	_router.register_screen(MenuRoute.Id.GARAGE, _garage_panel)
 	_router.register_screen(MenuRoute.Id.PROFILE, _profile_panel)
 	_router.register_screen(MenuRoute.Id.SETTINGS, _settings_panel)
@@ -415,7 +424,7 @@ func _build_profile_panel() -> Control:
 	card.add_child(progress)
 	if player_progress != null:
 		var multiplayer := Label.new()
-		multiplayer.text = "MULTIJUGADOR LOCAL\n%d CARRERAS · %d VICTORIAS · %d PODIOS" % [player_progress.local_multiplayer.races_played, player_progress.local_multiplayer.victories, player_progress.local_multiplayer.podiums]
+		multiplayer.text = "MULTIJUGADOR\nLOCAL  %d CARRERAS · %d VICTORIAS · %d PODIOS     LAN  %d CARRERAS · %d VICTORIAS · %d PODIOS" % [player_progress.local_multiplayer.races_played, player_progress.local_multiplayer.victories, player_progress.local_multiplayer.podiums, player_progress.lan_multiplayer.races_played, player_progress.lan_multiplayer.victories, player_progress.lan_multiplayer.podiums]
 		multiplayer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		multiplayer.add_theme_font_size_override("font_size", 18)
 		multiplayer.add_theme_color_override("font_color", UiTokens.CYAN)
@@ -606,6 +615,9 @@ func _handle_mode_card_selected(mode: int) -> void:
 		_pending_multiplayer_participants.clear()
 		_local_lobby.configure(progression_catalog, player_progress)
 		_router.navigate(MenuRoute.Id.PLAY_LOCAL_LOBBY, {"mode": mode})
+	elif mode == GameModeDefinition.LAN_MULTIPLAYER:
+		_lan_lobby.configure(progression_catalog, track_catalog, player_progress)
+		_router.navigate(MenuRoute.Id.PLAY_LAN_LOBBY, {"mode": mode})
 	else:
 		_show_track_selector()
 
@@ -620,6 +632,10 @@ func _handle_local_participants_confirmed(values: Array) -> void:
 
 func get_multiplayer_participants() -> Array[RaceParticipantConfig]:
 	return _pending_multiplayer_participants.duplicate()
+
+
+func detach_lan_session() -> LanSession:
+	return _lan_lobby.detach_session() if _lan_lobby != null else null
 
 
 func show_notice(message: String) -> void:

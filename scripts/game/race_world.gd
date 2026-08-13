@@ -73,6 +73,7 @@ var _split_screen_layer: CanvasLayer
 var _split_viewports: Array[SubViewport] = []
 var _hud_by_kart: Dictionary = {}
 var _camera_by_kart: Dictionary = {}
+var _lan_synchronizer: LanRaceSynchronizer
 
 
 func _ready() -> void:
@@ -190,6 +191,8 @@ func _build_race() -> void:
 		_item_executor.setup(race_manager, _projectiles, _traps, _effects)
 		_item_executor.item_activated.connect(_handle_item_activated)
 		_item_executor.kart_hit.connect(_handle_item_hit)
+		_item_executor.item_entity_spawned.connect(_handle_item_entity_spawned)
+		_item_executor.item_entity_destroyed.connect(_handle_item_entity_destroyed)
 		_item_executor.projectile_bounced.connect(_sound.play_projectile_bounce)
 
 	var configured_racers: Array[RacerDefinition] = []
@@ -306,6 +309,11 @@ func _build_race() -> void:
 	race_manager.human_finished.connect(_handle_human_finished)
 	race_manager.racer_finished.connect(_handle_racer_finished)
 	race_manager.race_started.connect(_handle_race_started)
+	if session.lan_session != null:
+		_lan_synchronizer = LanRaceSynchronizer.new()
+		_lan_synchronizer.name = "LanRaceSynchronizer"
+		add_child(_lan_synchronizer)
+		_lan_synchronizer.setup(session.lan_session, self)
 	_start_pre_race.call_deferred()
 
 
@@ -476,8 +484,14 @@ func _cleanup_intro() -> void:
 func _handle_race_started() -> void:
 	for ai_driver in _ai_drivers:
 		ai_driver.set_physics_process(true)
-	for item_box in _item_boxes:
-		item_box.set_collection_enabled(true)
+	var client_is_replica := (
+		session != null
+		and session.lan_session != null
+		and not session.lan_session.is_host
+	)
+	if not client_is_replica:
+		for item_box in _item_boxes:
+			item_box.set_collection_enabled(true)
 
 
 func _handle_item_collected(kart: Node) -> void:
@@ -519,6 +533,11 @@ func _handle_item_activated(
 	source_kart: Kart
 ) -> void:
 	race_manager.record_item_used(source_kart)
+	if _is_lan_host():
+		session.lan_session.broadcast_reliable_event(&"item_activated", {
+			"item_id": item.id,
+			"source_slot": source_kart.participant_slot,
+		})
 	match item.category:
 		ItemDefinition.ItemCategory.PROJECTILE:
 			_sound.play_item_launch()
@@ -535,8 +554,54 @@ func _handle_item_hit(
 	result: int
 ) -> void:
 	race_manager.record_item_hit(source_kart, kart, result)
+	if _is_lan_host():
+		session.lan_session.broadcast_reliable_event(&"item_hit", {
+			"item_id": item.id,
+			"source_slot": source_kart.participant_slot,
+			"target_slot": int(kart.get("participant_slot")),
+			"result": result,
+		})
 	if result != Kart.HitResult.BLOCKED:
 		_sound.play_item_impact()
+
+
+func _handle_item_entity_spawned(
+	entity_id: int,
+	entity_kind: StringName,
+	item: ItemDefinition,
+	source_kart: Kart,
+	entity: Node3D
+) -> void:
+	if not _is_lan_host():
+		return
+	var velocity := Vector3.ZERO
+	if entity is CharacterBody3D:
+		velocity = (entity as CharacterBody3D).velocity
+	session.lan_session.broadcast_reliable_event(&"item_spawned", {
+		"entity_id": entity_id,
+		"entity_kind": entity_kind,
+		"item_id": item.id,
+		"source_slot": source_kart.participant_slot,
+		"position": entity.global_position,
+		"rotation": entity.global_basis.get_rotation_quaternion(),
+		"velocity": velocity,
+	})
+
+
+func _handle_item_entity_destroyed(entity_id: int) -> void:
+	if _is_lan_host():
+		session.lan_session.broadcast_reliable_event(&"item_destroyed", {
+			"entity_id": entity_id,
+		})
+
+
+func _is_lan_host() -> bool:
+	return (
+		session != null
+		and session.lan_session != null
+		and session.lan_session.is_host
+		and session.lan_session.race_active
+	)
 
 
 func _items_enabled() -> bool:
@@ -656,6 +721,38 @@ func _handle_race_completed(result: RaceResult) -> void:
 	for index in local_huds.size():
 		local_huds[index].show_results(result.for_local_player(index))
 
+
+func receive_network_result(result: RaceResult) -> void:
+	if session == null or session.lan_session == null or session.lan_session.is_host:
+		return
+	_handle_race_completed(result)
+
+
+func take_over_with_ai(slot_id: int) -> void:
+	for kart in race_manager.racers:
+		if int(kart.get("participant_slot")) != slot_id:
+			continue
+		if kart.get_node_or_null("DisconnectAi") != null:
+			return
+		var racer := session.participants[slot_id].racer
+		var ai := AiDriver.new()
+		ai.name = "DisconnectAi"
+		kart.add_child(ai)
+		ai.setup(kart, race_manager, racing_line, racer, race_seed, session.difficulty)
+		ai.set_physics_process(true)
+		kart.input_source = null
+		return
+
+
+func restore_network_control(slot_id: int) -> void:
+	for kart in race_manager.racers:
+		if int(kart.get("participant_slot")) != slot_id:
+			continue
+		var ai := kart.get_node_or_null("DisconnectAi")
+		if ai != null:
+			ai.queue_free()
+		kart.input_source = RacerInputSource.for_participant(session.participants[slot_id])
+		return
 
 
 func shutdown() -> void:
