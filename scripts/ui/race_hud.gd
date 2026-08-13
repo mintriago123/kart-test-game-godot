@@ -54,6 +54,7 @@ var mobile_controls_enabled := (
 )
 var vibration_enabled := true
 var vibration_intensity := 1.0
+var compact_mode := false
 
 
 func _ready() -> void:
@@ -154,6 +155,21 @@ func set_game_mode(game_mode: int) -> void:
 	_status_view.set_game_mode(game_mode)
 	_minimap.set_game_mode(game_mode)
 	_touch_view.item_button.visible = game_mode != GameModeDefinition.TIME_TRIAL
+
+
+func set_compact_mode(enabled: bool, shared_controls: bool = true) -> void:
+	compact_mode = enabled
+	if not is_node_ready():
+		return
+	_status_view.scale = Vector2.ONE * (0.82 if enabled else 1.0)
+	if enabled:
+		_minimap.offset_left = -156.0
+		_minimap.offset_right = -12.0
+		_minimap.offset_top = 74.0
+		_minimap.offset_bottom = 176.0
+	var pause_button := _flow_overlay.get_node_or_null("PauseButton") as Button
+	if pause_button != null:
+		pause_button.visible = shared_controls
 
 
 func update_ghost_delta(delta: float) -> void:

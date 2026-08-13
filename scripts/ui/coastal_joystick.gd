@@ -1,6 +1,8 @@
 class_name CoastalJoystick
 extends Control
 
+signal steering_changed(strength: float)
+
 const MAX_DRAG_DISTANCE := 78.0
 const STEERING_DEADZONE := 0.08
 const STEERING_RESPONSE := 11.0
@@ -11,6 +13,7 @@ var _touch_origin := Vector2.ZERO
 var _target_strength := 0.0
 var _steering_strength := 0.0
 var _mouse_dragging := false
+var _pointer_active := false
 var _keyboard_left := false
 var _keyboard_right := false
 
@@ -19,14 +22,18 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(240.0, 188.0)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	focus_mode = Control.FOCUS_ALL
-	tooltip_text = "Dirección: toca y arrastra horizontalmente"
+	tooltip_text = "Dirección flotante: toca y arrastra horizontalmente"
 	queue_redraw()
 
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var touch_event := event as InputEventScreenTouch
-		if touch_event.pressed and _touch_index == -1:
+		if (
+			touch_event.pressed
+			and _touch_index == -1
+			and not _mouse_dragging
+		):
 			_touch_index = touch_event.index
 			_begin_drag(touch_event.position)
 			accept_event()
@@ -42,12 +49,13 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton:
 		var mouse_event := event as InputEventMouseButton
 		if mouse_event.button_index == MOUSE_BUTTON_LEFT:
-			_mouse_dragging = mouse_event.pressed
-			if _mouse_dragging:
+			if mouse_event.pressed and _touch_index == -1:
+				_mouse_dragging = true
 				_begin_drag(mouse_event.position)
-			else:
+				accept_event()
+			elif not mouse_event.pressed and _mouse_dragging:
 				_end_drag()
-			accept_event()
+				accept_event()
 	elif event is InputEventMouseMotion and _mouse_dragging:
 		_update_target((event as InputEventMouseMotion).position)
 		accept_event()
@@ -77,6 +85,7 @@ func _exit_tree() -> void:
 
 
 func _begin_drag(pointer_position: Vector2) -> void:
+	_pointer_active = true
 	_touch_origin = pointer_position
 	_target_strength = 0.0
 	_steering_strength = 0.0
@@ -97,6 +106,7 @@ func _update_target(pointer_position: Vector2) -> void:
 
 func _end_drag() -> void:
 	_mouse_dragging = false
+	_pointer_active = false
 	_target_strength = _get_keyboard_strength()
 	if is_zero_approx(_target_strength):
 		_steering_strength = 0.0
@@ -140,23 +150,27 @@ func _apply_actions() -> void:
 		Input.action_press(&"steer_right", right_strength)
 	else:
 		Input.action_release(&"steer_right")
+	steering_changed.emit(_steering_strength)
 
 
 func _release_actions() -> void:
 	_touch_index = -1
 	_mouse_dragging = false
+	_pointer_active = false
 	_keyboard_left = false
 	_keyboard_right = false
 	_target_strength = 0.0
 	_steering_strength = 0.0
 	Input.action_release(&"steer_left")
 	Input.action_release(&"steer_right")
+	steering_changed.emit(0.0)
 	queue_redraw()
 
 
 func _draw() -> void:
-	var is_dragging := _touch_index != -1 or _mouse_dragging
-	var center := _touch_origin if is_dragging else size * 0.5
+	if not _pointer_active:
+		return
+	var center := _touch_origin
 	var knob_offset := Vector2(_steering_strength * MAX_DRAG_DISTANCE, 0.0)
 	draw_circle(center + Vector2(0.0, 5.0), 76.0, Color(0.015, 0.07, 0.09, 0.76))
 	draw_circle(center, 70.0, Color(0.13, 0.55, 0.61, 0.4))

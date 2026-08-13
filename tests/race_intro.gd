@@ -147,7 +147,7 @@ func _test_skip_sequence_and_pause() -> void:
 		manager.state == RaceManager.RaceState.RACING
 		and _all_racers_have_control(manager, true)
 		and _all_ai_drivers_processing(world, true),
-		"All four racers activate only when the countdown reaches ¡YA!."
+		"All configured racers activate only when the countdown reaches ¡YA!."
 	)
 	_check(
 		_all_item_boxes_monitoring(world, true),
@@ -320,12 +320,14 @@ func _test_hud_component_contracts() -> void:
 	root.add_child(touch)
 	var kart := Kart.new()
 	kart.is_control_enabled = true
+	kart.input_source = RacerInputSource.new()
 	touch.bind_player(kart)
 	touch.show_item(boost)
 	touch.update_state(false, false, false)
 	_check(
 		touch.visible
 		and Input.is_action_pressed(&"accelerate")
+		and kart.input_source.sample().throttle > 0.9
 		and touch.item_button.item_icon == boost.icon
 		and boost.display_name in touch.item_button.tooltip_text,
 		"RaceTouchControls exposes item state and automatic acceleration."

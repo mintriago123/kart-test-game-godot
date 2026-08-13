@@ -1,6 +1,6 @@
 class_name PlayerProgress
 extends RefCounted
-const SCHEMA_VERSION := 4
+const SCHEMA_VERSION := 5
 const SAVE_PATH := "user://progression.cfg"
 const INITIAL_VARIANT_ID := &"sedan"
 const LEGACY_REWARD_MIGRATION := {
@@ -30,6 +30,8 @@ var items_collected := 0
 var items_used := 0
 var shortcuts_used := 0
 var recoveries := 0
+var local_multiplayer := MultiplayerStatistics.new()
+var lan_multiplayer := MultiplayerStatistics.new()
 var _recorded_result_ids: Dictionary = {}
 func medal_key(cup_id: StringName, difficulty_id: StringName) -> String:
 	return "%s/%s" % [cup_id, difficulty_id]
@@ -165,6 +167,14 @@ func record_race_result(result: RaceResult) -> bool:
 		return false
 	_recorded_result_ids[result_id] = true
 	var player := result.player_result
+	if result.game_mode == GameModeDefinition.LOCAL_MULTIPLAYER:
+		local_multiplayer.record(player)
+		save_to_disk()
+		return true
+	if result.game_mode == GameModeDefinition.LAN_MULTIPLAYER:
+		lan_multiplayer.record(player)
+		save_to_disk()
+		return true
 	races_played += 1
 	if player.finish_position == 1:
 		victories += 1
@@ -201,6 +211,8 @@ func save_to_disk() -> Error:
 	config.set_value("telemetry", "shortcuts_used", shortcuts_used)
 	config.set_value("telemetry", "recoveries", recoveries)
 	config.set_value("telemetry", "recorded_result_ids", _recorded_result_ids)
+	config.set_value("local_multiplayer", "statistics", local_multiplayer.to_dict())
+	config.set_value("lan_multiplayer", "statistics", lan_multiplayer.to_dict())
 	var error := config.save(save_path)
 	if error == OK: loaded_schema_version = SCHEMA_VERSION
 	return error
@@ -231,6 +243,9 @@ func load_from_disk() -> void:
 	shortcuts_used = int(config.get_value("telemetry", "shortcuts_used", 0))
 	recoveries = int(config.get_value("telemetry", "recoveries", 0))
 	_recorded_result_ids = config.get_value("telemetry", "recorded_result_ids", {})
+	# Schema 1–4 saves intentionally begin multiplayer telemetry at zero.
+	local_multiplayer = MultiplayerStatistics.from_dict(config.get_value("local_multiplayer", "statistics", {})) if schema >= 5 else MultiplayerStatistics.new()
+	lan_multiplayer = MultiplayerStatistics.from_dict(config.get_value("lan_multiplayer", "statistics", {})) if schema >= 5 else MultiplayerStatistics.new()
 
 func _migrate_reward_ids(source: Dictionary) -> Dictionary:
 	var migrated := {}

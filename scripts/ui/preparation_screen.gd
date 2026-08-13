@@ -77,8 +77,12 @@ func configure(value: Dictionary, track: TrackDefinition, variant: KartVariantDe
 		summary.text = "%s\n3 CIRCUITOS · %s\nVEHÍCULO · %s" % [event_name, " → ".join(tracks), vehicle_name]
 	elif mode == GameModeDefinition.TIME_TRIAL:
 		summary.text = "%s\nCONTRARRELOJ · %s\nFANTASMA · %s\nREFERENCIA · %s" % [event_name, vehicle_name, "SÍ" if bool(payload.get("ghost_enabled", true)) else "NO", "DISPONIBLE" if bool(payload.get("ghost_available", false)) else "SIN REGISTRO"]
+	elif mode == GameModeDefinition.LOCAL_MULTIPLAYER:
+		summary.text = "%s\nPANTALLA DIVIDIDA · 2 HUMANOS + 6 IA\nOBJETOS %s" % [event_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
+	elif mode == GameModeDefinition.LAN_MULTIPLAYER:
+		summary.text = "%s\nRED LOCAL · HASTA 4 HUMANOS · PARRILLA DE 8\nOBJETOS %s" % [event_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
 	else:
-		summary.text = "%s\nCARRERA RÁPIDA · %s\n4 PARTICIPANTES · OBJETOS %s" % [event_name, vehicle_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
+		summary.text = "%s\nCARRERA RÁPIDA · %s\n8 PARTICIPANTES · OBJETOS %s" % [event_name, vehicle_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
 	start_button.text = "SIGUIENTE CARRERA" if locked else ("INICIAR CONTRARRELOJ" if mode == GameModeDefinition.TIME_TRIAL else ("INICIAR COPA" if mode == GameModeDefinition.CUP else "INICIAR CARRERA"))
 	start_button.grab_focus.call_deferred()
 

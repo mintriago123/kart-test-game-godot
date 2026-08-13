@@ -10,6 +10,8 @@ var ghost_storage := GhostStorage.new()
 var player_progress := PlayerProgress.new()
 var cup_manager: CupManager
 var selected_cup_difficulty_id: StringName = &"competitive"
+var lan_session: LanSession
+var _pending_menu_notice := ""
 
 
 func _ready() -> void:
@@ -68,11 +70,38 @@ func start_game(
 	session.track = track_definition
 	session.race_class = RaceClassDefinition.get_by_id(settings.selected_cc_id)
 	session.game_mode = game_mode
-	session.racers = PROGRESSION_CATALOG.racers.racers.duplicate()
-	session.player_racer_id = &"marea"
-	session.equipped_variant = PROGRESSION_CATALOG.unlocks.get_variant(player_progress.equipped_kart_variant_id)
+	session.grid_size = 8
+	if game_mode == GameModeDefinition.LOCAL_MULTIPLAYER:
+		var local_participants: Array = main_menu.get_multiplayer_participants() if main_menu != null else []
+		session.set_participants(_complete_multiplayer_grid(local_participants))
+	else:
+		session.racers = PROGRESSION_CATALOG.racers.racers.duplicate()
+		session.player_racer_id = &"marea"
+		session.equipped_variant = PROGRESSION_CATALOG.unlocks.get_variant(player_progress.equipped_kart_variant_id)
+		session.ensure_participants()
 	session.race_seed = randi()
 	_start_session(session, should_play_intro)
+
+
+func _complete_multiplayer_grid(humans: Array) -> Array[RaceParticipantConfig]:
+	var result: Array[RaceParticipantConfig] = []
+	var selected_racers := {}
+	for value in humans:
+		if value is RaceParticipantConfig and value.racer != null:
+			var participant := value as RaceParticipantConfig
+			participant.slot_id = result.size()
+			result.append(participant)
+			selected_racers[participant.racer.id] = true
+	for racer in PROGRESSION_CATALOG.racers.racers:
+		if result.size() >= 8:
+			break
+		if selected_racers.has(racer.id):
+			continue
+		result.append(RaceParticipantConfig.create(
+			result.size(), racer, racer.default_kart_visual,
+			RaceParticipantConfig.ControlType.AI
+		))
+	return result
 
 
 func _start_session(session: RaceSessionConfig, should_play_intro: bool) -> void:
@@ -155,6 +184,7 @@ func _show_main_menu() -> void:
 	main_menu.equip_variant_requested.connect(_equip_variant)
 	main_menu.gamepad_family_changed.connect(_set_gamepad_family)
 	main_menu.reduced_motion_changed.connect(_set_reduced_motion)
+	main_menu.lan_race_requested.connect(_handle_lan_race_requested)
 	add_child(main_menu)
 	main_menu.apply_settings(
 		settings.graphics_profile,
@@ -175,6 +205,44 @@ func _show_main_menu() -> void:
 		settings.ui_reduced_motion
 	)
 	_refresh_ghost_availability()
+	if not _pending_menu_notice.is_empty():
+		main_menu.show_notice(_pending_menu_notice)
+		_pending_menu_notice = ""
+
+
+func _handle_lan_race_requested(value_session: LanSession, payload: Dictionary) -> void:
+	if value_session == null:
+		return
+	var detached := main_menu.detach_lan_session() if main_menu != null else value_session
+	if detached == null:
+		return
+	lan_session = detached
+	if lan_session.get_parent() != self:
+		add_child(lan_session)
+	if not lan_session.host_lost.is_connected(_handle_lan_host_lost):
+		lan_session.host_lost.connect(_handle_lan_host_lost)
+	var room: Dictionary = payload.get("settings", {})
+	var track := TRACK_CATALOG.get_track(StringName(room.get("track_id", &"")))
+	if track == null:
+		_pending_menu_notice = "El anfitrión eligió un circuito incompatible."
+		_return_to_menu()
+		return
+	var race_session := RaceSessionConfig.new()
+	race_session.track = track
+	race_session.race_class = RaceClassDefinition.get_by_id(StringName(room.get("cc_id", &"150")))
+	race_session.game_mode = GameModeDefinition.LAN_MULTIPLAYER
+	race_session.grid_size = LanProtocol.GRID_SIZE
+	race_session.items_enabled = bool(room.get("items_enabled", true))
+	race_session.set_participants(lan_session.build_participants())
+	race_session.race_seed = int(payload.get("race_seed", randi()))
+	race_session.run_id = StringName("lan-%s-%s" % [lan_session.local_token.left(12), race_session.race_seed])
+	race_session.lan_session = lan_session
+	_start_session(race_session, true)
+
+
+func _handle_lan_host_lost(message: String) -> void:
+	_pending_menu_notice = message
+	_return_to_menu()
 
 
 func _continue_cup() -> void:
@@ -203,6 +271,11 @@ func _restart_game() -> void:
 		else:
 			_start_session(cup_manager.create_session(), false)
 		return
+	if race_world != null and race_world.session != null and GameModeDefinition.is_multiplayer(race_world.session.game_mode):
+		var retry_session := race_world.session
+		retry_session.race_seed = randi()
+		_start_session(retry_session, false)
+		return
 	start_game(settings.selected_track_id, settings.selected_cc_id, settings.selected_game_mode, false)
 
 
@@ -212,6 +285,10 @@ func _return_to_menu() -> void:
 		race_world.queue_free()
 		race_world = null
 	get_tree().paused = false
+	if lan_session != null:
+		lan_session.close()
+		lan_session.queue_free()
+		lan_session = null
 	_show_main_menu()
 
 

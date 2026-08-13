@@ -1,6 +1,8 @@
 class_name MobileActionButton
 extends Control
 
+signal pressed_changed(action: StringName, pressed: bool)
+
 @export var action_name: StringName
 @export var button_label: String = "ACCIÓN"
 @export var accent_color := Color("#ffba4a")
@@ -85,6 +87,7 @@ func _set_pressed(value: bool) -> void:
 			Input.action_press(action_name)
 		else:
 			Input.action_release(action_name)
+		pressed_changed.emit(action_name, value)
 	queue_redraw()
 
 

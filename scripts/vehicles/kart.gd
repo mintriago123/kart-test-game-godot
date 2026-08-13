@@ -53,6 +53,11 @@ const VEHICLE_COLORMAP: Texture2D = preload("res://assets/vendor/kenney/car-kit/
 @export var racer_id: StringName
 @export var is_player := false
 @export var body_color := Color("#ff6b4a")
+var participant_slot := -1
+var local_player_index := -1
+var network_peer_id := 0
+var input_source: RacerInputSource
+var allow_item_execution := true
 
 var stats := KartStats.new()
 var race_class: RaceClassDefinition
@@ -102,6 +107,7 @@ var _landing_compression_remaining := 0.0
 var _barrier_contact_remaining := 0.0
 var _last_barrier_normal := Vector3.ZERO
 var _presentation_drift_quality := 0.0
+var _last_input_frame := RacerInputSource.empty_frame()
 
 
 func _ready() -> void:
@@ -122,11 +128,14 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_update_timers(delta)
-	if is_player:
+	if input_source != null:
+		_read_input_source()
+	elif is_player:
 		_read_player_input()
 	if _use_item_requested:
 		_use_item_requested = false
-		use_item()
+		if allow_item_execution:
+			use_item()
 
 	var can_drive := is_control_enabled and _stun_remaining <= 0.0
 	_capture_launch_input()
@@ -565,6 +574,17 @@ func set_drive_input(
 	_steer_input = clampf(steer, -1.0, 1.0)
 	_drift_input = drift
 	_use_item_requested = _use_item_requested or use_item_now
+	_last_input_frame = {
+		"throttle": _throttle_input,
+		"brake": _brake_input,
+		"steer": _steer_input,
+		"drift": _drift_input,
+		"use_item": use_item_now,
+	}
+
+
+func get_drive_input_frame() -> Dictionary:
+	return _last_input_frame.duplicate()
 
 
 func grant_random_item() -> bool:
@@ -771,6 +791,17 @@ func _read_player_input() -> void:
 		Input.get_axis(&"steer_left", &"steer_right"),
 		Input.is_action_pressed(&"drift"),
 		Input.is_action_just_pressed(&"use_item")
+	)
+
+
+func _read_input_source() -> void:
+	var frame := input_source.sample()
+	set_drive_input(
+		float(frame.get("throttle", 0.0)),
+		float(frame.get("brake", 0.0)),
+		float(frame.get("steer", 0.0)),
+		bool(frame.get("drift", false)),
+		bool(frame.get("use_item", false))
 	)
 
 

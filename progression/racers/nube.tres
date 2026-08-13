@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="RacerDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/kart_stats.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/ai_profile.gd" id="3"]
+[ext_resource type="Resource" path="res://progression/variants/race.tres" id="4"]
+
+[sub_resource type="Resource" id="AI"]
+script = ExtResource("3")
+precision = 0.72
+aggression = 0.9
+drift_usage = 0.75
+risk_tolerance = 0.85
+shortcut_probability = 0.8
+item_efficiency = 0.82
+reaction_time = 0.12
+
+[sub_resource type="Resource" id="Stats"]
+script = ExtResource("2")
+max_speed = 26.0
+acceleration = 17.4
+steering_speed = 2.12
+grip = 9.5
+
+[resource]
+script = ExtResource("1")
+id = &"nube"
+display_name = "Nube"
+body_color = Color(0.411765, 0.823529, 0.905882, 1)
+kart_stats = SubResource("Stats")
+ai_profile = SubResource("AI")
+default_kart_visual = ExtResource("4")

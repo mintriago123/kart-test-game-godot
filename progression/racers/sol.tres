@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="RacerDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/racer_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/kart_stats.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/ai_profile.gd" id="3"]
+[ext_resource type="Resource" path="res://progression/variants/hatchback_sports.tres" id="4"]
+
+[sub_resource type="Resource" id="AI"]
+script = ExtResource("3")
+
+[sub_resource type="Resource" id="Stats"]
+script = ExtResource("2")
+acceleration = 18.5
+steering_speed = 2.25
+grip = 9.2
+
+[resource]
+script = ExtResource("1")
+id = &"sol"
+display_name = "Sol"
+body_color = Color(0.964706, 0.788235, 0.270588, 1)
+kart_stats = SubResource("Stats")
+ai_profile = SubResource("AI")
+default_kart_visual = ExtResource("4")
