@@ -1,0 +1,144 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/track_level.gd" id="1_3otvi"]
+[ext_resource type="Resource" path="res://levels/themes/swamp_theme.tres" id="2_i622b"]
+[ext_resource type="AudioStream" path="res://assets/music/garden.ogg" id="3_5u6x3"]
+[ext_resource type="Script" path="res://scripts/world/track_shortcut.gd" id="4_i622b"]
+[ext_resource type="PackedScene" path="res://assets/track/large_bush.tscn" id="4_oc6u4"]
+[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="5_iop7h"]
+[ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="6_po1h4"]
+
+[sub_resource type="Curve3D" id="Curve3D_8ijl4"]
+closed = true
+_data = {
+"points": PackedVector3Array(-17.604364, 0.02127227, -7.801096, 17.604364, -0.02127227, 7.801096, -14.247946, 2.5363598, 105.318344, -25.131372, 0.4545309, 6.9307837, 25.131372, -0.4545309, -6.9307837, 54.82984, 2.525295, 118.03261, -17.46885, 0.82001233, 20.544104, 17.46885, -0.82001233, -20.544104, 119.45096, 0.25, 68.44658, 3.0819168, 0.21539861, 24.421505, -3.0819168, -0.21539861, -24.421505, 147.76411, 0.25, 8.737973, 19.553917, -0.6440371, 24.553602, -19.553917, 0.6440371, -24.553602, 103.05516, 0.25, -61.47584, 23.866177, -0.7415607, 10.102535, -23.866177, 0.7415607, -10.102535, 43.737278, 1.5891067, -121.887184, 26.364351, 0.038200594, -4.1782575, -26.364351, -0.038200594, 4.1782575, -23.912897, 2.917438, -115.22133, 18.874218, 0.77276963, -15.839517, -18.874218, -0.77276963, 15.839517, -96.52105, 1.3858795, -99.65886, 6.8718247, 0.5931328, -26.186432, -6.8718247, -0.5931328, 26.186432, -124.32373, 0.25, -30.955097, -10.192943, -0.28819504, -20.247671, 10.192943, 0.28819504, 20.247671, -133.07916, 0.25, 39.652943, -17.716875, -0.8285809, -6.931923, 17.716875, 0.8285809, 6.931923, -70.09728, 0.33950102, 76.762505, -10.497994, -0.4129434, -5.3676367, 10.497994, 0.4129434, 5.3676367, -38.82537, 2.6384635, 76.53077),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+point_count = 12
+
+[sub_resource type="Curve3D" id="Curve3D_i622b"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 17.523312, 0, 7.8402586, -14.247982, 2.5363598, 105.31861, -15.460291, 0.21817443, 9.215849, 15.460291, -0.21817443, -9.215849, 57.67006, 1.3932015, 41.784077, 2.4108338, 0, 19.045315, 0, 0, 0, 147.76514, 0.2500431, 8.742903),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[node name="TrackLevel" type="Node3D" unique_id=889649983]
+script = ExtResource("1_3otvi")
+track_id = &"pantano_brumoso"
+display_name = "Pantano Brumoso"
+start_banner_text = "PANTANO BRUMOSO"
+track_theme = ExtResource("2_i622b")
+track_music = ExtResource("3_5u6x3")
+environment_size = Vector2(620, 560)
+
+[node name="MainRoute" type="Path3D" parent="." unique_id=1512841221]
+curve = SubResource("Curve3D_8ijl4")
+
+[node name="Shortcuts" type="Node3D" parent="." unique_id=1032275239]
+
+[node name="Shortcut0" type="Path3D" parent="Shortcuts" unique_id=184456316]
+curve = SubResource("Curve3D_i622b")
+script = ExtResource("4_i622b")
+display_name = "Ruta arriesgada 1"
+route_anchor_enabled = true
+exit_progress = 0.2678403784278798
+midpoint_lateral_offset = -17.749998
+entry_handle_length = 19.197294
+exit_handle_length = 19.197294
+midpoint_in_handle_length = 18.000002
+midpoint_out_handle_length = 18.000002
+
+[node name="Props" type="Node3D" parent="." unique_id=1724106235]
+
+[node name="ThemeProp1" type="Node3D" parent="Props" unique_id=1538197765 instance=ExtResource("4_oc6u4")]
+transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, 16.10199, 2.6903489, 160.93536)
+
+[node name="ThemeProp2" type="Node3D" parent="Props" unique_id=1119784575 instance=ExtResource("4_oc6u4")]
+transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, 116.12192, 0.7905236, 90.6999)
+
+[node name="ThemeProp3" type="Node3D" parent="Props" unique_id=5060996 instance=ExtResource("4_oc6u4")]
+transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, 195.50916, -1.8928877, -6.9983296)
+
+[node name="ThemeProp4" type="Node3D" parent="Props" unique_id=1242997067 instance=ExtResource("4_oc6u4")]
+transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, 92.936745, -0.3808714, -89.2986)
+
+[node name="ThemeProp5" type="Node3D" parent="Props" unique_id=1154085014 instance=ExtResource("4_oc6u4")]
+transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, 1.142869, 2.6735554, -167.44476)
+
+[node name="ThemeProp6" type="Node3D" parent="Props" unique_id=1751260764 instance=ExtResource("4_oc6u4")]
+transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, -103.399574, 1.550261, -110.936745)
+
+[node name="ThemeProp7" type="Node3D" parent="Props" unique_id=531602746 instance=ExtResource("4_oc6u4")]
+transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, -176.30515, -1.5594938, -20.78264)
+
+[node name="ThemeProp8" type="Node3D" parent="Props" unique_id=394725613 instance=ExtResource("4_oc6u4")]
+transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, -111.71024, -0.6719963, 65.10282)
+
+[node name="Surfaces" type="Node3D" parent="." unique_id=2051395384]
+
+[node name="IdentitySurface" type="Area3D" parent="Surfaces" unique_id=935596338]
+script = ExtResource("5_iop7h")
+id = &"dirt_zone"
+surface = ExtResource("6_po1h4")
+start_progress = 0.18
+end_progress = 0.36
+width = 8.5
+
+[node name="ItemSpawns" type="Node3D" parent="." unique_id=2018703588]
+
+[node name="ItemSpawn1" type="Marker3D" parent="ItemSpawns" unique_id=1302589011]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 49.803936, 2.6041806, 119.1731)
+metadata/track_editor_anchor_progress = 0.08
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn2" type="Marker3D" parent="ItemSpawns" unique_id=1511574892]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 124.55251, 0.05712168, 62.46519)
+metadata/track_editor_anchor_progress = 0.195
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn3" type="Marker3D" parent="ItemSpawns" unique_id=1662692292]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 133.88364, -0.054470386, -23.096422)
+metadata/track_editor_anchor_progress = 0.31
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn4" type="Marker3D" parent="ItemSpawns" unique_id=1336066793]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 74.296165, 0.8953182, -97.917946)
+metadata/track_editor_anchor_progress = 0.425
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn5" type="Marker3D" parent="ItemSpawns" unique_id=1247291511]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.278827, 2.882911, -117.90018)
+metadata/track_editor_anchor_progress = 0.54
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn6" type="Marker3D" parent="ItemSpawns" unique_id=61889490]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -101.72273, 1.1814785, -94.56833)
+metadata/track_editor_anchor_progress = 0.655
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn7" type="Marker3D" parent="ItemSpawns" unique_id=2011818703]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -132.17146, -0.08083412, -4.633017)
+metadata/track_editor_anchor_progress = 0.77
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0
+
+[node name="ItemSpawn8" type="Marker3D" parent="ItemSpawns" unique_id=1240010676]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -92.938736, 0.014499214, 68.200455)
+metadata/track_editor_anchor_progress = 0.885
+metadata/track_editor_anchor_lateral = 0.0
+metadata/track_editor_anchor_height = 0.0
+metadata/track_editor_anchor_rotation = 0.0

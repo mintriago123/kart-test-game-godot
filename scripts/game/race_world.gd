@@ -93,7 +93,7 @@ func _build_environment() -> void:
 		_: get_viewport().msaa_3d = Viewport.MSAA_DISABLED
 	_sound = SoundManager.new()
 	add_child(_sound)
-	_sound.play_track_music(session.track.id)
+	_sound.play_track_music(session.track.id, session.track.music)
 
 	var world_environment := WorldEnvironment.new()
 	var environment := Environment.new()

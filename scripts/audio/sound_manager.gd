@@ -90,8 +90,10 @@ func start_music() -> void:
 func play_menu_music() -> void:
 	_crossfade_to(music_catalog.menu_theme, true)
 
-func play_track_music(track_id: StringName) -> void:
-	var stream := music_catalog.get_track_theme(track_id)
+func play_track_music(track_id: StringName, configured_stream: AudioStream = null) -> void:
+	var stream := configured_stream
+	if stream == null:
+		stream = music_catalog.get_track_theme(track_id)
 	if stream == null:
 		push_warning("No music configured for track %s." % track_id)
 		stop_music()

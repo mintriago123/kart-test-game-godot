@@ -739,6 +739,15 @@ func _build_setup_properties() -> void:
 	panel.description_changed.connect(
 		func(value: String) -> void: _description = value
 	)
+	panel.environment_theme_changed.connect(func(value: TrackTheme) -> void:
+		session.track.track_theme = value; session.mark_dirty(); _rebuild_preview()
+	)
+	panel.music_changed.connect(func(value: AudioStream) -> void:
+		session.track.track_music = value; session.mark_dirty()
+	)
+	panel.difficulty_changed.connect(func(value: String) -> void:
+		session.track.difficulty = value; session.mark_dirty()
+	)
 	_properties.add_child(panel)
 
 

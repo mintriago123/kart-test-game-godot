@@ -121,3 +121,9 @@ original se conserva en
   <https://opengameart.org/content/racing-game-finish-jingle>.
 
 Los temas de fondo se reproducen en bucle; el jingle de Copa, una sola vez.
+
+Las nueve pistas adicionales reutilizan estos tres temas CC0 en rotación. No se
+han incorporado copias renombradas ni audio de procedencia incierta: el selector
+del editor guarda el `AudioStream` elegido directamente en cada definición.
+Su decoración temática reutiliza los modelos CC0 de Nature Kit y Starter Kit
+Racing enumerados arriba, con paletas, escala y distribución propias por pista.

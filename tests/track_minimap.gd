@@ -23,6 +23,15 @@ func _test_official_minimaps() -> void:
 		&"coastal": 2,
 		&"garden": 2,
 		&"bahia_turbo": 0,
+		&"dunas_doradas": 1,
+		&"pantano_brumoso": 1,
+		&"can_carmes": 1,
+		&"valle_de_otoo": 1,
+		&"baha_pirata": 1,
+		&"caldera_furiosa": 2,
+		&"cumbre_glacial": 2,
+		&"ruinas_esmeralda": 2,
+		&"nen_medianoche": 2,
 	}
 	for definition in TRACK_CATALOG.tracks:
 		var preview_map := definition.preview_map

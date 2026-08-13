@@ -196,6 +196,15 @@ func publish(laps: int, description: String) -> Error:
 	definition.preview_map = TrackMinimapBuilder.build(_session.track)
 	if definition.preview_map == null:
 		return ERR_INVALID_DATA
+	definition.length_km = snappedf(definition.preview_map.length_meters / 1000.0, 0.1)
+	definition.shortcut_count = definition.preview_map.shortcut_count
+	definition.preview_color = (
+		_session.track.track_theme.terrain_color
+		if _session.track.track_theme != null
+		else Color("#167f93")
+	)
+	definition.music = _session.track.track_music
+	definition.difficulty = _session.track.difficulty
 	var catalog_error := ResourceSaver.save(catalog, _session.catalog_path)
 	if catalog_error == OK:
 		_session.is_published = true
