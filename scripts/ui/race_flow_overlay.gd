@@ -32,6 +32,11 @@ var _is_resuming := false
 var reduced_motion := false
 var _primary_result_action: StringName = &"menu"
 var _resume_progress: ProgressBar
+var _cup_result: RaceResult
+var _cup_stage := -1
+var _cup_transitioning := false
+var _result_menu_button: Button
+var progression_catalog: ProgressionCatalog = preload("res://progression/progression_catalog.tres")
 
 
 func build_interface() -> void:
@@ -127,6 +132,11 @@ func hide_intro() -> void:
 
 func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> void:
 	hide_provisional()
+	_cup_result = null
+	_cup_stage = -1
+	_cup_transitioning = false
+	results_details.modulate.a = 1.0
+	if _result_menu_button != null: _result_menu_button.visible = true
 	var result: RaceResult = null
 	if result_or_position is RaceResult:
 		result = result_or_position
@@ -198,29 +208,74 @@ func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> voi
 func _show_cup_results(result: RaceResult) -> void:
 	var summary := result.cup_summary
 	var completed := summary != null and summary.completed
-	results_title.text = "PODIO FINAL" if completed else "CLASIFICACIÓN DE COPA"
+	results_title.text = "CLASIFICACIÓN DE COPA"
 	for child in results_details.get_children():
 		child.queue_free()
 	for row in summary.standings if summary != null else []:
 		_add_result_label("%s  ·  %d PTOS  ·  %d VICT." % [str(row.racer_id).to_upper(), int(row.points), int(row.victories)], 19, Color("#fff1b5") if row.racer_id == result.player_result.racer_id else Color("#c5e4de"))
 	if completed:
-		var medal_names := ["SIN MEDALLA", "BRONCE", "PLATA", "ORO"]
-		var medal := int(summary.medal)
-		_add_result_label("MEDALLA · %s" % medal_names[medal], 26, Color("#f5d66f"))
-		_add_result_label("MEJOR ANTERIOR · %s" % medal_names[int(summary.previous_best_medal)], 18, Color("#7be0d0"))
-		var rewards := Array(summary.new_reward_ids)
-		if not rewards.is_empty():
-			var reveal := RewardReveal.new()
-			results_details.add_child(reveal)
-			reveal.reveal("NUEVOS VEHÍCULOS · %s" % ", ".join(PackedStringArray(rewards)), reduced_motion)
-		retry_button.text = "MENÚ"
-		_primary_result_action = &"menu"
+		_cup_result = result
+		_cup_stage = 0
+		_primary_result_action = &"cup_next"
+		retry_button.text = "CONTINUAR"
+		if _result_menu_button != null: _result_menu_button.visible = false
+		_render_cup_stage()
 	else:
 		_add_result_label("Carrera %d/3 completada" % (result.cup_race_index + 1), 18, Color("#7be0d0"))
 		retry_button.text = "SIGUIENTE CARRERA"
 		_primary_result_action = &"retry"
 	results_panel.visible = true
 	retry_button.grab_focus()
+
+func _render_cup_stage() -> void:
+	if _cup_result == null or _cup_result.cup_summary == null: return
+	var summary := _cup_result.cup_summary
+	for child in results_details.get_children(): child.queue_free()
+	match _cup_stage:
+		0:
+			results_title.text = "CLASIFICACIÓN FINAL"
+			for index in summary.standings.size():
+				var row: Dictionary = summary.standings[index]
+				var racer_name := _racer_name(StringName(row.get("racer_id", &"")))
+				_add_result_label("%dº  %s  ·  %d PTOS  ·  %d VICT." % [index + 1, racer_name, int(row.get("points", 0)), int(row.get("victories", 0))], 20, Color("#fff1b5") if index + 1 == summary.player_position else Color("#c5e4de"))
+			_add_result_label("TU RESULTADO · %dº · %d PUNTOS" % [summary.player_position, summary.player_points], 24, Color("#f5d66f"))
+		1:
+			results_title.text = "RESULTADO DE COPA"
+			var names := ["SIN MEDALLA", "BRONCE", "PLATA", "ORO"]
+			_add_result_label(names[int(summary.medal)], 42, Color("#f5d66f") if int(summary.medal) > 0 else Color("#ef8b78"))
+			_add_result_label("MEJOR ANTERIOR · %s" % names[int(summary.previous_best_medal)], 20, Color("#7be0d0"))
+		2:
+			results_title.text = "RECOMPENSAS"
+			if summary.new_reward_ids.is_empty():
+				_add_result_label("NO HAY VEHÍCULOS NUEVOS ESTA VEZ", 24, Color("#c5e4de"))
+			else:
+				for reward_id in summary.new_reward_ids:
+					var unlock := progression_catalog.unlocks.get_unlock(reward_id) if progression_catalog != null else null
+					var reveal := RewardReveal.new(); results_details.add_child(reveal)
+					reveal.reveal(unlock.display_name.to_upper() if unlock != null else "NUEVO VEHÍCULO", reduced_motion)
+			retry_button.text = "IR AL MENÚ"
+			_primary_result_action = &"menu"
+	if _cup_stage < 2:
+		retry_button.text = "CONTINUAR"
+
+func _racer_name(racer_id: StringName) -> String:
+	if progression_catalog != null and progression_catalog.racers != null:
+		var racer := progression_catalog.racers.get_racer(racer_id)
+		if racer != null: return racer.display_name.to_upper()
+	return str(racer_id).to_upper()
+
+func _advance_cup_stage() -> void:
+	if _cup_transitioning or _cup_stage < 0 or _cup_stage >= 2: return
+	_cup_transitioning = true
+	var duration := 0.01 if reduced_motion else 0.11
+	var tween := create_tween()
+	tween.tween_property(results_details, "modulate:a", 0.0, duration)
+	await tween.finished
+	_cup_stage += 1
+	_render_cup_stage()
+	var enter := create_tween(); enter.tween_property(results_details, "modulate:a", 1.0, duration)
+	await enter.finished
+	_cup_transitioning = false
 
 
 func _show_time_trial_results(result: RaceResult) -> void:
@@ -276,6 +331,9 @@ func update_pause_visibility(is_paused: bool) -> void:
 
 
 func handle_input(event: InputEvent) -> bool:
+	if results_panel != null and results_panel.visible and _cup_stage >= 0 and _cup_stage < 2 and event.is_action_pressed(&"ui_accept"):
+		_advance_cup_stage()
+		return true
 	if (
 		not is_intro_visible
 		or intro_skip_button == null
@@ -518,6 +576,7 @@ func _build_results_panel() -> Control:
 	actions.add_child(retry_button)
 
 	var menu := Button.new()
+	_result_menu_button = menu
 	menu.text = "MENÚ"
 	menu.custom_minimum_size = Vector2(140.0, 72.0)
 	menu.pressed.connect(func() -> void: menu_requested.emit())
@@ -586,6 +645,8 @@ func request_resume() -> void:
 func _activate_primary_result() -> void:
 	if _primary_result_action == &"retry":
 		retry_requested.emit()
+	elif _primary_result_action == &"cup_next":
+		_advance_cup_stage()
 	else:
 		menu_requested.emit()
 

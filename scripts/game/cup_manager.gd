@@ -79,6 +79,12 @@ func commit_race_result(result: RaceResult) -> bool:
 	summary.race_index = result.cup_race_index
 	summary.completed = active_run.is_completed
 	summary.standings = get_ordered_standings()
+	for index in summary.standings.size():
+		var row := summary.standings[index]
+		if StringName(row.get("racer_id", &"")) == cup.player_racer.id:
+			summary.player_position = index + 1
+			summary.player_points = int(row.get("points", 0))
+			break
 	if active_run.is_completed:
 		var player_points := int(active_run.standings[cup.player_racer.id].points)
 		last_medal = cup.medal_for_points(player_points)

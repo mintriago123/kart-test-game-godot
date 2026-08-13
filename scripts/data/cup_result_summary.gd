@@ -9,3 +9,5 @@ var standings: Array[Dictionary] = []
 var medal := UnlockDefinition.Medal.NONE
 var previous_best_medal := UnlockDefinition.Medal.NONE
 var new_reward_ids := PackedStringArray()
+var player_position := 0
+var player_points := 0
