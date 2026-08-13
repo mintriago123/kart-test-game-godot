@@ -32,6 +32,7 @@ func build_interface(
 	steering_pad.offset_top = 0.0
 	steering_pad.offset_right = 0.0
 	steering_pad.offset_bottom = 0.0
+	steering_pad.steering_changed.connect(_handle_steering_changed)
 	add_child(steering_pad)
 
 	_add_action_button(
@@ -85,7 +86,9 @@ func build_interface(
 
 
 func bind_player(kart: Kart) -> void:
+	_clear_player_virtual_actions()
 	_player_kart = kart
+	_sync_player_virtual_actions()
 
 
 func show_item(item: ItemDefinition) -> void:
@@ -131,13 +134,16 @@ func set_controls_visible(is_visible: bool) -> void:
 
 func release_auto_acceleration() -> void:
 	if not _is_auto_accelerating:
+		_set_player_virtual_action(&"accelerate", 0.0)
 		return
 	_is_auto_accelerating = false
 	Input.action_release(&"accelerate")
+	_set_player_virtual_action(&"accelerate", 0.0)
 
 
 func _exit_tree() -> void:
 	release_auto_acceleration()
+	_clear_player_virtual_actions()
 
 
 func _update_auto_acceleration(
@@ -158,8 +164,10 @@ func _update_auto_acceleration(
 	_is_auto_accelerating = should_accelerate
 	if _is_auto_accelerating:
 		Input.action_press(&"accelerate")
+		_set_player_virtual_action(&"accelerate", 1.0)
 	else:
 		Input.action_release(&"accelerate")
+		_set_player_virtual_action(&"accelerate", 0.0)
 
 
 func _add_action_button(
@@ -179,5 +187,44 @@ func _add_action_button(
 	button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	button.position = button_position
 	button.size = button_size
+	button.pressed_changed.connect(_handle_action_button_changed)
 	add_child(button)
 	return button
+
+
+func _handle_steering_changed(strength: float) -> void:
+	_set_player_virtual_action(&"steer_left", maxf(-strength, 0.0))
+	_set_player_virtual_action(&"steer_right", maxf(strength, 0.0))
+
+
+func _handle_action_button_changed(action: StringName, pressed: bool) -> void:
+	_set_player_virtual_action(action, 1.0 if pressed else 0.0)
+
+
+func _set_player_virtual_action(action: StringName, strength: float) -> void:
+	if _player_kart == null or _player_kart.input_source == null:
+		return
+	_player_kart.input_source.set_virtual_action_strength(action, strength)
+
+
+func _sync_player_virtual_actions() -> void:
+	if _player_kart == null or _player_kart.input_source == null:
+		return
+	_set_player_virtual_action(
+		&"accelerate",
+		1.0 if _is_auto_accelerating else 0.0
+	)
+	_handle_steering_changed(
+		steering_pad._steering_strength if steering_pad != null else 0.0
+	)
+	for button in find_children("*", "MobileActionButton", true, false):
+		var action_button := button as MobileActionButton
+		_set_player_virtual_action(
+			action_button.action_name,
+			1.0 if action_button._is_pressed else 0.0
+		)
+
+
+func _clear_player_virtual_actions() -> void:
+	if _player_kart != null and _player_kart.input_source != null:
+		_player_kart.input_source.clear_virtual_actions()
