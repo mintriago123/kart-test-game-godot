@@ -1,10 +1,11 @@
 class_name PlayerProgress
 extends RefCounted
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 const SAVE_PATH := "user://progression.cfg"
 var save_path := SAVE_PATH
 var best_medals: Dictionary = {}
 var unlocked_reward_ids: Dictionary = {}
+var seen_reward_ids: Dictionary = {}
 var equipped_kart_variant_id: StringName
 var active_cup: Dictionary = {}
 var races_played := 0
@@ -47,6 +48,13 @@ func equip(variant_id: StringName, catalog: UnlockCatalog) -> bool:
 	equipped_kart_variant_id = variant_id
 	save_to_disk()
 	return true
+func is_reward_new(reward_id: StringName) -> bool:
+	return unlocked_reward_ids.has(reward_id) and not seen_reward_ids.has(reward_id)
+func mark_reward_seen(reward_id: StringName) -> bool:
+	if not unlocked_reward_ids.has(reward_id) or seen_reward_ids.has(reward_id): return false
+	seen_reward_ids[reward_id] = true
+	save_to_disk()
+	return true
 func record_race_result(result: RaceResult) -> bool:
 	if result == null or result.player_result == null:
 		return false
@@ -78,6 +86,7 @@ func save_to_disk() -> Error:
 	config.set_value("progress", "schema_version", SCHEMA_VERSION)
 	config.set_value("progress", "best_medals", best_medals)
 	config.set_value("progress", "unlocked_reward_ids", unlocked_reward_ids)
+	config.set_value("progress", "seen_reward_ids", seen_reward_ids)
 	config.set_value("progress", "equipped_kart_variant_id", str(equipped_kart_variant_id))
 	config.set_value("progress", "active_cup", active_cup)
 	config.set_value("telemetry", "races_played", races_played)
@@ -100,6 +109,7 @@ func load_from_disk() -> void:
 		return
 	best_medals = config.get_value("progress", "best_medals", {})
 	unlocked_reward_ids = config.get_value("progress", "unlocked_reward_ids", {})
+	seen_reward_ids = config.get_value("progress", "seen_reward_ids", {}) if schema >= 3 else unlocked_reward_ids.duplicate()
 	equipped_kart_variant_id = StringName(config.get_value("progress", "equipped_kart_variant_id", ""))
 	active_cup = config.get_value("progress", "active_cup", {})
 	races_played = int(config.get_value("telemetry", "races_played", 0))

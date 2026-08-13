@@ -11,6 +11,7 @@ var focused_variant_id: StringName
 var last_inspected_variant_id: StringName
 var showroom: VehicleViewport
 var cards: HBoxContainer
+var card_scroll: ScrollContainer
 var title_label: Label
 var status_label: Label
 var requirement_label: Label
@@ -18,7 +19,6 @@ var stats: VBoxContainer
 var primary: ActionButton
 var _variants: Array[KartVariantDefinition] = []
 var _swipe_start := Vector2.ZERO
-var _inspected: Dictionary = {}
 var _pending_configuration: Array = []
 
 func _ready() -> void:
@@ -34,7 +34,7 @@ func _ready() -> void:
 	stats = VBoxContainer.new(); stats.size_flags_vertical = Control.SIZE_EXPAND_FILL; panel.add_child(stats)
 	primary = ActionButton.new(); primary.kind = ActionButton.Kind.PRIMARY; primary.pressed.connect(_activate); panel.add_child(primary)
 	var back := ActionButton.new(); back.text = "VOLVER"; back.pressed.connect(func(): back_requested.emit()); panel.add_child(back)
-	var strip := ScrollContainer.new(); strip.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); strip.offset_left = 24; strip.offset_right = -24; strip.offset_top = -138; strip.offset_bottom = -18; strip.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; add_child(strip)
+	var strip := ScrollContainer.new(); card_scroll = strip; strip.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); strip.offset_left = 24; strip.offset_right = -24; strip.offset_top = -138; strip.offset_bottom = -18; strip.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; add_child(strip)
 	cards = HBoxContainer.new(); cards.alignment = BoxContainer.ALIGNMENT_CENTER; cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL; cards.add_theme_constant_override("separation", 12); strip.add_child(cards)
 	if not _pending_configuration.is_empty():
 		var pending := _pending_configuration
@@ -59,9 +59,17 @@ func configure(value_catalog: ProgressionCatalog, value_progress: PlayerProgress
 func _build_cards() -> void:
 	if cards == null: return
 	for child in cards.get_children(): child.queue_free()
+	var leading := Control.new(); leading.custom_minimum_size.x = maxf(0.0, card_scroll.size.x * 0.5 - 95.0); leading.mouse_filter = Control.MOUSE_FILTER_IGNORE; cards.add_child(leading)
 	for variant in _variants:
-		var button := Button.new(); button.text = variant.display_name.to_upper(); button.custom_minimum_size = Vector2(190, 88); button.focus_mode = Control.FOCUS_ALL
+		var unlock := _get_unlock(variant.id)
+		var unlocked := _is_unlocked(variant.id)
+		var badges := ""
+		if not unlocked: badges = "\n🔒 BLOQUEADO"
+		elif progress != null and progress.equipped_kart_variant_id == variant.id: badges = "\n✓ EQUIPADO"
+		elif unlock != null and progress.is_reward_new(unlock.id): badges = "\n★ NUEVO"
+		var button := Button.new(); button.name = str(variant.id); button.text = variant.display_name.to_upper() + badges; button.custom_minimum_size = Vector2(190, 88); button.focus_mode = Control.FOCUS_ALL
 		button.pressed.connect(focus_variant.bind(variant.id)); button.focus_entered.connect(focus_variant.bind(variant.id)); cards.add_child(button)
+	var trailing := Control.new(); trailing.custom_minimum_size.x = maxf(0.0, card_scroll.size.x * 0.5 - 95.0); trailing.mouse_filter = Control.MOUSE_FILTER_IGNORE; cards.add_child(trailing)
 
 func focus_variant(variant_id: StringName) -> void:
 	var variant := _get_variant(variant_id)
@@ -71,11 +79,11 @@ func focus_variant(variant_id: StringName) -> void:
 	showroom.show_variant(variant); title_label.text = variant.display_name.to_upper()
 	var equipped := progress != null and progress.equipped_kart_variant_id == variant.id
 	var unlocked := _is_unlocked(variant.id)
-	var is_new := unlocked and not equipped and not _inspected.has(variant.id)
-	_inspected[variant.id] = true
+	var unlock := _get_unlock(variant.id)
+	var is_new := unlocked and unlock != null and progress.is_reward_new(unlock.id)
+	if is_new: progress.mark_reward_seen(unlock.id)
 	var locked_by_cup := bool(payload.get("continue_active", false)) and str(payload.get("source", "")) == "play" and not equipped
 	status_label.text = "EQUIPADO" if equipped else ("NUEVO" if is_new else ("DISPONIBLE" if unlocked else "BLOQUEADO"))
-	var unlock := _get_unlock(variant.id)
 	if locked_by_cup:
 		requirement_label.text = "Vehículo fijado para esta copa activa."
 	elif unlocked:
@@ -88,6 +96,19 @@ func focus_variant(variant_id: StringName) -> void:
 	var standalone := str(payload.get("source", "standalone")) == "standalone"
 	primary.text = ("EQUIPADO" if equipped else ("EQUIPAR" if unlocked else "BLOQUEADO")) if standalone else ("CONTINUAR" if unlocked and not locked_by_cup else ("EQUIPADO" if locked_by_cup else "BLOQUEADO"))
 	primary.disabled = (standalone and (equipped or not unlocked)) or (not standalone and (not unlocked or locked_by_cup))
+	_center_focused_card.call_deferred(false)
+
+func _center_focused_card(animated := true) -> void:
+	if card_scroll == null or cards == null: return
+	var button := cards.get_node_or_null(str(focused_variant_id)) as Control
+	if button == null: return
+	var target := int(button.position.x + button.size.x * 0.5 - card_scroll.size.x * 0.5)
+	target = clampi(target, 0, int(card_scroll.get_h_scroll_bar().max_value))
+	if not animated:
+		card_scroll.scroll_horizontal = target
+		return
+	var tween := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(card_scroll, "scroll_horizontal", target, 0.16)
 
 func _build_stats(variant: KartVariantDefinition) -> void:
 	for child in stats.get_children(): child.queue_free()
@@ -117,6 +138,7 @@ func _move(direction: int) -> void:
 		if _variants[i].id == focused_variant_id:
 			index = i
 	focus_variant(_variants[posmod(index + direction, _variants.size())].id)
+	_center_focused_card(false)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible: return

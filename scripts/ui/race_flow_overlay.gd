@@ -196,17 +196,19 @@ func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> voi
 
 
 func _show_cup_results(result: RaceResult) -> void:
-	var completed := bool(result.get_meta("cup_completed", false))
+	var summary := result.cup_summary
+	var completed := summary != null and summary.completed
 	results_title.text = "PODIO FINAL" if completed else "CLASIFICACIÓN DE COPA"
 	for child in results_details.get_children():
 		child.queue_free()
-	for row in result.get_meta("cup_standings", []):
+	for row in summary.standings if summary != null else []:
 		_add_result_label("%s  ·  %d PTOS  ·  %d VICT." % [str(row.racer_id).to_upper(), int(row.points), int(row.victories)], 19, Color("#fff1b5") if row.racer_id == result.player_result.racer_id else Color("#c5e4de"))
 	if completed:
 		var medal_names := ["SIN MEDALLA", "BRONCE", "PLATA", "ORO"]
-		var medal := int(result.get_meta("cup_medal", 0))
+		var medal := int(summary.medal)
 		_add_result_label("MEDALLA · %s" % medal_names[medal], 26, Color("#f5d66f"))
-		var rewards: Array = result.get_meta("new_reward_ids", [])
+		_add_result_label("MEJOR ANTERIOR · %s" % medal_names[int(summary.previous_best_medal)], 18, Color("#7be0d0"))
+		var rewards := Array(summary.new_reward_ids)
 		if not rewards.is_empty():
 			var reveal := RewardReveal.new()
 			results_details.add_child(reveal)

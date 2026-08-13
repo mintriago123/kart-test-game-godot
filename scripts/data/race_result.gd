@@ -14,6 +14,7 @@ var previous_best_lap_time := -1.0
 var is_new_best_time := false
 var is_new_best_lap := false
 var ghost_updated := false
+var cup_summary: CupResultSummary
 
 
 func finalize_records() -> void:

@@ -73,12 +73,22 @@ func commit_race_result(result: RaceResult) -> bool:
 	active_run.committed_races.append(key)
 	active_run.current_race_index += 1
 	active_run.is_completed = active_run.current_race_index >= 3
+	var summary := CupResultSummary.new()
+	summary.cup_id = cup.id
+	summary.difficulty_id = active_run.difficulty_id
+	summary.race_index = result.cup_race_index
+	summary.completed = active_run.is_completed
+	summary.standings = get_ordered_standings()
 	if active_run.is_completed:
 		var player_points := int(active_run.standings[cup.player_racer.id].points)
 		last_medal = cup.medal_for_points(player_points)
+		summary.previous_best_medal = progress.get_medal(cup.id, active_run.difficulty_id)
 		last_granted_rewards = progress.record_medal(cup, catalog.difficulties.get_difficulty(active_run.difficulty_id), last_medal)
+		summary.medal = last_medal
+		summary.new_reward_ids = last_granted_rewards
 		progress.active_cup = {}
 	else: progress.active_cup = active_run.to_dict()
+	result.cup_summary = summary
 	progress.save_to_disk()
 	return true
 func get_ordered_standings() -> Array[Dictionary]:

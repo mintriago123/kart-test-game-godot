@@ -41,10 +41,13 @@ func _test_run() -> void:
 	_check(restored.restore() and restored.active_run.current_race_index == 1, "Run restores between races.")
 	for ignored in 2:
 		var session := restored.create_session()
-		_check(restored.commit_race_result(_result_for(session, [&"marea", &"lima", &"coral", &"brisa"])), "Next race commits.")
+		var next_result := _result_for(session, [&"marea", &"lima", &"coral", &"brisa"])
+		_check(restored.commit_race_result(next_result), "Next race commits.")
+		_check(next_result.cup_summary != null, "Cup result carries a typed summary.")
 	_check(restored.active_run.is_completed, "Three races complete the cup.")
 	_check(restored_progress.get_medal(&"tropical", &"expert") == UnlockDefinition.GOLD, "27 points grant expert gold.")
 	_check(restored_progress.unlocked_reward_ids.size() == 9, "Expert gold grants all lower rewards.")
+	_check(restored_progress.seen_reward_ids.is_empty(), "New rewards remain unseen until gallery focus.")
 	_check(restored_progress.equip(&"race_future", CATALOG.unlocks), "Unlocked vehicle can be equipped.")
 	_check(not restored_progress.equip(&"missing", CATALOG.unlocks), "Locked or unknown vehicle cannot be equipped.")
 

@@ -334,10 +334,7 @@ func _register_race_time(result: RaceResult) -> void:
 	player_progress.record_race_result(result)
 	if result.game_mode == GameModeDefinition.CUP:
 		if cup_manager.commit_race_result(result):
-			result.set_meta("cup_standings", cup_manager.get_ordered_standings())
-			result.set_meta("cup_completed", cup_manager.active_run.is_completed)
-			result.set_meta("cup_medal", cup_manager.last_medal)
-			result.set_meta("new_reward_ids", Array(cup_manager.last_granted_rewards))
+			pass # CupManager attached the typed CupResultSummary.
 		return
 	var should_save_ghost := result.game_mode == GameModeDefinition.TIME_TRIAL and result.is_new_best_time
 	var changed := settings.register_race_result(result)
