@@ -1,0 +1,56 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Test profile
+        required: true
+        default: quick
+        type: choice
+        options:
+          - quick
+          - exhaustive
+
+env:
+  GODOT_VERSION: 4.7.1
+  GODOT_BIN: /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+
+jobs:
+  quick:
+    if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.profile == 'quick')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          mkdir -p /tmp/godot
+          curl -L --fail --silent --show-error \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" \
+            -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x "$GODOT_BIN"
+      - name: Run quick suite
+        run: tools/run_tests.sh quick
+
+  exhaustive:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.profile == 'exhaustive')
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          mkdir -p /tmp/godot
+          curl -L --fail --silent --show-error \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" \
+            -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x "$GODOT_BIN"
+      - name: Run exhaustive suite
+        run: tools/run_tests.sh exhaustive

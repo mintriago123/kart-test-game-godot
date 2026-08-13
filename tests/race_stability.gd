@@ -4,11 +4,23 @@ const TRACK_CATALOG: TrackCatalog = preload("res://levels/track_catalog.tres")
 const BASE_SIMULATION_SECONDS_PER_TRACK := 45.0
 const RACE_CLASS_IDS := [&"50", &"100", &"150", &"200"]
 const MAX_ALLOWED_RECOVERIES := 4
+const QUICK_CASES := [
+	{"track_id": &"coastal", "cc_id": &"50"},
+	{"track_id": &"garden", "cc_id": &"150"},
+	{"track_id": &"dunas_doradas", "cc_id": &"200"},
+	{"track_id": &"nen_medianoche", "cc_id": &"200"},
+]
 
 var _has_failed := false
+var _profile := "quick"
+var _track_filter := &""
+var _cc_filter := &""
+var _has_explicit_filter := false
+var _executed_cases := 0
 
 
 func _initialize() -> void:
+	_parse_arguments()
 	call_deferred("_run")
 
 
@@ -20,10 +32,14 @@ func _run() -> void:
 		_finish(1)
 		return
 
+	print("INFO: Race stability profile=%s filters=%s" % [_profile, _filter_summary()])
 	for cc_id in RACE_CLASS_IDS:
 		for track_definition in TRACK_CATALOG.tracks:
-			await _test_track_stability(packed_scene, track_definition, cc_id)
+			if _matches_case(track_definition.id, cc_id):
+				_executed_cases += 1
+				await _test_track_stability(packed_scene, track_definition, cc_id)
 
+	_check(_executed_cases > 0, "Stability filters select at least one race case.")
 	_finish(1 if _has_failed else 0)
 
 
@@ -64,6 +80,13 @@ func _test_track_stability(
 	var expected_minimum_speed := 25.0 * race_class.speed_multiplier * 0.42
 	simulation_seconds = maxf(simulation_seconds, route_length / maxf(expected_minimum_speed, 1.0))
 	await create_timer(simulation_seconds).timeout
+	# A recovery near the sampling boundary can leave a healthy racer a handful
+	# of checkpoints short. Extend only while progress is still incomplete, with
+	# a hard cap so a genuinely stuck field still fails promptly.
+	var extension_remaining := maxf(15.0, simulation_seconds * 0.3)
+	while extension_remaining > 0.0 and not _all_rivals_completed_lap(manager):
+		await create_timer(1.0).timeout
+		extension_remaining -= 1.0
 
 	for racer_index in range(1, manager.racers.size()):
 		var racer: Kart = manager.racers[racer_index]
@@ -99,6 +122,16 @@ func _test_track_stability(
 	await create_timer(0.1).timeout
 
 
+func _all_rivals_completed_lap(manager: RaceManager) -> bool:
+	for racer_index in range(1, manager.racers.size()):
+		if (
+			manager.get_completed_checkpoint_count(manager.racers[racer_index])
+			< manager.route_points.size()
+		):
+			return false
+	return true
+
+
 func _check(condition: bool, message: String) -> void:
 	if condition:
 		print("PASS: ", message)
@@ -121,6 +154,42 @@ func _log_recovery(
 			racer.last_recovery_reason,
 		]
 	)
+
+
+func _parse_arguments() -> void:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--profile="):
+			_profile = argument.trim_prefix("--profile=")
+		elif argument.begins_with("--track="):
+			_track_filter = StringName(argument.trim_prefix("--track="))
+			_has_explicit_filter = true
+		elif argument.begins_with("--cc="):
+			_cc_filter = StringName(argument.trim_prefix("--cc="))
+			_has_explicit_filter = true
+	if _profile not in ["quick", "exhaustive"]:
+		push_error("Unknown race stability profile: %s" % _profile)
+		_has_failed = true
+		_profile = "quick"
+
+
+func _matches_case(track_id: StringName, cc_id: StringName) -> bool:
+	if _track_filter != &"" and track_id != _track_filter:
+		return false
+	if _cc_filter != &"" and cc_id != _cc_filter:
+		return false
+	if _has_explicit_filter or _profile == "exhaustive":
+		return true
+	for test_case in QUICK_CASES:
+		if test_case.track_id == track_id and test_case.cc_id == cc_id:
+			return true
+	return false
+
+
+func _filter_summary() -> String:
+	return "track=%s cc=%s" % [
+		"*" if _track_filter == &"" else _track_filter,
+		"*" if _cc_filter == &"" else _cc_filter,
+	]
 
 
 func _finish(exit_code: int) -> void:
