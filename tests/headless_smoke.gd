@@ -187,14 +187,27 @@ func _run() -> void:
 			)
 		_check(are_buttons_onscreen, "All mobile action buttons remain inside the viewport.")
 		_check(Input.is_action_pressed(&"accelerate"), "Mobile controls accelerate automatically.")
-		Input.action_press(&"brake")
-		await process_frame
 		_check(
-			not Input.is_action_pressed(&"accelerate"),
+			player.input_source.sample().throttle > 0.9,
+			"Automatic acceleration reaches the local kart input source."
+		)
+		var mobile_start_position := player.global_position
+		for _mobile_drive_frame in 12:
+			await physics_frame
+		_check(
+			player.global_position.distance_to(mobile_start_position) > 0.05,
+			"Automatic acceleration moves the player kart on mobile."
+		)
+		brake_button._set_pressed(true)
+		hud._touch_view.update_state(false, false, false)
+		_check(
+			not Input.is_action_pressed(&"accelerate")
+			and player.input_source.sample().throttle < 0.1
+			and player.input_source.sample().brake > 0.9,
 			"Automatic acceleration yields while braking."
 		)
-		Input.action_release(&"brake")
-		await process_frame
+		brake_button._set_pressed(false)
+		hud._touch_view.update_state(false, false, false)
 		var steering_touch := InputEventScreenTouch.new()
 		steering_touch.index = 3
 		steering_touch.position = Vector2(110.0, 94.0)
@@ -223,6 +236,10 @@ func _run() -> void:
 		_check(
 			Input.get_action_strength(&"steer_right") > 0.45,
 			"Floating steering pad produces progressive steering."
+		)
+		_check(
+			player.input_source.sample().steer > 0.45,
+			"Floating steering reaches the local kart input source."
 		)
 		var steering_release := steering_touch.duplicate() as InputEventScreenTouch
 		steering_release.pressed = false
