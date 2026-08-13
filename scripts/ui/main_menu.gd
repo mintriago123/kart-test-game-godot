@@ -386,17 +386,8 @@ func _build_profile_panel() -> Control:
 	overlay.color = UiTokens.SCRIM
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.visible = false
-	var card := VBoxContainer.new()
-	card.set_anchors_preset(Control.PRESET_CENTER)
-	card.position = Vector2(-300, -240)
-	card.size = Vector2(600, 480)
-	card.pivot_offset = card.size * 0.5
-	card.add_theme_constant_override("separation", 16)
-	overlay.add_child(card)
-	overlay.resized.connect(func() -> void:
-		var factor := minf(1.0, minf((overlay.size.x - 32.0) / 600.0, (overlay.size.y - 32.0) / 480.0))
-		card.scale = Vector2.ONE * maxf(factor, 0.5)
-	)
+	var scroll := ScrollContainer.new(); scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); scroll.offset_left = 24; scroll.offset_top = 18; scroll.offset_right = -24; scroll.offset_bottom = -18; scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; overlay.add_child(scroll)
+	var card := VBoxContainer.new(); card.custom_minimum_size.x = 760; card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; card.add_theme_constant_override("separation", 16); scroll.add_child(card)
 	var title := Label.new()
 	title.text = "PERFIL Y PROGRESO"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -405,10 +396,26 @@ func _build_profile_panel() -> Control:
 	var progress := Label.new()
 	var unlocked := player_progress.unlocked_reward_ids.size() if player_progress != null else 0
 	var total := progression_catalog.unlocks.unlocks.size() if progression_catalog != null else 0
-	progress.text = "PILOTO · MAREA\nCARRERAS · %d   VICTORIAS · %d   PODIOS · %d\nMEJOR POSICIÓN · %s   TIEMPO · %s\nOBJETOS · %d/%d   ATAJOS · %d   RECUPERACIONES · %d\nVEHÍCULOS · %d/%d   RÉCORDS · %d" % [player_progress.races_played if player_progress else 0, player_progress.victories if player_progress else 0, player_progress.podiums if player_progress else 0, str(player_progress.best_finish_position) if player_progress and player_progress.best_finish_position > 0 else "—", _format_duration(player_progress.driving_time_seconds if player_progress else 0.0), player_progress.items_collected if player_progress else 0, player_progress.items_used if player_progress else 0, player_progress.shortcuts_used if player_progress else 0, player_progress.recoveries if player_progress else 0, unlocked, total, _best_times.size()]
+	progress.text = "RESUMEN DE PILOTO\nCARRERAS  %d     VICTORIAS  %d     PODIOS  %d\nMEJOR POSICIÓN  %s     TIEMPO  %s     RÉCORDS  %d\nOBJETOS  %d/%d     ATAJOS  %d     RECUPERACIONES  %d" % [player_progress.races_played if player_progress else 0, player_progress.victories if player_progress else 0, player_progress.podiums if player_progress else 0, str(player_progress.best_finish_position) if player_progress and player_progress.best_finish_position > 0 else "—", _format_duration(player_progress.driving_time_seconds if player_progress else 0.0), _best_times.size(), player_progress.items_collected if player_progress else 0, player_progress.items_used if player_progress else 0, player_progress.shortcuts_used if player_progress else 0, player_progress.recoveries if player_progress else 0]
 	progress.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	progress.add_theme_font_size_override("font_size", 22)
 	card.add_child(progress)
+	var cup_heading := Label.new(); cup_heading.text = "COPAS"; cup_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; cup_heading.add_theme_font_size_override("font_size", 26); card.add_child(cup_heading)
+	if progression_catalog != null and progression_catalog.cups != null:
+		for cup in progression_catalog.cups.get_valid_cups():
+			var cup_card := PanelContainer.new(); card.add_child(cup_card)
+			var cup_info := Label.new(); cup_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			var medals := PackedStringArray()
+			for difficulty in cup.difficulties:
+				medals.append("%s · %s" % [difficulty.display_name.to_upper(), ["—", "BRONCE", "PLATA", "ORO"][player_progress.get_medal(cup.id, difficulty.id) if player_progress else 0]])
+			cup_info.text = "%s\n%s" % [cup.display_name.to_upper(), "     ".join(medals)]; cup_card.add_child(cup_info)
+	var collection := Label.new(); collection.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; collection.add_theme_font_size_override("font_size", 22)
+	var equipped_name := "—"
+	if progression_catalog != null and player_progress != null:
+		var equipped := progression_catalog.unlocks.get_variant(player_progress.equipped_kart_variant_id)
+		if equipped != null: equipped_name = equipped.display_name
+	collection.text = "COLECCIÓN · %d/%d\nEQUIPADO · %s     NUEVOS · %d" % [unlocked, total, equipped_name.to_upper(), player_progress.get_new_reward_count() if player_progress else 0]; card.add_child(collection)
+	var garage := _create_button("ABRIR GARAJE", UiTokens.ELECTRIC_YELLOW, Vector2(240, 58)); garage.pressed.connect(func() -> void: _open_standalone_garage()); card.add_child(garage)
 	var close := _create_button("VOLVER", UiTokens.CORAL, Vector2(180, 58))
 	close.pressed.connect(func() -> void: _router.back())
 	card.add_child(close)
