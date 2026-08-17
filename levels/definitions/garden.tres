@@ -1,16 +1,27 @@
-[gd_resource type="Resource" script_class="TrackDefinition" format=3]
+[gd_resource type="Resource" script_class="TrackDefinition" format=3 uid="uid://ca7euphn7hd24"]
 
-[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="1"]
-[ext_resource type="Resource" path="res://levels/minimaps/garden.tres" id="1_cu7oe"]
-[ext_resource type="PackedScene" path="res://levels/garden_track.tscn" id="2"]
+[ext_resource type="Script" uid="uid://4rdkup4ywfp8" path="res://scripts/data/track_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://cblvdeuhqe2kn" path="res://scripts/data/track_minimap_data.gd" id="1_cu7oe"]
+[ext_resource type="PackedScene" uid="uid://cida3p7ag2q6c" path="res://levels/garden_track.tscn" id="2"]
+
+[sub_resource type="Resource" id="Resource_locn3"]
+script = ExtResource("1_cu7oe")
+route_points = PackedVector2Array(0, 45, 29.532215, 49.891964, 46.918987, 48.584568, 68.60015, 42.956104, 75.00736, 39.127056, 79.36545, 33.146133, 80.89495, 25.848862, 80.470795, 15.894432, 72.94194, -10.428225, 57.99258, -36.295662, 49.472675, -45.375927, 43.11664, -49.283695, 26.014524, -52.22665, -6.4265847, -51.888966, -21.157372, -49.389698, -32.556187, -44.356342, -44.976223, -36.02854, -52.09487, -29.051615, -57.252373, -20.55087, -60.521652, -8.548237, -60.676, 6.3742085, -57.092007, 18.277515, -48.87147, 30.70493, -41.32325, 37.185062, -32.18076, 41.07732)
+shortcut_points = PackedVector2Array(33.731007, 49.98995, 40.616177, 47.576794, 47.522038, 37.47435, 63.895214, -11.794073, 65.58999, -21.531027, 64.74453, -26.345533, 33.34605, -51.7873, 25.974424, -50.82957, 19.158297, -47.743435, -11.189182, -25.826511, -52.25523, -7.634202, -58.53168, -3.5672696, -61.117546, 0.53137445)
+shortcut_ranges = PackedInt32Array(0, 6, 6, 7)
+start_position = Vector2(0, 45)
+start_direction = Vector2(0.98655635, 0.16342147)
+length_meters = 399.3595530986786
+shortcut_count = 2
 
 [resource]
 script = ExtResource("1")
 id = &"garden"
 display_name = "Circuito Jardín"
 description = "Un trazado compacto entre robles, flores y senderos."
-preview_color = Color(0.435, 0.651, 0.333, 1)
-preview_map = ExtResource("1_cu7oe")
+origin = 1
+preview_color = Color(0.435294, 0.65098, 0.333333, 1)
+preview_map = SubResource("Resource_locn3")
 scene = ExtResource("2")
 length_km = 0.4
 shortcut_count = 2

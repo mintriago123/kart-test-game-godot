@@ -1,16 +1,27 @@
-[gd_resource type="Resource" script_class="TrackDefinition" format=3]
+[gd_resource type="Resource" script_class="TrackDefinition" format=3 uid="uid://csn2bqov6n4jw"]
 
-[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="1"]
-[ext_resource type="Resource" path="res://levels/minimaps/coastal.tres" id="1_0t0g0"]
-[ext_resource type="PackedScene" path="res://levels/coastal_track.tscn" id="2"]
+[ext_resource type="Script" uid="uid://4rdkup4ywfp8" path="res://scripts/data/track_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://cblvdeuhqe2kn" path="res://scripts/data/track_minimap_data.gd" id="1_0t0g0"]
+[ext_resource type="PackedScene" uid="uid://bmo5euyuwse28" path="res://levels/coastal_track.tscn" id="2"]
+
+[sub_resource type="Resource" id="Resource_b8hka"]
+script = ExtResource("1_0t0g0")
+route_points = PackedVector2Array(7.858078, 69.97268, 17.659775, 68.107735, 53.373592, 56.83216, 62.330936, 52.449066, 69.95713, 46.028015, 78.83438, 33.99962, 85.97019, 18.075743, 88.88616, 3.412809, 88.136566, -11.524333, 84.44147, -26.017748, 78.62393, -37.026337, 68.44439, -47.981483, 52.351498, -59.783813, 36.764023, -67.65284, 20.031876, -72.630516, 5.1469555, -74.20183, -12.286647, -73.18926, -26.889605, -69.90663, -43.012123, -63.204422, -57.842964, -54.00079, -71.03695, -42.61639, -80.04309, -30.71096, -86.19028, -17.086226, -88.81461, -4.9047184, -88.35792, 7.5270567, -84.38415, 21.892801, -77.39466, 35.077477, -65.8376, 48.14431, -52.121555, 58.945614, -38.830326, 65.8183, -24.493198, 70.101585, -9.574441, 71.2024)
+shortcut_points = PackedVector2Array(73.83367, 41.506413, 74.87382, 39.292164, 73.63746, 34.634552, 60.16447, 20.234058, 56.545574, 11.254262, 58.536522, 1.6128461, 61.790657, -5.0245447, 80.80217, -24.263536, 82.376175, -28.856144, 80.90564, -33.513294, -33.7711, -67.44201, -39.692684, -63.16185, -41.631332, -58.66678, -39.015705, -31.773113, -41.379223, -22.308735, -50.466633, -14.19045, -82.06136, -0.4449859, -86.9215, 5.0194807, -87.423325, 12.266504)
+shortcut_ranges = PackedInt32Array(0, 10, 10, 9)
+start_position = Vector2(7.858078, 69.97268)
+start_direction = Vector2(0.98237616, -0.18691428)
+length_meters = 509.47241139411926
+shortcut_count = 2
 
 [resource]
 script = ExtResource("1")
 id = &"coastal"
 display_name = "Costa Turbo"
 description = "Curvas amplias, laguna y cañón junto al mar."
-preview_color = Color(0.086, 0.498, 0.576, 1)
-preview_map = ExtResource("1_0t0g0")
+origin = 1
+preview_color = Color(0.905882, 0.729412, 0.407843, 1)
+preview_map = SubResource("Resource_b8hka")
 scene = ExtResource("2")
 length_km = 0.5
 shortcut_count = 2
