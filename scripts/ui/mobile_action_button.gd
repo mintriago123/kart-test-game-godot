@@ -5,7 +5,7 @@ signal pressed_changed(action: StringName, pressed: bool)
 
 @export var action_name: StringName
 @export var button_label: String = "ACCIÓN"
-@export var accent_color := Color("#ffba4a")
+@export var accent_color := Color("#E9A84A")
 @export var haptics_enabled := true
 @export var item_icon: Texture2D
 

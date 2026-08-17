@@ -1,11 +1,11 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://c1lcg5pccc7mb"]
 
-[ext_resource type="Script" path="res://scripts/world/track_level.gd" id="1_bmxf2"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_bmxf2"]
 [ext_resource type="Resource" path="res://levels/themes/volcano_theme.tres" id="2_eakog"]
-[ext_resource type="AudioStream" path="res://assets/music/coastal.ogg" id="3_lqryg"]
+[ext_resource type="AudioStream" uid="uid://c4o1286dldljx" path="res://assets/music/coastal.ogg" id="3_lqryg"]
 [ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="4_1n70v"]
-[ext_resource type="Script" path="res://scripts/world/track_shortcut.gd" id="4_eakog"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="5_55i2a"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="4_eakog"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="5_55i2a"]
 [ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="6_8f23b"]
 
 [sub_resource type="Curve3D" id="Curve3D_bgu47"]
@@ -101,6 +101,8 @@ transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, -120.10816, -1.7082082, 77.64
 [node name="Surfaces" type="Node3D" parent="." unique_id=1558801866]
 
 [node name="IdentitySurface" type="Area3D" parent="Surfaces" unique_id=1761291564]
+collision_layer = 0
+collision_mask = 2
 script = ExtResource("5_55i2a")
 id = &"dirt_zone"
 surface = ExtResource("6_8f23b")

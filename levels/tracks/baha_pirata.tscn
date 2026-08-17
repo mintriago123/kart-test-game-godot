@@ -1,11 +1,11 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://brxmruxqbc3mk"]
 
-[ext_resource type="Script" path="res://scripts/world/track_level.gd" id="1_qkkfs"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_qkkfs"]
 [ext_resource type="Resource" path="res://levels/themes/pirate_theme.tres" id="2_f0qha"]
-[ext_resource type="AudioStream" path="res://assets/music/garden.ogg" id="3_g03yx"]
-[ext_resource type="Script" path="res://scripts/world/track_shortcut.gd" id="4_f0qha"]
+[ext_resource type="AudioStream" uid="uid://bho3swf4xffny" path="res://assets/music/garden.ogg" id="3_g03yx"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="4_f0qha"]
 [ext_resource type="PackedScene" path="res://assets/track/palm_tree.tscn" id="4_ge5xr"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="5_dbfe1"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="5_dbfe1"]
 [ext_resource type="Resource" path="res://levels/surfaces/sand.tres" id="6_rr53a"]
 
 [sub_resource type="Curve3D" id="Curve3D_bgu47"]
@@ -79,6 +79,8 @@ transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -102.295296, 1.7718539, 73.35
 [node name="Surfaces" type="Node3D" parent="." unique_id=2031572266]
 
 [node name="IdentitySurface" type="Area3D" parent="Surfaces" unique_id=1349007888]
+collision_layer = 0
+collision_mask = 2
 script = ExtResource("5_dbfe1")
 id = &"sand_zone"
 surface = ExtResource("6_rr53a")

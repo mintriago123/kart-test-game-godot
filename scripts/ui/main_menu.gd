@@ -192,16 +192,10 @@ func _build_interface() -> void:
 	var eyebrow := Label.new()
 	eyebrow.text = "CAMPEONATO ARCADE"
 	eyebrow.add_theme_font_size_override("font_size", 18)
-	eyebrow.add_theme_color_override("font_color", Color("#7be0d0"))
+	eyebrow.add_theme_color_override("font_color", UiTokens.CYAN)
 	content.add_child(eyebrow)
 
 	content.add_child(_wordmark(500.0, 116.0))
-
-	var subtitle := Label.new()
-	subtitle.text = "Derrapa, toma atajos y conquista cada circuito."
-	subtitle.add_theme_font_size_override("font_size", 21)
-	subtitle.add_theme_color_override("font_color", Color("#d8f4e8"))
-	content.add_child(subtitle)
 
 	var actions := MenuList.new()
 	actions.custom_minimum_size.x = 310.0
@@ -236,12 +230,6 @@ func _build_interface() -> void:
 	_showroom.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_showroom)
 	_showroom.show_variant(_get_equipped_variant())
-
-	var hint := Label.new()
-	hint.text = "Teclado: WASD · Espacio: derrape · E: objeto"
-	hint.add_theme_font_size_override("font_size", 16)
-	hint.add_theme_color_override("font_color", Color("#acd1cb"))
-	content.add_child(hint)
 
 	_track_selector = TrackSelectScreen.new()
 	_track_selector.visible = false
@@ -334,11 +322,6 @@ func _build_title_screen() -> Control:
 	center.size = Vector2(640, 300)
 	center.alignment = BoxContainer.ALIGNMENT_CENTER
 	overlay.add_child(center)
-	var championship := Label.new()
-	championship.text = "CAMPEONATO ARCADE"
-	championship.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	championship.add_theme_color_override("font_color", UiTokens.CYAN)
-	center.add_child(championship)
 	center.add_child(_wordmark(520.0, 120.0))
 	var enter := _create_button("PRESIONA PARA EMPEZAR", UiTokens.ELECTRIC_YELLOW, Vector2(360, 64))
 	enter.pressed.connect(_request_title_dismiss)
@@ -347,11 +330,6 @@ func _build_title_screen() -> Control:
 	prompt.action = &"ui_accept"
 	prompt.caption = "CONFIRMAR"
 	center.add_child(prompt)
-	var version := Label.new()
-	version.text = "v%s" % ProjectSettings.get_setting("application/config/version", "1.0")
-	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	version.add_theme_color_override("font_color", UiTokens.MUTED)
-	center.add_child(version)
 	# Input is handled by the full-screen title, not by focus alone.
 	enter.focus_mode = Control.FOCUS_NONE
 	return overlay
@@ -443,7 +421,7 @@ func _build_profile_panel() -> Control:
 	var metrics := Label.new(); metrics.text = "CARRERAS  %d   ·   VICTORIAS  %d   ·   PODIOS  %d   ·   MEJOR POSICIÓN  %s\nTIEMPO  %s   ·   RÉCORDS  %d   ·   ATAJOS  %d   ·   RECUPERACIONES  %d" % [player_progress.races_played if player_progress else 0, player_progress.victories if player_progress else 0, player_progress.podiums if player_progress else 0, str(player_progress.best_finish_position) if player_progress and player_progress.best_finish_position > 0 else "—", _format_duration(player_progress.driving_time_seconds if player_progress else 0.0), _best_times.size(), player_progress.shortcuts_used if player_progress else 0, player_progress.recoveries if player_progress else 0]; metrics.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; metrics.add_theme_color_override("font_color", UiTokens.TEXT_SECONDARY); card.add_child(metrics)
 	if player_progress != null:
 		var multiplayer := Label.new()
-		multiplayer.text = "MULTIJUGADOR\nLOCAL  %d CARRERAS · %d VICTORIAS · %d PODIOS     LAN  %d CARRERAS · %d VICTORIAS · %d PODIOS" % [player_progress.local_multiplayer.races_played, player_progress.local_multiplayer.victories, player_progress.local_multiplayer.podiums, player_progress.lan_multiplayer.races_played, player_progress.lan_multiplayer.victories, player_progress.lan_multiplayer.podiums]
+		multiplayer.text = "LOCAL  %d CARRERAS · %d VICTORIAS · %d PODIOS     LAN  %d CARRERAS · %d VICTORIAS · %d PODIOS" % [player_progress.local_multiplayer.races_played, player_progress.local_multiplayer.victories, player_progress.local_multiplayer.podiums, player_progress.lan_multiplayer.races_played, player_progress.lan_multiplayer.victories, player_progress.lan_multiplayer.podiums]
 		multiplayer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		multiplayer.add_theme_font_size_override("font_size", 18)
 		multiplayer.add_theme_color_override("font_color", UiTokens.CYAN)
@@ -462,7 +440,7 @@ func _build_profile_panel() -> Control:
 	if progression_catalog != null and player_progress != null:
 		var equipped := progression_catalog.unlocks.get_variant(player_progress.equipped_kart_variant_id)
 		if equipped != null: equipped_name = equipped.display_name
-	collection.text = "COLECCIÓN · %d/%d\nEQUIPADO · %s     NUEVOS · %d" % [unlocked, total, equipped_name.to_upper(), player_progress.get_new_reward_count() if player_progress else 0]; card.add_child(collection)
+	collection.text = "COLECCIÓN %d/%d · EQUIPADO %s · NUEVOS %d" % [unlocked, total, equipped_name.to_upper(), player_progress.get_new_reward_count() if player_progress else 0]; card.add_child(collection)
 	var garage := _create_button("ABRIR GARAJE", UiTokens.ELECTRIC_YELLOW, Vector2(240, 58)); garage.pressed.connect(func() -> void: _open_standalone_garage()); card.add_child(garage)
 	var close := _create_button("VOLVER", UiTokens.CORAL, Vector2(180, 58))
 	close.pressed.connect(func() -> void: _router.back())
@@ -501,7 +479,7 @@ func _update_menu_layout(
 
 func _build_garage_panel() -> Control:
 	var overlay := ColorRect.new()
-	overlay.color = Color(0.01, 0.06, 0.08, 0.94)
+	overlay.color = UiTokens.SCRIM
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.visible = false
 	_garage_showroom = VehicleViewport.new()
@@ -537,7 +515,7 @@ func _build_garage_panel() -> Control:
 		for variant in progression_catalog.unlocks.variants:
 			var unlock := progression_catalog.unlocks.get_unlock_for_variant(variant.id)
 			var unlocked := player_progress.can_equip(variant.id, progression_catalog.unlocks)
-			var button := _create_button(variant.display_name if unlocked else "%s · %s" % [variant.display_name, unlock.requirement_text(progression_catalog) if unlock != null else "Bloqueado"], Color("#75e6a4") if unlocked else Color("#637b80"), Vector2(600.0, 52.0))
+			var button := _create_button(variant.display_name if unlocked else "%s · %s" % [variant.display_name, unlock.requirement_text(progression_catalog) if unlock != null else "Bloqueado"], UiTokens.SUCCESS if unlocked else UiTokens.TEXT_DISABLED, Vector2(600.0, 52.0))
 			button.disabled = false
 			button.pressed.connect(func() -> void:
 				if unlocked: equip_variant_requested.emit(variant.id)
@@ -569,7 +547,7 @@ func _build_garage_panel() -> Control:
 					bar.custom_minimum_size = Vector2(190.0, 14.0)
 					line.add_child(bar)
 				list.add_child(stats_row)
-	var close := _create_button("VOLVER", Color("#ef7151"), Vector2(200.0, 58.0))
+	var close := _create_button("VOLVER", UiTokens.CORAL, Vector2(200.0, 58.0))
 	close.pressed.connect(func() -> void: _router.back())
 	list.add_child(close)
 	return overlay
@@ -755,7 +733,7 @@ func _select_game_mode(game_mode: int, should_emit := true) -> void:
 
 func _build_settings_panel() -> Control:
 	var overlay := ColorRect.new()
-	overlay.color = Color(0.01, 0.06, 0.08, 0.84)
+	overlay.color = UiTokens.SCRIM
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.visible = false
 
@@ -764,7 +742,7 @@ func _build_settings_panel() -> Control:
 	card_panel.anchor_bottom = 1.0
 	card_panel.offset_top = 24.0
 	card_panel.offset_bottom = -24.0
-	card_panel.add_theme_stylebox_override("panel", _style(Color("#12404a"), 24))
+	card_panel.add_theme_stylebox_override("panel", _style(UiTokens.INK, 24))
 	overlay.add_child(card_panel)
 
 	var scroll := ScrollContainer.new()
@@ -785,7 +763,7 @@ func _build_settings_panel() -> Control:
 	title.text = "AJUSTES"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 36)
-	title.add_theme_color_override("font_color", Color("#fff1b5"))
+	title.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY)
 	content.add_child(title)
 
 	var sections := TabContainer.new()
@@ -794,7 +772,7 @@ func _build_settings_panel() -> Control:
 	sections.add_theme_stylebox_override("panel", _style(UiTokens.GRAPHITE, UiTokens.RADIUS_MEDIUM))
 	sections.add_theme_stylebox_override("tab_unselected", _style(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL))
 	sections.add_theme_stylebox_override("tab_selected", _style(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, 1))
-	sections.add_theme_stylebox_override("tab_hovered", _style(Color("#2a5362"), UiTokens.RADIUS_SMALL, 1))
+	sections.add_theme_stylebox_override("tab_hovered", _style(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, 1))
 	sections.add_theme_color_override("font_unselected_color", UiTokens.TEXT_TERTIARY)
 	sections.add_theme_color_override("font_selected_color", UiTokens.TEXT_PRIMARY)
 	content.add_child(sections)
@@ -802,11 +780,6 @@ func _build_settings_panel() -> Control:
 	gameplay_section.name = "Juego"
 	gameplay_section.add_theme_constant_override("separation", UiTokens.SPACE_3)
 	sections.add_child(gameplay_section)
-	var gameplay_help := Label.new()
-	gameplay_help.text = "Preferencias de carrera y ayudas disponibles."
-	gameplay_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	gameplay_help.add_theme_color_override("font_color", UiTokens.MUTED)
-	gameplay_section.add_child(gameplay_help)
 	var graphics_section := VBoxContainer.new()
 	graphics_section.name = "Gráficos"
 	graphics_section.add_theme_constant_override("separation", 10)
@@ -867,14 +840,14 @@ func _build_settings_panel() -> Control:
 	profile_label.text = "CALIDAD GRÁFICA"
 	profile_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	profile_label.add_theme_font_size_override("font_size", 17)
-	profile_label.add_theme_color_override("font_color", Color("#a9ddd4"))
+	profile_label.add_theme_color_override("font_color", UiTokens.CYAN)
 	graphics_section.add_child(profile_label)
 
 	_profile_value = Label.new()
 	_profile_value.text = "ACTUAL: MEDIA"
 	_profile_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_profile_value.add_theme_font_size_override("font_size", 16)
-	_profile_value.add_theme_color_override("font_color", Color("#f5d66f"))
+	_profile_value.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW)
 	graphics_section.add_child(_profile_value)
 
 	var profile_row := GridContainer.new()
@@ -882,7 +855,7 @@ func _build_settings_panel() -> Control:
 	profile_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	profile_row.add_theme_constant_override("separation", 12)
 	graphics_section.add_child(profile_row)
-	_first_settings_button = _create_button("BAJA", Color("#73cdbf"), Vector2(150.0, 64.0))
+	_first_settings_button = _create_button("BAJA", UiTokens.CYAN, Vector2(150.0, 64.0))
 	_first_settings_button.pressed.connect(func() -> void: _set_graphics_profile("low"))
 	_quality_buttons[&"low"] = _first_settings_button
 	profile_row.add_child(_first_settings_button)
@@ -912,7 +885,7 @@ func _build_settings_panel() -> Control:
 	volume_label.text = "VOLUMEN"
 	volume_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	volume_label.add_theme_font_size_override("font_size", 16)
-	volume_label.add_theme_color_override("font_color", Color("#a9ddd4"))
+	volume_label.add_theme_color_override("font_color", UiTokens.CYAN)
 	audio_section.add_child(volume_label)
 
 	_volume_slider = _add_volume_control(audio_section, "Principal", 0.8, volume_changed)
@@ -939,12 +912,12 @@ func _build_settings_panel() -> Control:
 	_style_setting_toggle(_ghost_toggle)
 	gameplay_section.add_child(_ghost_toggle)
 
-	var restore := _create_button("RESTAURAR VALORES", Color("#f5d25f"), Vector2(250.0, 54.0))
+	var restore := _create_button("RESTAURAR VALORES", UiTokens.ELECTRIC_YELLOW, Vector2(250.0, 54.0))
 	restore.tooltip_text = "Calidad media, movimiento reducido, indicadores activos y vibración al 100 %"
 	restore.pressed.connect(_confirm_restore_defaults)
 	content.add_child(restore)
 
-	var close := _create_button("VOLVER", Color("#ef7656"), Vector2(180.0, 64.0))
+	var close := _create_button("VOLVER", UiTokens.CORAL, Vector2(180.0, 64.0))
 	close.pressed.connect(_toggle_settings)
 	content.add_child(close)
 	var update_settings_layout := func() -> void:
@@ -979,7 +952,7 @@ func _add_volume_control(parent: VBoxContainer, label_text: String, initial: flo
 	var label := Label.new()
 	label.text = "%s · %d %%" % [label_text, roundi(initial * 100.0)]
 	label.add_theme_font_size_override("font_size", 15)
-	label.add_theme_color_override("font_color", Color("#d8eeeb"))
+	label.add_theme_color_override("font_color", UiTokens.TEXT_SECONDARY)
 	group.add_child(label)
 	var slider := _create_volume_slider(label_text, initial, changed_signal)
 	_percentage_labels[slider] = label
@@ -1023,7 +996,7 @@ func _style_setting_toggle(toggle: CheckButton) -> void:
 	toggle.add_theme_color_override("font_hover_color", UiTokens.TEXT_PRIMARY)
 	toggle.add_theme_color_override("font_pressed_color", UiTokens.GRAPHITE)
 	toggle.add_theme_stylebox_override("normal", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL))
-	toggle.add_theme_stylebox_override("hover", UiTokens.panel(Color("#2a5362"), UiTokens.RADIUS_SMALL, UiTokens.CYAN))
+	toggle.add_theme_stylebox_override("hover", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, UiTokens.CYAN))
 	toggle.add_theme_stylebox_override("pressed", UiTokens.panel(UiTokens.ELECTRIC_YELLOW.darkened(0.08), UiTokens.RADIUS_SMALL))
 	toggle.add_theme_stylebox_override("focus", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, UiTokens.ELECTRIC_YELLOW))
 
@@ -1073,13 +1046,13 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 	button.text = text
 	button.custom_minimum_size = minimum_size
 	button.add_theme_font_size_override("font_size", 20)
-	button.add_theme_color_override("font_color", Color("#102d32"))
-	button.add_theme_color_override("font_focus_color", Color("#102d32"))
+	button.add_theme_color_override("font_color", UiTokens.GRAPHITE)
+	button.add_theme_color_override("font_focus_color", UiTokens.GRAPHITE)
 	button.add_theme_stylebox_override("normal", _style(color, 18))
 	button.add_theme_stylebox_override("hover", _style(color.lightened(0.1), 18))
 	button.add_theme_stylebox_override("pressed", _style(color.darkened(0.14), 18))
-	button.add_theme_stylebox_override("focus", _style(Color("#ffffff"), 18, 4))
-	button.add_theme_stylebox_override("disabled", _style(Color(0.32, 0.37, 0.38, 0.6), 18))
+	button.add_theme_stylebox_override("focus", _style(UiTokens.WARM_WHITE, 18, 4))
+	button.add_theme_stylebox_override("disabled", _style(Color(0.23, 0.28, 0.31, 0.6), 18))
 	return button
 
 
@@ -1099,5 +1072,5 @@ func _style(color: Color, radius: int, border_width: int = 0) -> StyleBoxFlat:
 		style.border_width_top = border_width
 		style.border_width_right = border_width
 		style.border_width_bottom = border_width
-		style.border_color = Color("#ffffff")
+		style.border_color = UiTokens.WARM_WHITE
 	return style

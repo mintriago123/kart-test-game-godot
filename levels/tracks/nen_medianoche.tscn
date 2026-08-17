@@ -1,13 +1,13 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://ctd2y5jky8oeh"]
 
-[ext_resource type="Script" path="res://scripts/world/track_level.gd" id="1_rbopc"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_rbopc"]
 [ext_resource type="Resource" path="res://levels/themes/neon_theme.tres" id="2_ci2tu"]
-[ext_resource type="AudioStream" path="res://assets/music/coastal.ogg" id="3_ain7i"]
-[ext_resource type="Script" path="res://scripts/world/track_shortcut.gd" id="4_ci2tu"]
+[ext_resource type="AudioStream" uid="uid://c4o1286dldljx" path="res://assets/music/coastal.ogg" id="3_ain7i"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="4_ci2tu"]
 [ext_resource type="PackedScene" path="res://assets/track/racing_tents.tscn" id="4_u5hfm"]
-[ext_resource type="Script" path="res://scripts/visual/kenney_colormap_applier.gd" id="5_v41fu"]
-[ext_resource type="Texture2D" path="res://assets/vendor/kenney/racing-kit/Textures/colormap.png" id="6_mrynw"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="7_030xh"]
+[ext_resource type="Script" uid="uid://x55l4aohqyex" path="res://scripts/visual/kenney_colormap_applier.gd" id="5_v41fu"]
+[ext_resource type="Texture2D" uid="uid://cbwmr6menwbnp" path="res://assets/vendor/kenney/racing-kit/Textures/colormap.png" id="6_mrynw"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="7_030xh"]
 [ext_resource type="Resource" path="res://levels/surfaces/asphalt.tres" id="8_j7nqn"]
 
 [sub_resource type="Curve3D" id="Curve3D_bgu47"]
@@ -118,6 +118,8 @@ colormap = ExtResource("6_mrynw")
 [node name="Surfaces" type="Node3D" parent="." unique_id=1102183833]
 
 [node name="IdentitySurface" type="Area3D" parent="Surfaces" unique_id=916414833]
+collision_layer = 0
+collision_mask = 2
 script = ExtResource("7_030xh")
 id = &"asphalt_zone"
 surface = ExtResource("8_j7nqn")

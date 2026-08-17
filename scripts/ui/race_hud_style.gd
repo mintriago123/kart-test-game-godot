@@ -1,6 +1,8 @@
 class_name RaceHudStyle
 extends RefCounted
 
+const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
+
 
 static func create_chip(text: String, font_size: int) -> Label:
 	var label := Label.new()
@@ -9,18 +11,18 @@ static func create_chip(text: String, font_size: int) -> Label:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", Color("#fff6d7"))
+	label.add_theme_color_override("font_color", UiTokens.WARM_WHITE)
 	label.add_theme_stylebox_override(
 		"normal",
-		style(Color(0.03, 0.16, 0.18, 0.86), 14)
+		style(Color(UiTokens.INK.r, UiTokens.INK.g, UiTokens.INK.b, 0.92), 14)
 	)
 	return label
 
 
 static func apply_button_style(button: Button, color: Color) -> void:
 	button.add_theme_font_size_override("font_size", 18)
-	button.add_theme_color_override("font_color", Color("#102d32"))
-	button.add_theme_color_override("font_focus_color", Color("#102d32"))
+	button.add_theme_color_override("font_color", UiTokens.GRAPHITE)
+	button.add_theme_color_override("font_focus_color", UiTokens.GRAPHITE)
 	button.add_theme_stylebox_override("normal", style(color, 16))
 	button.add_theme_stylebox_override(
 		"hover",
@@ -32,11 +34,11 @@ static func apply_button_style(button: Button, color: Color) -> void:
 	)
 	button.add_theme_stylebox_override(
 		"focus",
-		style(Color("#ffffff"), 16, 4)
+		style(UiTokens.WARM_WHITE, 16, 4)
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		style(Color(0.3, 0.36, 0.37, 0.62), 16)
+		style(Color(0.23, 0.28, 0.31, 0.62), 16)
 	)
 
 
@@ -56,7 +58,7 @@ static func style(
 		style_box.border_width_top = border_width
 		style_box.border_width_right = border_width
 		style_box.border_width_bottom = border_width
-		style_box.border_color = Color.WHITE
+		style_box.border_color = UiTokens.WARM_WHITE
 	style_box.content_margin_left = 14.0
 	style_box.content_margin_right = 14.0
 	return style_box

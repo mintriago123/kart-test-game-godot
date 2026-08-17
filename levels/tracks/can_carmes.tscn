@@ -1,11 +1,11 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://beypfxsghui4w"]
 
-[ext_resource type="Script" path="res://scripts/world/track_level.gd" id="1_mupje"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_mupje"]
 [ext_resource type="Resource" path="res://levels/themes/canyon_theme.tres" id="2_jmdd7"]
-[ext_resource type="AudioStream" path="res://assets/music/coastal.ogg" id="3_rpj1r"]
-[ext_resource type="Script" path="res://scripts/world/track_shortcut.gd" id="4_jmdd7"]
+[ext_resource type="AudioStream" uid="uid://c4o1286dldljx" path="res://assets/music/coastal.ogg" id="3_rpj1r"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="4_jmdd7"]
 [ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="4_sf2sw"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="5_jqcqe"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="5_jqcqe"]
 [ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="6_d162i"]
 
 [sub_resource type="Curve3D" id="Curve3D_e58hb"]
@@ -78,6 +78,8 @@ transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, -98.925896, 2.5059724, 89.794
 [node name="Surfaces" type="Node3D" parent="." unique_id=242274471]
 
 [node name="IdentitySurface" type="Area3D" parent="Surfaces" unique_id=1848614107]
+collision_layer = 0
+collision_mask = 2
 script = ExtResource("5_jqcqe")
 id = &"dirt_zone"
 surface = ExtResource("6_d162i")

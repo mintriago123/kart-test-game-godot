@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_4llsa"]
 [ext_resource type="Resource" path="res://levels/themes/coastal_theme.tres" id="2_pllua"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="3_surface"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="3_surface"]
 [ext_resource type="Resource" path="res://levels/surfaces/sand.tres" id="4_sand"]
 [ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="5_dirt"]
 
@@ -27,7 +27,9 @@ curve = SubResource("Curve3D_bgu47")
 
 [node name="Shortcuts" type="Node3D" parent="." unique_id=26707340]
 
-[node name="WaterCurveSand" type="Area3D" parent="."]
+[node name="WaterCurveSand" type="Area3D" parent="." unique_id=1199382560]
+collision_layer = 0
+collision_mask = 2
 script = ExtResource("3_surface")
 id = &"bay_water_sand"
 surface = ExtResource("4_sand")
@@ -36,7 +38,9 @@ end_progress = 0.31
 lateral_offset = 3.5
 width = 2.8
 
-[node name="WaterCurveDirt" type="Area3D" parent="."]
+[node name="WaterCurveDirt" type="Area3D" parent="." unique_id=1231058059]
+collision_layer = 0
+collision_mask = 2
 script = ExtResource("3_surface")
 id = &"bay_water_dirt"
 surface = ExtResource("5_dirt")

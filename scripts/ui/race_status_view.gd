@@ -70,7 +70,7 @@ func build_interface() -> void:
 	item_chip.size = Vector2(300.0, 58.0)
 	item_chip.add_theme_stylebox_override(
 		"panel",
-		RaceHudStyle.style(Color(0.03, 0.16, 0.18, 0.92), 14)
+		RaceHudStyle.style(Color(UiTokens.INK.r, UiTokens.INK.g, UiTokens.INK.b, 0.92), 14)
 	)
 	add_child(item_chip)
 	race_elements.append(item_chip)
@@ -93,7 +93,7 @@ func build_interface() -> void:
 	item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	item_label.add_theme_font_size_override("font_size", 16)
-	item_label.add_theme_color_override("font_color", Color("#fff6d7"))
+	item_label.add_theme_color_override("font_color", UiTokens.WARM_WHITE)
 	item_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	item_row.add_child(item_label)
 
@@ -110,11 +110,11 @@ func build_interface() -> void:
 	drift_bar.size = Vector2(180.0, 13.0)
 	drift_bar.add_theme_stylebox_override(
 		"background",
-		RaceHudStyle.style(Color(0.02, 0.08, 0.1, 0.76), 8)
+		RaceHudStyle.style(Color(UiTokens.GRAPHITE.r, UiTokens.GRAPHITE.g, UiTokens.GRAPHITE.b, 0.86), 8)
 	)
 	drift_bar.add_theme_stylebox_override(
 		"fill",
-		RaceHudStyle.style(Color("#f5d66f"), 8)
+		RaceHudStyle.style(UiTokens.ELECTRIC_YELLOW, 8)
 	)
 	add_child(drift_bar)
 	race_elements.append(drift_bar)
@@ -126,11 +126,11 @@ func build_interface() -> void:
 	countdown_label.add_theme_font_size_override("font_size", 78)
 	countdown_label.add_theme_color_override(
 		"font_color",
-		Color("#fff4c7")
+		UiTokens.WARM_WHITE
 	)
 	countdown_label.add_theme_color_override(
 		"font_outline_color",
-		Color("#13373d")
+		UiTokens.INK
 	)
 	countdown_label.add_theme_constant_override("outline_size", 14)
 	countdown_label.set_anchors_preset(Control.PRESET_CENTER)
@@ -220,21 +220,21 @@ func set_game_mode(game_mode: int) -> void:
 func update_ghost_delta(delta: float) -> void:
 	if not is_finite(delta):
 		delta_label.text = "FANTASMA  SIN REFERENCIA"
-		delta_label.add_theme_color_override("font_color", Color("#f5d66f"))
+		delta_label.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW)
 		return
 	delta_label.text = "FANTASMA  %s%s" % ["-" if delta < 0.0 else "+", RaceHudStyle.format_time(absf(delta))]
-	delta_label.add_theme_color_override("font_color", Color("#75e6a4") if delta < 0.0 else Color("#ef8b78"))
+	delta_label.add_theme_color_override("font_color", UiTokens.SUCCESS if delta < 0.0 else UiTokens.CORAL)
 
 
 func show_lap_split(lap_number: int, lap_time: float, previous_best: float) -> void:
 	_split_generation += 1
 	var generation := _split_generation
 	var comparison := "PRIMER REGISTRO"
-	var color := Color("#f5d66f")
+	var color := UiTokens.ELECTRIC_YELLOW
 	if previous_best > 0.0:
 		var delta := lap_time - previous_best
 		comparison = "VS. MEJOR VUELTA  %+.3f s" % delta
-		color = Color("#75e6a4") if delta < 0.0 else Color("#ef8b78")
+		color = UiTokens.SUCCESS if delta < 0.0 else UiTokens.CORAL
 	split_label.text = "VUELTA %d · %s\n%s" % [
 		lap_number,
 		RaceHudStyle.format_time(lap_time),

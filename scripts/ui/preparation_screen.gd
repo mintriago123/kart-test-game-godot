@@ -43,7 +43,7 @@ func _ready() -> void:
 	var actions := HBoxContainer.new(); actions.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); actions.offset_left = 20; actions.offset_right = -20; actions.offset_top = -76; actions.offset_bottom = -14; actions.alignment = BoxContainer.ALIGNMENT_CENTER; add_child(actions)
 	var back := ActionButton.new(); back.text = "VOLVER"; back.pressed.connect(func(): back_requested.emit()); actions.add_child(back)
 	start_button = ActionButton.new(); start_button.kind = ActionButton.Kind.PRIMARY; start_button.text = "INICIAR CARRERA"; start_button.pressed.connect(_start); actions.add_child(start_button)
-	resized.connect(_update_layout); _update_layout()
+	resized.connect(_update_layout); _update_layout(); call_deferred("_update_layout")
 
 func _add_heading(parent: VBoxContainer, text: String) -> void:
 	var label := Label.new(); label.text = text; label.add_theme_color_override("font_color", UiTokens.MUTED); parent.add_child(label)
@@ -70,21 +70,23 @@ func configure(value: Dictionary, track: TrackDefinition, variant: KartVariantDe
 	var event_name := cup.display_name.to_upper() if cup != null else (track.display_name.to_upper() if track else "EVENTO")
 	var vehicle_name := variant.display_name.to_upper() if variant else "VEHÍCULO BASE"
 	if locked:
-		summary.text = "COPA ACTIVA\nSIGUIENTE CIRCUITO · %s\n%s\n🔒 CC, DIFICULTAD Y VEHÍCULO FIJADOS" % [track.display_name.to_upper() if track else "—", vehicle_name]
+		summary.text = "COPA ACTIVA\n%s\n%s\n🔒 CONFIGURACIÓN FIJADA" % [track.display_name.to_upper() if track else "—", vehicle_name]
 	elif cup != null:
 		var tracks := PackedStringArray()
 		for cup_track in cup.tracks: tracks.append(cup_track.display_name)
-		summary.text = "%s\n3 CIRCUITOS · %s\nVEHÍCULO · %s" % [event_name, " → ".join(tracks), vehicle_name]
+		summary.text = "%s\n%s\n%s" % [event_name, " → ".join(tracks), vehicle_name]
 	elif mode == GameModeDefinition.TIME_TRIAL:
 		summary.text = "%s\nCONTRARRELOJ · %s\nFANTASMA · %s\nREFERENCIA · %s" % [event_name, vehicle_name, "SÍ" if bool(payload.get("ghost_enabled", true)) else "NO", "DISPONIBLE" if bool(payload.get("ghost_available", false)) else "SIN REGISTRO"]
 	elif mode == GameModeDefinition.LOCAL_MULTIPLAYER:
-		summary.text = "%s\nPANTALLA DIVIDIDA · 2 HUMANOS + 6 IA\nOBJETOS %s" % [event_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
+		summary.text = "%s\n2 JUGADORES + 6 IA\nOBJETOS %s" % [event_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
 	elif mode == GameModeDefinition.LAN_MULTIPLAYER:
-		summary.text = "%s\nRED LOCAL · HASTA 4 HUMANOS · PARRILLA DE 8\nOBJETOS %s" % [event_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
+		summary.text = "%s\nHASTA 4 JUGADORES · PARRILLA DE 8\nOBJETOS %s" % [event_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
 	else:
-		summary.text = "%s\nCARRERA RÁPIDA · %s\n8 PARTICIPANTES · OBJETOS %s" % [event_name, vehicle_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
+		summary.text = "%s\n%s\nOBJETOS %s" % [event_name, vehicle_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
 	start_button.text = "SIGUIENTE CARRERA" if locked else ("INICIAR CONTRARRELOJ" if mode == GameModeDefinition.TIME_TRIAL else ("INICIAR COPA" if mode == GameModeDefinition.CUP else "INICIAR CARRERA"))
 	start_button.grab_focus.call_deferred()
+	_update_layout()
+	call_deferred("_update_layout")
 
 func _select_cc(id: StringName, update_payload := true) -> void:
 	if update_payload: payload["cc_id"] = id
@@ -103,6 +105,15 @@ func _start() -> void:
 
 func _update_layout() -> void:
 	if _grid == null: return
-	var compact := size.x < 1050 or size.y < 600
+	var layout_size := size
+	if layout_size.x <= 1.0 or layout_size.y <= 1.0:
+		layout_size = get_viewport_rect().size
+	var compact := layout_size.x < 1050.0 or layout_size.y < 600.0
 	_grid.columns = 1 if compact else 3
-	_showroom.custom_minimum_size = Vector2(maxf(320, size.x - 56), 230) if compact else Vector2(440, 380)
+	if compact:
+		_showroom.custom_minimum_size = Vector2(maxf(320.0, layout_size.x - 56.0), clampf(layout_size.y * 0.42, 250.0, 340.0))
+	else:
+		# 720p needs a shorter showroom so the preparation content and actions
+		# share the viewport without leaving the vehicle cropped at the bottom.
+		var showroom_height := 300.0 if layout_size.y < 800.0 else 380.0
+		_showroom.custom_minimum_size = Vector2(440.0, showroom_height)

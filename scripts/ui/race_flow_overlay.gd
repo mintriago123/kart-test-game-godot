@@ -56,7 +56,7 @@ func build_interface() -> void:
 	pause_button.pressed.connect(_toggle_pause)
 	RaceHudStyle.apply_button_style(
 		pause_button,
-		Color("#f5d66f")
+		UiTokens.ELECTRIC_YELLOW
 	)
 	add_child(pause_button)
 
@@ -89,7 +89,7 @@ func update_provisional_standings(standings: Array[RacerRaceResult]) -> void:
 				if standing.finish_time >= 0.0 else "EN PISTA",
 			],
 			17,
-			Color("#fff1b5") if standing.is_player else Color("#c5e4de")
+			UiTokens.TEXT_PRIMARY if standing.is_player else UiTokens.TEXT_SECONDARY
 		)
 
 
@@ -166,13 +166,13 @@ func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> voi
 		("NUEVO RÉCORD · " if result.is_new_best_time else "TIEMPO · ")
 		+ RaceHudStyle.format_time(player.finish_time),
 		26,
-		Color("#75e6a4") if result.is_new_best_time else Color("#fff1b5")
+		UiTokens.SUCCESS if result.is_new_best_time else UiTokens.TEXT_PRIMARY
 	)
 	_add_result_label(
 		("MEJOR VUELTA · " if result.is_new_best_lap else "VUELTA RÁPIDA · ")
 		+ RaceHudStyle.format_time(player.best_lap_time),
 		20,
-		Color("#75e6a4") if result.is_new_best_lap else Color("#d8f4e8")
+		UiTokens.SUCCESS if result.is_new_best_lap else UiTokens.TEXT_SECONDARY
 	)
 	var laps := ""
 	for index in player.lap_times.size():
@@ -181,26 +181,26 @@ func show_results(result_or_position: Variant, legacy_time: float = -1.0) -> voi
 			index + 1,
 			RaceHudStyle.format_time(player.lap_times[index]),
 		]
-	_add_result_label(laps, 16, Color("#b9ddd6"))
+	_add_result_label(laps, 16, UiTokens.MUTED)
 	_add_result_label(
 		"Posiciones %s%d  ·  Objetos %d/%d  ·  Aciertos %d  ·  Bloqueos %d" % [
 			"+" if player.get_position_delta() >= 0 else "",
 			player.get_position_delta(), player.items_collected, player.items_used,
 			player.hits_landed, player.hits_blocked,
-		], 16, Color("#d8f4e8")
+		], 16, UiTokens.TEXT_SECONDARY
 	)
 	_add_result_label(
 		"Atajos %d  ·  Recuperaciones %d" % [player.shortcuts_used, player.recoveries],
-		16, Color("#d8f4e8")
+		16, UiTokens.TEXT_SECONDARY
 	)
-	_add_result_label("CLASIFICACIÓN", 18, Color("#f5d66f"))
+	_add_result_label("CLASIFICACIÓN", 18, UiTokens.ELECTRIC_YELLOW)
 	for standing in result.standings:
 		_add_result_label(
 			"%dº  %-12s  %s" % [
 				standing.finish_position,
 				standing.racer_name,
 				"DNF" if standing.is_dnf else RaceHudStyle.format_time(standing.finish_time),
-			], 17, Color("#fff1b5") if standing.is_player else Color("#c5e4de")
+			], 17, UiTokens.TEXT_PRIMARY if standing.is_player else UiTokens.TEXT_SECONDARY
 		)
 	results_panel.visible = true
 	retry_button.grab_focus()
@@ -213,7 +213,7 @@ func _show_cup_results(result: RaceResult) -> void:
 	for child in results_details.get_children():
 		child.queue_free()
 	for row in summary.standings if summary != null else []:
-		_add_result_label("%s  ·  %d PTOS  ·  %d VICT." % [str(row.racer_id).to_upper(), int(row.points), int(row.victories)], 19, Color("#fff1b5") if row.racer_id == result.player_result.racer_id else Color("#c5e4de"))
+		_add_result_label("%s  ·  %d PTOS  ·  %d VICT." % [str(row.racer_id).to_upper(), int(row.points), int(row.victories)], 19, UiTokens.TEXT_PRIMARY if row.racer_id == result.player_result.racer_id else UiTokens.TEXT_SECONDARY)
 	if completed:
 		_cup_result = result
 		_cup_stage = 0
@@ -222,7 +222,7 @@ func _show_cup_results(result: RaceResult) -> void:
 		if _result_menu_button != null: _result_menu_button.visible = false
 		_render_cup_stage()
 	else:
-		_add_result_label("Carrera %d/3 completada" % (result.cup_race_index + 1), 18, Color("#7be0d0"))
+		_add_result_label("Carrera %d/3 completada" % (result.cup_race_index + 1), 18, UiTokens.CYAN)
 		retry_button.text = "SIGUIENTE CARRERA"
 		_primary_result_action = &"retry"
 	results_panel.visible = true
@@ -238,17 +238,17 @@ func _render_cup_stage() -> void:
 			for index in summary.standings.size():
 				var row: Dictionary = summary.standings[index]
 				var racer_name := _racer_name(StringName(row.get("racer_id", &"")))
-				_add_result_label("%dº  %s  ·  %d PTOS  ·  %d VICT." % [index + 1, racer_name, int(row.get("points", 0)), int(row.get("victories", 0))], 20, Color("#fff1b5") if index + 1 == summary.player_position else Color("#c5e4de"))
-			_add_result_label("TU RESULTADO · %dº · %d PUNTOS" % [summary.player_position, summary.player_points], 24, Color("#f5d66f"))
+				_add_result_label("%dº  %s  ·  %d PTOS  ·  %d VICT." % [index + 1, racer_name, int(row.get("points", 0)), int(row.get("victories", 0))], 20, UiTokens.TEXT_PRIMARY if index + 1 == summary.player_position else UiTokens.TEXT_SECONDARY)
+			_add_result_label("TU RESULTADO · %dº · %d PUNTOS" % [summary.player_position, summary.player_points], 24, UiTokens.ELECTRIC_YELLOW)
 		1:
 			results_title.text = "RESULTADO DE COPA"
 			var names := ["SIN MEDALLA", "BRONCE", "PLATA", "ORO"]
-			_add_result_label(names[int(summary.medal)], 42, Color("#f5d66f") if int(summary.medal) > 0 else Color("#ef8b78"))
-			_add_result_label("MEJOR ANTERIOR · %s" % names[int(summary.previous_best_medal)], 20, Color("#7be0d0"))
+			_add_result_label(names[int(summary.medal)], 42, UiTokens.ELECTRIC_YELLOW if int(summary.medal) > 0 else UiTokens.CORAL)
+			_add_result_label("MEJOR ANTERIOR · %s" % names[int(summary.previous_best_medal)], 20, UiTokens.CYAN)
 		2:
 			results_title.text = "RECOMPENSAS"
 			if summary.new_reward_ids.is_empty():
-				_add_result_label("NO HAY VEHÍCULOS NUEVOS ESTA VEZ", 24, Color("#c5e4de"))
+				_add_result_label("NO HAY VEHÍCULOS NUEVOS ESTA VEZ", 24, UiTokens.TEXT_SECONDARY)
 			else:
 				for reward_id in summary.new_reward_ids:
 					var unlock := progression_catalog.unlocks.get_unlock(reward_id) if progression_catalog != null else null
@@ -286,15 +286,15 @@ func _show_time_trial_results(result: RaceResult) -> void:
 	results_title.text = "CONTRARRELOJ\n%s" % RaceHudStyle.format_time(player.finish_time)
 	for child in results_details.get_children():
 		child.queue_free()
-	_add_result_label(("NUEVO RÉCORD TOTAL · " if result.is_new_best_time else "TIEMPO TOTAL · ") + RaceHudStyle.format_time(player.finish_time), 25, Color("#75e6a4") if result.is_new_best_time else Color("#fff1b5"))
+	_add_result_label(("NUEVO RÉCORD TOTAL · " if result.is_new_best_time else "TIEMPO TOTAL · ") + RaceHudStyle.format_time(player.finish_time), 25, UiTokens.SUCCESS if result.is_new_best_time else UiTokens.TEXT_PRIMARY)
 	if result.previous_best_time > 0.0:
 		var delta := player.finish_time - result.previous_best_time
-		_add_result_label("DIFERENCIA · %+.3f" % delta, 19, Color("#75e6a4") if delta < 0.0 else Color("#ef8b78"))
-	_add_result_label(("NUEVA MEJOR VUELTA · " if result.is_new_best_lap else "MEJOR VUELTA · ") + RaceHudStyle.format_time(player.best_lap_time), 20, Color("#75e6a4") if result.is_new_best_lap else Color("#d8f4e8"))
+		_add_result_label("DIFERENCIA · %+.3f" % delta, 19, UiTokens.SUCCESS if delta < 0.0 else UiTokens.CORAL)
+	_add_result_label(("NUEVA MEJOR VUELTA · " if result.is_new_best_lap else "MEJOR VUELTA · ") + RaceHudStyle.format_time(player.best_lap_time), 20, UiTokens.SUCCESS if result.is_new_best_lap else UiTokens.TEXT_SECONDARY)
 	for index in player.lap_times.size():
-		_add_result_label("VUELTA %d · %s" % [index + 1, RaceHudStyle.format_time(player.lap_times[index])], 17, Color("#b9ddd6"))
+		_add_result_label("VUELTA %d · %s" % [index + 1, RaceHudStyle.format_time(player.lap_times[index])], 17, UiTokens.MUTED)
 	if result.ghost_updated:
-		_add_result_label("FANTASMA ACTUALIZADO", 20, Color("#53e8f2"))
+		_add_result_label("FANTASMA ACTUALIZADO", 20, UiTokens.CYAN)
 	results_panel.visible = true
 	retry_button.text = "OTRO INTENTO"
 	_primary_result_action = &"retry"
@@ -385,7 +385,7 @@ func _build_intro_overlay() -> Control:
 	intro_content.add_theme_constant_override("separation", 6)
 	overlay.add_child(intro_content)
 	var band := ColorRect.new()
-	band.color = Color(0.05, 0.1, 0.15, 0.88)
+	band.color = UiTokens.SCRIM
 	band.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	band.offset_top = 52.0
 	band.offset_bottom = 232.0
@@ -398,11 +398,11 @@ func _build_intro_overlay() -> Control:
 	intro_title.add_theme_font_size_override("font_size", 48)
 	intro_title.add_theme_color_override(
 		"font_color",
-		Color("#fff4c7")
+		UiTokens.TEXT_PRIMARY
 	)
 	intro_title.add_theme_color_override(
 		"font_outline_color",
-		Color("#13373d")
+		UiTokens.INK
 	)
 	intro_title.add_theme_constant_override("outline_size", 12)
 	intro_content.add_child(intro_title)
@@ -412,11 +412,11 @@ func _build_intro_overlay() -> Control:
 	intro_laps.add_theme_font_size_override("font_size", 23)
 	intro_laps.add_theme_color_override(
 		"font_color",
-		Color("#d8f4e8")
+		UiTokens.TEXT_SECONDARY
 	)
 	intro_laps.add_theme_color_override(
 		"font_outline_color",
-		Color("#13373d")
+		UiTokens.INK
 	)
 	intro_laps.add_theme_constant_override("outline_size", 7)
 	intro_content.add_child(intro_laps)
@@ -436,7 +436,7 @@ func _build_intro_overlay() -> Control:
 	intro_skip_button.pressed.connect(_request_intro_skip)
 	RaceHudStyle.apply_button_style(
 		intro_skip_button,
-		Color("#f5d66f")
+		UiTokens.ELECTRIC_YELLOW
 	)
 	overlay.add_child(intro_skip_button)
 	return overlay
@@ -514,7 +514,7 @@ func _show_confirmation(title: String, confirmed_signal: Signal) -> void:
 func _build_results_panel() -> Control:
 	var overlay := ColorRect.new()
 	overlay.name = "Results"
-	overlay.color = Color(0.01, 0.06, 0.08, 0.78)
+	overlay.color = UiTokens.SCRIM
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.visible = false
 
@@ -531,13 +531,13 @@ func _build_results_panel() -> Control:
 	card.add_theme_constant_override("separation", 22)
 	card.add_theme_stylebox_override(
 		"panel",
-		RaceHudStyle.style(Color("#123b42"), 24)
+		RaceHudStyle.style(UiTokens.INK, 24)
 	)
 	var card_panel := PanelContainer.new()
 	card_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	card_panel.add_theme_stylebox_override(
 		"panel",
-		RaceHudStyle.style(Color("#123b42"), 24)
+		RaceHudStyle.style(UiTokens.INK, 24)
 	)
 	overlay.add_child(card_panel)
 	card_panel.add_child(card)
@@ -547,7 +547,7 @@ func _build_results_panel() -> Control:
 	results_title.add_theme_font_size_override("font_size", 36)
 	results_title.add_theme_color_override(
 		"font_color",
-		Color("#fff1b5")
+		UiTokens.TEXT_PRIMARY
 	)
 	card.add_child(results_title)
 
@@ -574,7 +574,7 @@ func _build_results_panel() -> Control:
 	retry_button.pressed.connect(_activate_primary_result)
 	RaceHudStyle.apply_button_style(
 		retry_button,
-		Color("#f2c958")
+		UiTokens.ELECTRIC_YELLOW
 	)
 	actions.add_child(retry_button)
 
@@ -583,7 +583,7 @@ func _build_results_panel() -> Control:
 	menu.text = "MENÚ"
 	menu.custom_minimum_size = Vector2(140.0, 72.0)
 	menu.pressed.connect(func() -> void: menu_requested.emit())
-	RaceHudStyle.apply_button_style(menu, Color("#ef7656"))
+	RaceHudStyle.apply_button_style(menu, UiTokens.CORAL)
 	actions.add_child(menu)
 	return overlay
 
@@ -595,7 +595,7 @@ func _build_provisional_panel() -> Control:
 	panel.position = Vector2(-210.0, 24.0)
 	panel.size = Vector2(420.0, 0.0)
 	panel.add_theme_stylebox_override(
-		"panel", RaceHudStyle.style(Color(0.02, 0.12, 0.14, 0.92), 14)
+		"panel", RaceHudStyle.style(Color(UiTokens.INK.r, UiTokens.INK.g, UiTokens.INK.b, 0.92), 14)
 	)
 	panel.visible = false
 	var content := VBoxContainer.new()
@@ -604,7 +604,7 @@ func _build_provisional_panel() -> Control:
 	provisional_title = Label.new()
 	provisional_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	provisional_title.add_theme_font_size_override("font_size", 22)
-	provisional_title.add_theme_color_override("font_color", Color("#f5d66f"))
+	provisional_title.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW)
 	content.add_child(provisional_title)
 	provisional_details = VBoxContainer.new()
 	provisional_details.add_theme_constant_override("separation", 3)
