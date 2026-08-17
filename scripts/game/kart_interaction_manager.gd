@@ -51,15 +51,35 @@ func _process_bump(first: Kart, second: Kart) -> void:
 	var first_forward := -first.global_transform.basis.z.normalized()
 	if absf(first_forward.dot(normal)) > 0.72:
 		impulse *= 0.35
+	var first_velocity_before := first.velocity
+	var second_velocity_before := second.velocity
 	var total_weight := first.stats.weight + second.stats.weight
 	if impulse > 0.0:
 		first.velocity -= normal * impulse * second.stats.weight / total_weight
 		second.velocity += normal * impulse * first.stats.weight / total_weight
+	_preserve_bump_momentum(first, first_velocity_before)
+	_preserve_bump_momentum(second, second_velocity_before)
 	if penetration > 0.0:
 		var separation := normal * penetration
 		first.global_position -= separation * second.stats.weight / total_weight
 		second.global_position += separation * first.stats.weight / total_weight
 	_pair_cooldowns[key] = tuning.bump_cooldown
+
+
+func _preserve_bump_momentum(kart: Kart, incoming_velocity: Vector3) -> void:
+	var incoming_horizontal := Vector3(incoming_velocity.x, 0.0, incoming_velocity.z)
+	var incoming_speed := incoming_horizontal.length()
+	if incoming_speed <= 0.5:
+		return
+	var current_horizontal := Vector3(kart.velocity.x, 0.0, kart.velocity.z)
+	var minimum_speed := incoming_speed * 0.65
+	if current_horizontal.length() >= minimum_speed:
+		return
+	var direction := incoming_horizontal.normalized()
+	if not current_horizontal.is_zero_approx():
+		direction = direction.slerp(current_horizontal.normalized(), 0.35).normalized()
+	kart.velocity.x = direction.x * minimum_speed
+	kart.velocity.z = direction.z * minimum_speed
 
 func _contact_distance(kart: Kart, direction: Vector3) -> float:
 	var right := kart.global_transform.basis.x.normalized()
