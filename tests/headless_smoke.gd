@@ -312,13 +312,11 @@ func _run() -> void:
 				"%s uses the same track collisions as the player." % ai_kart.racer_name
 			)
 
-		var player_id := player.get_instance_id()
-		var saved_race_data: Dictionary = manager._race_data[player_id].duplicate(true)
+		var saved_race_state := manager.get_race_state(player)
+		var saved_next_checkpoint := saved_race_state.next_checkpoint
 		var saved_transform := player.global_transform
 		var shortcut: Dictionary = track.shortcut_definitions[0]
-		var shortcut_test_data: Dictionary = saved_race_data.duplicate(true)
-		shortcut_test_data.next_checkpoint = int(shortcut.entry_index)
-		manager._race_data[player_id] = shortcut_test_data
+		saved_race_state.next_checkpoint = int(shortcut.entry_index)
 		manager.set_process(false)
 		_shortcut_was_accepted = false
 		manager.shortcut_accepted.connect(
@@ -341,7 +339,7 @@ func _run() -> void:
 					& PhysicsLayers.SHORTCUTS
 				) != 0
 			)
-		var shortcut_result: Dictionary = manager._race_data[player_id]
+		var shortcut_result := manager.get_race_state(player)
 		manager.set_process(true)
 		if not _shortcut_was_accepted:
 			var exit_gate := track.get_node("Shortcut0ExitGate") as Area3D
@@ -349,7 +347,7 @@ func _run() -> void:
 				"INFO: Shortcut gate not accepted; checkpoint=%d active=%s distance=%.2f overlaps=%s."
 				% [
 					int(shortcut_result.next_checkpoint),
-					str(track._active_shortcuts.get(player_id, "none")),
+						str(track._active_shortcuts.get(player.get_instance_id(), "none")),
 					player.global_position.distance_to(exit_gate.global_position),
 					str(exit_gate.get_overlapping_bodies().map(
 						func(body: Node3D) -> String: return body.name
@@ -369,7 +367,7 @@ func _run() -> void:
 			) == 0,
 			"Shortcut floor activates only between its entry and exit gates."
 		)
-		manager._race_data[player_id] = saved_race_data
+		saved_race_state.next_checkpoint = saved_next_checkpoint
 		player.global_transform = saved_transform
 		player.velocity = Vector3.ZERO
 

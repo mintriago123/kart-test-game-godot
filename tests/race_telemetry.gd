@@ -57,7 +57,7 @@ func _run() -> void:
 	manager.record_recovery(player)
 	_check(manager.complete_shortcut(player, 0, 2), "A valid shortcut is accepted.")
 	# Restore normal checkpoint flow after verifying shortcut telemetry.
-	manager._race_data[player.get_instance_id()].next_checkpoint = 1
+	manager.get_race_state(player).next_checkpoint = 1
 	var completed_laps: Array[float] = []
 	manager.lap_completed.connect(func(racer: Node, _lap: int, time: float) -> void:
 		if racer == player:
