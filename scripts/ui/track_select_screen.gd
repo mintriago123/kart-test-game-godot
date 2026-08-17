@@ -139,19 +139,19 @@ func get_selected_game_mode() -> int:
 
 func _build_interface() -> void:
 	var background := ColorRect.new()
-	background.color = Color("#082d37")
+	background.color = UiTokens.GRAPHITE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 
 	var sun_stripe := ColorRect.new()
-	sun_stripe.color = Color("#f2b84d")
+	sun_stripe.color = UiTokens.ELECTRIC_YELLOW
 	sun_stripe.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
 	sun_stripe.offset_left = -245.0
 	sun_stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(sun_stripe)
 
 	var coral_stripe := ColorRect.new()
-	coral_stripe.color = Color("#ef7151")
+	coral_stripe.color = UiTokens.CORAL
 	coral_stripe.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
 	coral_stripe.offset_left = -278.0
 	coral_stripe.offset_right = -244.0
@@ -172,7 +172,7 @@ func _build_interface() -> void:
 	header.add_theme_constant_override("separation", 18)
 	page.add_child(header)
 
-	_back_button = _create_button("‹  VOLVER", Color("#74d3c4"), Vector2(160.0, 60.0))
+	_back_button = _create_button("‹  VOLVER", UiTokens.CYAN, Vector2(160.0, 60.0))
 	_back_button.pressed.connect(func() -> void: back_requested.emit())
 	header.add_child(_back_button)
 
@@ -182,17 +182,17 @@ func _build_interface() -> void:
 	var eyebrow := Label.new()
 	eyebrow.text = "PARRILLA DE SALIDA"
 	eyebrow.add_theme_font_size_override("font_size", 15)
-	eyebrow.add_theme_color_override("font_color", Color("#7be0d0"))
+	eyebrow.add_theme_color_override("font_color", UiTokens.CYAN)
 	heading.add_child(eyebrow)
 	var page_title := Label.new()
 	page_title.text = "SELECCIONA PISTA"
 	page_title.add_theme_font_size_override("font_size", 36)
-	page_title.add_theme_color_override("font_color", Color("#fff0b1"))
+	page_title.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY)
 	heading.add_child(page_title)
 	_mode_label = Label.new()
 	_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_mode_label.add_theme_font_size_override("font_size", 18)
-	_mode_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	_mode_label.add_theme_color_override("font_color", UiTokens.CYAN)
 	header.add_child(_mode_label)
 
 	var body := HBoxContainer.new()
@@ -202,7 +202,7 @@ func _build_interface() -> void:
 
 	var list_panel := PanelContainer.new()
 	list_panel.custom_minimum_size.x = 370.0
-	list_panel.add_theme_stylebox_override("panel", _style(Color("#12404a"), 22))
+	list_panel.add_theme_stylebox_override("panel", _style(UiTokens.INK, 22))
 	body.add_child(list_panel)
 	var list_margin := MarginContainer.new()
 	list_margin.add_theme_constant_override("margin_left", 18)
@@ -249,28 +249,28 @@ func _build_interface() -> void:
 	_title_label = Label.new()
 	_title_label.text = "SIN PISTAS"
 	_title_label.add_theme_font_size_override("font_size", 32)
-	_title_label.add_theme_color_override("font_color", Color("#fff0b1"))
+	_title_label.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY)
 	detail_panel.add_child(_title_label)
 
 	_description_label = Label.new()
 	_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_description_label.add_theme_font_size_override("font_size", 17)
-	_description_label.add_theme_color_override("font_color", Color("#d8f4e8"))
+	_description_label.add_theme_color_override("font_color", UiTokens.TEXT_SECONDARY)
 	detail_panel.add_child(_description_label)
 
 	_details_label = Label.new()
 	_details_label.add_theme_font_size_override("font_size", 16)
-	_details_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	_details_label.add_theme_color_override("font_color", UiTokens.CYAN)
 	detail_panel.add_child(_details_label)
 
 	_best_time_label = Label.new()
 	_best_time_label.add_theme_font_size_override("font_size", 18)
-	_best_time_label.add_theme_color_override("font_color", Color("#f5d66f"))
+	_best_time_label.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW)
 	detail_panel.add_child(_best_time_label)
 	_ghost_available_label = Label.new()
 	_ghost_available_label.text = "FANTASMA DISPONIBLE"
 	_ghost_available_label.add_theme_font_size_override("font_size", 15)
-	_ghost_available_label.add_theme_color_override("font_color", Color("#53e8f2"))
+	_ghost_available_label.add_theme_color_override("font_color", UiTokens.CYAN)
 	_ghost_available_label.visible = false
 	detail_panel.add_child(_ghost_available_label)
 
@@ -280,7 +280,7 @@ func _build_interface() -> void:
 	detail_panel.add_child(mode_row)
 	var mode_group := ButtonGroup.new()
 	for mode_data in [[GameModeDefinition.RACE, "CARRERA"], [GameModeDefinition.TIME_TRIAL, "CONTRARRELOJ"], [GameModeDefinition.CUP, "COPA"]]:
-		var mode_button := _create_button(mode_data[1], Color("#7be0d0"), Vector2(150.0, 44.0))
+		var mode_button := _create_button(mode_data[1], UiTokens.CYAN, Vector2(150.0, 44.0))
 		mode_button.toggle_mode = true
 		mode_button.button_group = mode_group
 		mode_button.pressed.connect(select_game_mode.bind(mode_data[0]))
@@ -291,7 +291,7 @@ func _build_interface() -> void:
 	_difficulty_label.visible = false
 	_difficulty_label.text = "DIFICULTAD DE COPA"
 	_difficulty_label.add_theme_font_size_override("font_size", 15)
-	_difficulty_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	_difficulty_label.add_theme_color_override("font_color", UiTokens.CYAN)
 	detail_panel.add_child(_difficulty_label)
 	_difficulty_row = HBoxContainer.new()
 	_difficulty_row.visible = false
@@ -299,7 +299,7 @@ func _build_interface() -> void:
 	detail_panel.add_child(_difficulty_row)
 	var difficulty_group := ButtonGroup.new()
 	for difficulty_data in [[&"relaxed", "RELAJADA"], [&"competitive", "COMPETITIVA"], [&"expert", "EXPERTA"]]:
-		var difficulty_button := _create_button(difficulty_data[1], Color("#ef9c64"), Vector2(130.0, 42.0))
+		var difficulty_button := _create_button(difficulty_data[1], UiTokens.CORAL, Vector2(130.0, 42.0))
 		difficulty_button.toggle_mode = true
 		difficulty_button.button_group = difficulty_group
 		difficulty_button.pressed.connect(func() -> void:
@@ -313,7 +313,7 @@ func _build_interface() -> void:
 	race_class_label.visible = false
 	race_class_label.text = "CLASE DE MOTOR"
 	race_class_label.add_theme_font_size_override("font_size", 15)
-	race_class_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	race_class_label.add_theme_color_override("font_color", UiTokens.CYAN)
 	detail_panel.add_child(race_class_label)
 
 	var race_class_row := HBoxContainer.new()
@@ -325,7 +325,7 @@ func _build_interface() -> void:
 	for definition in RaceClassDefinition.get_all():
 		var race_class_button := _create_button(
 			str(definition.id),
-			Color("#74d3c4"),
+			UiTokens.CYAN,
 			Vector2(78.0, 48.0)
 		)
 		race_class_button.toggle_mode = true
@@ -345,11 +345,11 @@ func _build_interface() -> void:
 	_race_class_description_label.add_theme_font_size_override("font_size", 15)
 	_race_class_description_label.add_theme_color_override(
 		"font_color",
-		Color("#d8f4e8")
+		UiTokens.TEXT_SECONDARY
 	)
 	detail_panel.add_child(_race_class_description_label)
 
-	_race_button = _create_button("CONTINUAR", Color("#f5d25f"), Vector2(240.0, 64.0))
+	_race_button = _create_button("CONTINUAR", UiTokens.ELECTRIC_YELLOW, Vector2(240.0, 64.0))
 	_race_button.pressed.connect(func() -> void:
 		if not _selected_track_id.is_empty():
 			race_requested.emit(_selected_track_id, _selected_cc_id, _selected_game_mode, _selected_difficulty_id)
@@ -367,7 +367,7 @@ func _build_track_list() -> void:
 	if track_catalog == null or track_catalog.tracks.is_empty():
 		var empty_label := Label.new()
 		empty_label.text = "No hay pistas publicadas."
-		empty_label.add_theme_color_override("font_color", Color("#d8f4e8"))
+		empty_label.add_theme_color_override("font_color", UiTokens.TEXT_SECONDARY)
 		track_list.add_child(empty_label)
 		return
 
@@ -394,7 +394,7 @@ func _add_track_group(
 	var group_label := Label.new()
 	group_label.text = group_name
 	group_label.add_theme_font_size_override("font_size", 14)
-	group_label.add_theme_color_override("font_color", Color("#7be0d0"))
+	group_label.add_theme_color_override("font_color", UiTokens.CYAN)
 	container.add_child(group_label)
 	var button_group := ButtonGroup.new()
 	for definition in definitions:
@@ -558,15 +558,15 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 	button.custom_minimum_size = minimum_size
 	button.focus_mode = Control.FOCUS_ALL
 	button.add_theme_font_size_override("font_size", 19)
-	button.add_theme_color_override("font_color", Color("#102d32"))
-	button.add_theme_color_override("font_focus_color", Color("#102d32"))
+	button.add_theme_color_override("font_color", UiTokens.GRAPHITE)
+	button.add_theme_color_override("font_focus_color", UiTokens.GRAPHITE)
 	button.add_theme_stylebox_override("normal", _style(color, 16))
 	button.add_theme_stylebox_override("hover", _style(color.lightened(0.1), 16))
 	button.add_theme_stylebox_override("pressed", _style(color.darkened(0.14), 16))
-	button.add_theme_stylebox_override("focus", _style(Color("#ffffff"), 16, 4, Color("#ffffff")))
+	button.add_theme_stylebox_override("focus", _style(UiTokens.WARM_WHITE, 16, 4, UiTokens.WARM_WHITE))
 	button.add_theme_stylebox_override(
 		"disabled",
-		_style(Color(0.32, 0.37, 0.38, 0.65), 16)
+		_style(Color(0.23, 0.28, 0.31, 0.65), 16)
 	)
 	return button
 
@@ -575,7 +575,7 @@ func _style(
 	color: Color,
 	radius: int,
 	border_width := 0,
-	border_color := Color("#ffffff")
+	border_color := UiTokens.WARM_WHITE
 ) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color

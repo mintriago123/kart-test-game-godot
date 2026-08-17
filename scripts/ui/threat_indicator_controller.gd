@@ -1,6 +1,7 @@
 class_name ThreatIndicatorController
 extends Control
 
+const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
 const MAX_INDICATORS := 6
 const TRAP_DETECTION_RADIUS := 14.0
 const PROJECTILE_CORRIDOR := 2.4
@@ -14,7 +15,7 @@ class ThreatMarker:
 		custom_minimum_size = Vector2(40, 40)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 	func _draw() -> void:
-		var color := Color("#ffcc4d").lerp(Color("#ff3e52"), urgency)
+		var color := UiTokens.ELECTRIC_YELLOW.lerp(UiTokens.CORAL, urgency)
 		var angle := direction.angle() + PI * 0.5
 		var points := PackedVector2Array([Vector2(0, -15), Vector2(11, 11), Vector2(0, 7), Vector2(-11, 11)])
 		for index in points.size():

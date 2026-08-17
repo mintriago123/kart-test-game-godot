@@ -34,10 +34,10 @@ func _ready() -> void:
 	add_child(viewport)
 	stage = Node3D.new(); viewport.add_child(stage)
 	model_holder = Node3D.new(); model_holder.name = "ModelHolder"; stage.add_child(model_holder)
-	var environment := WorldEnvironment.new(); var env := Environment.new(); env.background_mode = Environment.BG_COLOR; env.background_color = UiTokens.INK; env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color = Color("#b9d9d5"); env.ambient_light_energy = 0.48; environment.environment = env; stage.add_child(environment)
+	var environment := WorldEnvironment.new(); var env := Environment.new(); env.background_mode = Environment.BG_COLOR; env.background_color = UiTokens.GRAPHITE; env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color = UiTokens.CYAN; env.ambient_light_energy = 0.42; environment.environment = env; stage.add_child(environment)
 	platform = MeshInstance3D.new(); var mesh := CylinderMesh.new(); mesh.top_radius = 2.2; mesh.bottom_radius = 2.2; mesh.height = 0.18; platform.mesh = mesh; platform.position.y = -0.15; var platform_material := StandardMaterial3D.new(); platform_material.albedo_color = UiTokens.GRAPHITE; platform_material.roughness = 0.9; platform.material_override = platform_material; stage.add_child(platform)
-	var key := OmniLight3D.new(); key.position = Vector3(-3, 4, 3); key.light_color = Color("#ffd9a3"); key.omni_range = 10; key.light_energy = 2.3; stage.add_child(key)
-	var fill := OmniLight3D.new(); fill.position = Vector3(3, 2, 2); fill.light_color = Color("#60e8f2"); fill.omni_range = 9; fill.light_energy = 1.4; stage.add_child(fill)
+	var key := OmniLight3D.new(); key.position = Vector3(-3, 4, 3); key.light_color = UiTokens.ELECTRIC_YELLOW; key.omni_range = 10; key.light_energy = 2.1; stage.add_child(key)
+	var fill := OmniLight3D.new(); fill.position = Vector3(3, 2, 2); fill.light_color = UiTokens.CYAN; fill.omni_range = 9; fill.light_energy = 1.2; stage.add_child(fill)
 	camera = Camera3D.new(); stage.add_child(camera); set_framing(framing)
 	resized.connect(_resize_viewport); _resize_viewport()
 	if _pending_variant != null:

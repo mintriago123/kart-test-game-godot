@@ -1,22 +1,22 @@
 class_name UiTokens
 extends RefCounted
 
-const GRAPHITE := Color("#12181F")
-const INK := Color("#172A3A")
-const INK_RAISED := Color("#203B4D")
-const WARM_WHITE := Color("#FFF7DF")
-const MUTED := Color("#A9BEC7")
+const GRAPHITE := Color("#0B1117")
+const INK := Color("#151E27")
+const INK_RAISED := Color("#202C36")
+const WARM_WHITE := Color("#F4F0E6")
+const MUTED := Color("#B5C0C4")
 const TEXT_PRIMARY := WARM_WHITE
-const TEXT_SECONDARY := Color("#D5E2DF")
-const TEXT_TERTIARY := Color("#A9BEC7")
-const TEXT_DISABLED := Color("#6B7B82")
-const ELECTRIC_YELLOW := Color("#FFD928")
-const CORAL := Color("#FF647C")
-const CYAN := Color("#39D9F5")
-const SUCCESS := Color("#66E39A")
-const WARNING := Color("#FFB238")
+const TEXT_SECONDARY := Color("#D8D9D1")
+const TEXT_TERTIARY := MUTED
+const TEXT_DISABLED := Color("#718087")
+const ELECTRIC_YELLOW := Color("#F5C542")
+const CORAL := Color("#E86A5B")
+const CYAN := Color("#61D8C0")
+const SUCCESS := Color("#75C995")
+const WARNING := Color("#E9A84A")
 const DANGER := CORAL
-const SCRIM := Color(0.025, 0.045, 0.065, 0.88)
+const SCRIM := Color(0.02, 0.035, 0.05, 0.9)
 
 const SPACE_1 := 4
 const SPACE_2 := 8
@@ -67,9 +67,9 @@ static func create_theme() -> Theme:
 	result.set_constant("separation", "VBoxContainer", SPACE_3)
 	result.set_constant("separation", "HBoxContainer", SPACE_3)
 	result.set_stylebox("normal", "Button", panel(WARM_WHITE, RADIUS_MEDIUM))
-	result.set_stylebox("hover", "Button", panel(Color("#FFFFFF"), RADIUS_MEDIUM, CYAN))
+	result.set_stylebox("hover", "Button", panel(WARM_WHITE, RADIUS_MEDIUM, CYAN))
 	result.set_stylebox("pressed", "Button", panel(ELECTRIC_YELLOW.darkened(0.12), RADIUS_MEDIUM))
 	result.set_stylebox("focus", "Button", panel(Color.TRANSPARENT, RADIUS_MEDIUM, ELECTRIC_YELLOW))
-	result.set_stylebox("disabled", "Button", panel(Color("#52616A"), RADIUS_MEDIUM))
+	result.set_stylebox("disabled", "Button", panel(Color("#3A464E"), RADIUS_MEDIUM))
 	result.set_stylebox("panel", "PanelContainer", panel(INK, RADIUS_LARGE))
 	return result

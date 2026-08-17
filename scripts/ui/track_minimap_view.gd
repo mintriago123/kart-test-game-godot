@@ -1,14 +1,14 @@
 class_name TrackMinimapView
 extends Control
 
-const BACKGROUND_COLOR := Color("#101922")
+const BACKGROUND_COLOR := Color("#10171E")
 const GRID_COLOR := Color(0.18, 0.27, 0.32, 0.35)
 const ROAD_EDGE_COLOR := Color("#080d0f")
-const ROAD_COLOR := Color("#FFF7DF")
-const SHORTCUT_COLOR := Color("#39D9F5")
-const DIRECTION_COLOR := Color("#ffd34e")
-const ERROR_COLOR := Color("#ff8a6c")
-const MUTED_TEXT_COLOR := Color("#d4dedb")
+const ROAD_COLOR := Color("#F4F0E6")
+const SHORTCUT_COLOR := Color("#61D8C0")
+const DIRECTION_COLOR := Color("#F5C542")
+const ERROR_COLOR := Color("#E86A5B")
+const MUTED_TEXT_COLOR := Color("#B5C0C4")
 const MAP_PADDING := 18.0
 const MINIMUM_WORLD_EXTENT := 24.0
 const ROAD_EDGE_WIDTH := 12.0

@@ -2,8 +2,8 @@ class_name UiColorUtils
 extends RefCounted
 
 const MIN_TEXT_CONTRAST := 4.5
-const GRAPHITE := Color("#12181F")
-const WARM_WHITE := Color("#FFF7DF")
+const GRAPHITE := Color("#0B1117")
+const WARM_WHITE := Color("#F4F0E6")
 
 
 static func safe_accent(source: Color) -> Color:

@@ -1,6 +1,7 @@
 class_name RaceTouchControls
 extends Control
 
+const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
 const STEERING_ZONE_TOP := 0.32
 const STEERING_ZONE_RIGHT := 0.52
 
@@ -40,13 +41,13 @@ func build_interface(
 		"DriftButton",
 		&"drift",
 		"DERRAPE",
-		Color("#f5d66f"),
+		UiTokens.ELECTRIC_YELLOW,
 		Vector2(132.0, 132.0),
 		Vector2(-156.0, -156.0),
 		vibration_enabled
 	)
 	launch_button = _add_action_button(
-		"LaunchButton", &"accelerate", "ACELERA", Color("#ffb238"),
+		"LaunchButton", &"accelerate", "ACELERA", UiTokens.WARNING,
 		Vector2(132.0, 132.0), Vector2(-156.0, -156.0), vibration_enabled
 	)
 	launch_button.visible = false
@@ -54,7 +55,7 @@ func build_interface(
 		"ItemButton",
 		&"use_item",
 		"OBJETO",
-		Color("#ff7954"),
+		UiTokens.CORAL,
 		Vector2(104.0, 104.0),
 		Vector2(-280.0, -128.0),
 		vibration_enabled
@@ -64,7 +65,7 @@ func build_interface(
 		"BrakeButton",
 		&"brake",
 		"FRENO",
-		Color("#77d0c2"),
+		UiTokens.CYAN,
 		Vector2(100.0, 100.0),
 		Vector2(-152.0, -280.0),
 		vibration_enabled
@@ -76,10 +77,10 @@ func build_interface(
 	auto_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	auto_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	auto_label.add_theme_font_size_override("font_size", 14)
-	auto_label.add_theme_color_override("font_color", Color("#dfffe3"))
+	auto_label.add_theme_color_override("font_color", UiTokens.TEXT_SECONDARY)
 	auto_label.add_theme_stylebox_override(
 		"normal",
-		RaceHudStyle.style(Color(0.08, 0.35, 0.18, 0.88), 12)
+		RaceHudStyle.style(Color(UiTokens.SUCCESS.r, UiTokens.SUCCESS.g, UiTokens.SUCCESS.b, 0.28), 12)
 	)
 	auto_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	auto_label.position = Vector2(-286.0, -184.0)

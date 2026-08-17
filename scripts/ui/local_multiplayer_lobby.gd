@@ -133,13 +133,13 @@ func _build_player_card(index: int) -> PanelContainer:
 	device.item_selected.connect(func(_value: int) -> void: _refresh_state())
 	column.add_child(device)
 	_device_options.append(device)
-	_add_field_label(column, "PILOTO · ÚNICO EN PARRILLA")
+	_add_field_label(column, "PILOTO")
 	var racer := OptionButton.new()
 	racer.custom_minimum_size.y = UiTokens.TOUCH_TARGET
 	racer.item_selected.connect(func(_value: int) -> void: _refresh_state())
 	column.add_child(racer)
 	_racer_options.append(racer)
-	_add_field_label(column, "VEHÍCULO · COLECCIÓN DE J1")
+	_add_field_label(column, "VEHÍCULO")
 	var vehicle := OptionButton.new()
 	vehicle.custom_minimum_size.y = UiTokens.TOUCH_TARGET
 	vehicle.item_selected.connect(func(_value: int) -> void: _refresh_state())
