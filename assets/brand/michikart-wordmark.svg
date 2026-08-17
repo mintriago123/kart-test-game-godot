@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 220">
+  <title>MICHIKART XD</title>
+  <text x="480" y="126" text-anchor="middle"
+        font-family="Barlow Condensed, DejaVu Sans, sans-serif"
+        font-size="112" font-weight="900" letter-spacing="2">
+    <tspan fill="#FFD928">MICH</tspan><tspan fill="#FF647C">I</tspan><tspan fill="#FFF7DF">KART</tspan><tspan fill="#FFD928"> XD</tspan>
+  </text>
+  <path fill="#FF647C" d="M140 164h680v10H140z"/>
+</svg>

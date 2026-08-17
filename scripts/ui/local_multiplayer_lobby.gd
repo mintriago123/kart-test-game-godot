@@ -10,6 +10,7 @@ var _racer_options: Array[OptionButton] = []
 var _vehicle_options: Array[OptionButton] = []
 var _device_options: Array[OptionButton] = []
 var _ready_toggles: Array[CheckButton] = []
+var _portraits: Array[RacerPortrait] = []
 var _status: Label
 var _start: ActionButton
 var _gamepad_ids: Array[int] = []
@@ -121,6 +122,11 @@ func _build_player_card(index: int) -> PanelContainer:
 	heading.add_theme_font_size_override("font_size", 28)
 	heading.add_theme_color_override("font_color", UiTokens.CYAN if index == 0 else UiTokens.CORAL)
 	column.add_child(heading)
+	var portrait := RacerPortrait.new()
+	portrait.name = "Portrait"
+	portrait.custom_minimum_size = Vector2(72, 72)
+	column.add_child(portrait)
+	_portraits.append(portrait)
 	_add_field_label(column, "DISPOSITIVO")
 	var device := OptionButton.new()
 	device.custom_minimum_size.y = UiTokens.TOUCH_TARGET
@@ -227,9 +233,17 @@ func _refresh_state() -> void:
 	if _start == null:
 		return
 	var errors := _get_errors()
+	_refresh_portraits()
 	_start.disabled = not errors.is_empty()
 	_status.text = "PARRILLA LISTA · 2 HUMANOS + 6 IA" if errors.is_empty() else errors[0]
 	_status.add_theme_color_override("font_color", UiTokens.SUCCESS if errors.is_empty() else UiTokens.CORAL)
+
+func _refresh_portraits() -> void:
+	if catalog == null or _portraits.size() < 2: return
+	for index in 2:
+		if _racer_options[index].item_count == 0: continue
+		var racer := catalog.racers.get_racer(StringName(_racer_options[index].get_item_metadata(_racer_options[index].selected)))
+		_portraits[index].configure(racer)
 
 
 func _get_errors() -> PackedStringArray:

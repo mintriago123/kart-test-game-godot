@@ -36,6 +36,7 @@ var _cup_result: RaceResult
 var _cup_stage := -1
 var _cup_transitioning := false
 var _result_menu_button: Button
+var _result_showroom: VehicleViewport
 var progression_catalog: ProgressionCatalog = preload("res://progression/progression_catalog.tres")
 
 
@@ -253,6 +254,8 @@ func _render_cup_stage() -> void:
 					var unlock := progression_catalog.unlocks.get_unlock(reward_id) if progression_catalog != null else null
 					var reveal := RewardReveal.new(); results_details.add_child(reveal)
 					reveal.reveal(unlock.display_name.to_upper() if unlock != null else "NUEVO VEHÍCULO", reduced_motion)
+					if unlock != null and unlock.kart_variant != null:
+						_result_showroom = VehicleViewport.new(); _result_showroom.name = "RewardShowroom"; _result_showroom.custom_minimum_size = Vector2(280, 150); _result_showroom.set_framing(VehicleViewport.Framing.REWARD); results_details.add_child(_result_showroom); _result_showroom.show_variant(unlock.kart_variant)
 			retry_button.text = "IR AL MENÚ"
 			_primary_result_action = &"menu"
 	if _cup_stage < 2:

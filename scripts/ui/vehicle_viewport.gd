@@ -1,7 +1,7 @@
 class_name VehicleViewport
 extends SubViewportContainer
 
-enum Framing { COVER, MENU, GARAGE }
+enum Framing { COVER, MENU, GARAGE, REWARD }
 
 const COLORMAP: Texture2D = preload("res://assets/vendor/kenney/car-kit/Textures/colormap.png")
 
@@ -13,6 +13,9 @@ var camera: Camera3D
 var model: Node3D
 var framing := Framing.MENU
 var reduced_motion := false
+## Capture-only options. The normal showroom keeps the driver hidden.
+var show_driver := false
+var driver_color := Color.WHITE
 var _pending_variant: KartVariantDefinition
 var _requested_variant: KartVariantDefinition
 var _swap_scheduled := false
@@ -76,12 +79,22 @@ func _hide_showroom_driver(root: Node3D) -> void:
 	# overlapping kart, especially from the rear three-quarter angle.
 	for candidate in root.find_children("*", "MeshInstance3D", true, false):
 		if str(candidate.name).to_lower() == "character":
-			(candidate as MeshInstance3D).visible = false
+			var character := candidate as MeshInstance3D
+			character.visible = show_driver
+			if show_driver:
+				_apply_driver_color(character)
+
+func _apply_driver_color(character: MeshInstance3D) -> void:
+	for surface_index in character.mesh.get_surface_count():
+		var source := character.mesh.surface_get_material(surface_index) as BaseMaterial3D
+		var material := source.duplicate() as BaseMaterial3D if source != null else StandardMaterial3D.new()
+		material.albedo_color = driver_color
+		character.set_surface_override_material(surface_index, material)
 
 func set_framing(value: Framing) -> void:
 	framing = value
 	if camera == null: return
-	var distance: float = [6.2, 5.2, 4.3][framing]
+	var distance: float = [6.2, 5.2, 4.3, 4.7][framing]
 	camera.position = Vector3(0, 2.2, distance); camera.look_at(Vector3(0, 0.6, 0))
 
 func set_quality(profile: String) -> void:
@@ -112,7 +125,7 @@ func _frame_model() -> void:
 	var bounds: AABB = result.aabb
 	var extent := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
 	if extent <= 0.001: return
-	var target_size: float = [2.7, 3.1, 3.4][framing]
+	var target_size: float = [2.7, 3.1, 3.4, 3.0][framing]
 	model.scale = Vector3.ONE * (target_size / extent)
 	var center := bounds.get_center() * model.scale.x
 	model.position = Vector3(-center.x, -bounds.position.y * model.scale.y, -center.z)

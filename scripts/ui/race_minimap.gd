@@ -2,6 +2,7 @@ class_name RaceMinimap
 extends TrackMinimapView
 
 const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
+const UiColorUtils = preload("res://scripts/ui/ui_color_utils.gd")
 
 const PLAYER_COLOR := UiTokens.ELECTRIC_YELLOW
 const RIVAL_COLOR := UiTokens.CORAL
@@ -9,6 +10,7 @@ const MARKER_RADIUS := 4.0
 
 var _racers: Array[Node3D] = []
 var _player: Node3D
+var _track_accent := UiTokens.ELECTRIC_YELLOW
 
 
 func _ready() -> void:
@@ -22,6 +24,13 @@ func _ready() -> void:
 
 func configure_track(track: TrackLevel) -> void:
 	set_minimap_data(TrackMinimapBuilder.build(track))
+	if track != null and track.track_theme != null:
+		set_track_accent(track.track_theme.banner_color)
+
+
+func set_track_accent(accent: Color) -> void:
+	_track_accent = UiColorUtils.safe_accent(accent)
+	queue_redraw()
 
 
 func set_game_mode(game_mode: int) -> void:
