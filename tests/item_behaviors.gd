@@ -54,7 +54,7 @@ func _test_shield_results_and_expiration() -> void:
 		and ignored == Kart.HitResult.IGNORED,
 		"Hits distinguish shield block, applied stun, and invulnerability."
 	)
-	kart.set("_invulnerable_remaining", 0.0)
+	kart._status_timers.invulnerable_remaining = 0.0
 	kart.activate_shield(ItemDefinition.sea_bubble())
 	kart._update_timers(7.01)
 	_check(
@@ -264,8 +264,8 @@ func _test_executor_and_cleanup() -> void:
 	_check(
 		pineapple != null
 		and pineapple.get_target() == target
-		and is_zero_approx(float(source.get("_stun_remaining")))
-		and is_equal_approx(float(target.get("_stun_remaining")), 0.8),
+			and is_zero_approx(source._status_timers.stun_remaining)
+			and is_equal_approx(target._status_timers.stun_remaining, 0.8),
 		"Pineapple locks the racer immediately ahead and Wave excludes its user."
 	)
 	for container in [projectiles, traps, effects]:
