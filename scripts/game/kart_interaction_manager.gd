@@ -33,19 +33,32 @@ func _process_bump(first: Kart, second: Kart) -> void:
 	var normal := second.global_position - first.global_position
 	normal.y = 0.0
 	if normal.length_squared() < 0.001:
-		return
+		normal = -first.global_transform.basis.z
+		normal.y = 0.0
+		if normal.length_squared() < 0.001:
+			return
 	var center_distance := normal.length()
 	normal = normal.normalized()
-	if center_distance > _contact_distance(first, normal) + _contact_distance(second, -normal) + 0.04:
+	var contact_distance := (
+		_contact_distance(first, normal)
+		+ _contact_distance(second, -normal)
+	)
+	var penetration := contact_distance - center_distance
+	if penetration <= -0.04:
 		return
-	var relative_speed := absf((first.velocity - second.velocity).dot(normal))
-	var impulse := minf(relative_speed * 0.32, tuning.bump_max_impulse)
+	var closing_speed := maxf((first.velocity - second.velocity).dot(normal), 0.0)
+	var impulse := minf(closing_speed * 0.32, tuning.bump_max_impulse)
 	var first_forward := -first.global_transform.basis.z.normalized()
 	if absf(first_forward.dot(normal)) > 0.72:
 		impulse *= 0.35
 	var total_weight := first.stats.weight + second.stats.weight
-	first.velocity -= normal * impulse * second.stats.weight / total_weight
-	second.velocity += normal * impulse * first.stats.weight / total_weight
+	if impulse > 0.0:
+		first.velocity -= normal * impulse * second.stats.weight / total_weight
+		second.velocity += normal * impulse * first.stats.weight / total_weight
+	if penetration > 0.0:
+		var separation := normal * penetration
+		first.global_position -= separation * second.stats.weight / total_weight
+		second.global_position += separation * first.stats.weight / total_weight
 	_pair_cooldowns[key] = tuning.bump_cooldown
 
 func _contact_distance(kart: Kart, direction: Vector3) -> float:

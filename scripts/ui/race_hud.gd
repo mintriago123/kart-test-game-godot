@@ -3,6 +3,7 @@ extends CanvasLayer
 
 const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
 const RaceMinimap = preload("res://scripts/ui/race_minimap.gd")
+const UiColorUtils = preload("res://scripts/ui/ui_color_utils.gd")
 
 signal retry_requested
 signal menu_requested
@@ -77,6 +78,10 @@ func configure_minimap(track: TrackLevel, racers: Array[Node]) -> void:
 		return
 	_minimap.configure_track(track)
 	_minimap.register_racers(racers, _player_kart)
+	if track != null and track.track_theme != null:
+		var accent := UiColorUtils.safe_accent(track.track_theme.banner_color)
+		_status_view.set_track_accent(accent)
+		_minimap.set_track_accent(accent)
 
 
 func update_race_info(

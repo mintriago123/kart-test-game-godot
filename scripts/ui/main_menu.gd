@@ -63,6 +63,7 @@ var _cup_selector: CupSelectScreen
 var _profile_panel: Control
 var _controls_panel: ControlsScreen
 var _reduced_motion_toggle: CheckButton
+var _quality_buttons: Dictionary = {}
 var _ui_sound: SoundManager
 var _garage_showroom: VehicleViewport
 var _local_lobby: LocalMultiplayerLobby
@@ -104,6 +105,7 @@ func apply_settings(
 	reduced_motion: bool = false
 ) -> void:
 	graphics_profile = profile
+	_refresh_quality_buttons()
 	_best_times = best_times.duplicate(true)
 	_select_track(selected_track_id, false)
 	_select_cc(selected_cc_id, false)
@@ -139,6 +141,12 @@ func apply_settings(
 	if _vehicle_gallery != null and _vehicle_gallery.showroom != null:
 		_vehicle_gallery.showroom.reduced_motion = reduced_motion
 	_update_best_time_label()
+
+
+func get_active_gamepad_id() -> int:
+	if _device_coordinator == null or _device_coordinator.mode != &"gamepad":
+		return -1
+	return _device_coordinator.device_id
 
 
 func _build_interface() -> void:
@@ -187,15 +195,7 @@ func _build_interface() -> void:
 	eyebrow.add_theme_color_override("font_color", Color("#7be0d0"))
 	content.add_child(eyebrow)
 
-	var title := Label.new()
-	title.text = "MICHIKART\nXD"
-	title.add_theme_font_size_override("font_size", 72)
-	title.add_theme_color_override("font_color", Color("#fff0b1"))
-	title.add_theme_color_override("font_shadow_color", Color("#ef7151"))
-	title.add_theme_constant_override("shadow_offset_x", 6)
-	title.add_theme_constant_override("shadow_offset_y", 6)
-	title.add_theme_constant_override("line_spacing", -12)
-	content.add_child(title)
+	content.add_child(_wordmark(500.0, 116.0))
 
 	var subtitle := Label.new()
 	subtitle.text = "Derrapa, toma atajos y conquista cada circuito."
@@ -339,12 +339,7 @@ func _build_title_screen() -> Control:
 	championship.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	championship.add_theme_color_override("font_color", UiTokens.CYAN)
 	center.add_child(championship)
-	var logo := Label.new()
-	logo.text = "MICHIKART XD"
-	logo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	logo.add_theme_font_size_override("font_size", 68)
-	logo.add_theme_color_override("font_color", UiTokens.WARM_WHITE)
-	center.add_child(logo)
+	center.add_child(_wordmark(520.0, 120.0))
 	var enter := _create_button("PRESIONA PARA EMPEZAR", UiTokens.ELECTRIC_YELLOW, Vector2(360, 64))
 	enter.pressed.connect(_request_title_dismiss)
 	center.add_child(enter)
@@ -360,6 +355,24 @@ func _build_title_screen() -> Control:
 	# Input is handled by the full-screen title, not by focus alone.
 	enter.focus_mode = Control.FOCUS_NONE
 	return overlay
+
+
+func _wordmark(width: float, height: float) -> Control:
+	# Compose the brand from real font glyphs instead of relying on SVG text
+	# support, which varies between Godot importers and mobile drivers.
+	var wordmark := HBoxContainer.new()
+	wordmark.custom_minimum_size = Vector2(width, height)
+	wordmark.alignment = BoxContainer.ALIGNMENT_CENTER
+	wordmark.add_theme_constant_override("separation", 0)
+	for part in [["MICH", UiTokens.ELECTRIC_YELLOW], ["I", UiTokens.CORAL], ["KART", UiTokens.WARM_WHITE], [" XD", UiTokens.ELECTRIC_YELLOW]]:
+		var label := Label.new()
+		label.text = part[0]
+		label.add_theme_font_override("font", UiTokens.DISPLAY_FONT)
+		label.add_theme_font_size_override("font_size", 76)
+		label.add_theme_color_override("font_color", part[1])
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		wordmark.add_child(label)
+	return wordmark
 
 
 func _input(event: InputEvent) -> void:
@@ -409,19 +422,25 @@ func _build_profile_panel() -> Control:
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.visible = false
 	var scroll := ScrollContainer.new(); scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); scroll.offset_left = 24; scroll.offset_top = 18; scroll.offset_right = -24; scroll.offset_bottom = -18; scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; overlay.add_child(scroll)
-	var card := VBoxContainer.new(); card.custom_minimum_size.x = 760; card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; card.add_theme_constant_override("separation", 16); scroll.add_child(card)
+	var card := VBoxContainer.new(); card.name = "ProfileCard"; card.custom_minimum_size.x = 860; card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; card.add_theme_constant_override("separation", 16); scroll.add_child(card)
 	var title := Label.new()
 	title.text = "PERFIL Y PROGRESO"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 38)
 	card.add_child(title)
-	var progress := Label.new()
+	var progress := Label.new(); progress.name = "GlobalProgress"
 	var unlocked := player_progress.get_unlocked_variant_count(progression_catalog.unlocks) if player_progress != null and progression_catalog != null else 0
 	var total := progression_catalog.unlocks.variants.size() if progression_catalog != null else 0
-	progress.text = "RESUMEN DE PILOTO\nCARRERAS  %d     VICTORIAS  %d     PODIOS  %d\nMEJOR POSICIÓN  %s     TIEMPO  %s     RÉCORDS  %d\nOBJETOS  %d/%d     ATAJOS  %d     RECUPERACIONES  %d" % [player_progress.races_played if player_progress else 0, player_progress.victories if player_progress else 0, player_progress.podiums if player_progress else 0, str(player_progress.best_finish_position) if player_progress and player_progress.best_finish_position > 0 else "—", _format_duration(player_progress.driving_time_seconds if player_progress else 0.0), _best_times.size(), player_progress.items_collected if player_progress else 0, player_progress.items_used if player_progress else 0, player_progress.shortcuts_used if player_progress else 0, player_progress.recoveries if player_progress else 0]
+	var career_points := player_progress.get_career_points(progression_catalog) if player_progress != null and progression_catalog != null else 0
+	var career_max := player_progress.get_max_career_points(progression_catalog) if player_progress != null and progression_catalog != null else 0
+	var next_reward: UnlockDefinition = player_progress.get_next_career_reward(progression_catalog) if player_progress != null and progression_catalog != null else null
+	progress.text = "PUNTOS DE CARRERA  %d / %d\nSIGUIENTE HITO  %s" % [career_points, career_max, "%d PTOS · %s" % [next_reward.required_points, next_reward.display_name.to_upper()] if next_reward != null else "TODOS LOS HITOS CONSEGUIDOS"]
 	progress.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	progress.add_theme_font_size_override("font_size", 22)
+	progress.add_theme_font_size_override("font_size", 28); progress.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW)
 	card.add_child(progress)
+	var career_bar := ProgressBar.new(); career_bar.name = "CareerProgressBar"; career_bar.max_value = maxf(1.0, career_max); career_bar.value = career_points; career_bar.show_percentage = false; career_bar.custom_minimum_size.y = 14; card.add_child(career_bar)
+	career_bar.add_theme_stylebox_override("background", UiTokens.panel(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL)); career_bar.add_theme_stylebox_override("fill", UiTokens.panel(UiTokens.ELECTRIC_YELLOW, UiTokens.RADIUS_SMALL))
+	var metrics := Label.new(); metrics.text = "CARRERAS  %d   ·   VICTORIAS  %d   ·   PODIOS  %d   ·   MEJOR POSICIÓN  %s\nTIEMPO  %s   ·   RÉCORDS  %d   ·   ATAJOS  %d   ·   RECUPERACIONES  %d" % [player_progress.races_played if player_progress else 0, player_progress.victories if player_progress else 0, player_progress.podiums if player_progress else 0, str(player_progress.best_finish_position) if player_progress and player_progress.best_finish_position > 0 else "—", _format_duration(player_progress.driving_time_seconds if player_progress else 0.0), _best_times.size(), player_progress.shortcuts_used if player_progress else 0, player_progress.recoveries if player_progress else 0]; metrics.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; metrics.add_theme_color_override("font_color", UiTokens.TEXT_SECONDARY); card.add_child(metrics)
 	if player_progress != null:
 		var multiplayer := Label.new()
 		multiplayer.text = "MULTIJUGADOR\nLOCAL  %d CARRERAS · %d VICTORIAS · %d PODIOS     LAN  %d CARRERAS · %d VICTORIAS · %d PODIOS" % [player_progress.local_multiplayer.races_played, player_progress.local_multiplayer.victories, player_progress.local_multiplayer.podiums, player_progress.lan_multiplayer.races_played, player_progress.lan_multiplayer.victories, player_progress.lan_multiplayer.podiums]
@@ -429,22 +448,16 @@ func _build_profile_panel() -> Control:
 		multiplayer.add_theme_font_size_override("font_size", 18)
 		multiplayer.add_theme_color_override("font_color", UiTokens.CYAN)
 		card.add_child(multiplayer)
-	if progression_catalog != null and player_progress != null:
-		var career := Label.new(); career.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; career.add_theme_font_size_override("font_size", 22)
-		var career_points := player_progress.get_career_points(progression_catalog)
-		var next_reward := player_progress.get_next_career_reward(progression_catalog)
-		career.text = "PROGRESO GLOBAL · %d/%d PUNTOS\nSIGUIENTE HITO · %s" % [career_points, player_progress.get_max_career_points(progression_catalog), "%d PUNTOS · %s" % [next_reward.required_points, next_reward.display_name.to_upper()] if next_reward != null else "COMPLETADO"]
-		card.add_child(career)
 	var cup_heading := Label.new(); cup_heading.text = "COPAS"; cup_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; cup_heading.add_theme_font_size_override("font_size", 26); card.add_child(cup_heading)
 	if progression_catalog != null and progression_catalog.cups != null:
 		for cup in progression_catalog.cups.get_valid_cups():
-			var cup_card := PanelContainer.new(); card.add_child(cup_card)
+			var cup_card := PanelContainer.new(); cup_card.custom_minimum_size.y = 64; cup_card.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_MEDIUM)); card.add_child(cup_card)
 			var cup_info := Label.new(); cup_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			var medals := PackedStringArray()
 			for difficulty in cup.difficulties:
 				medals.append("%s · %s" % [difficulty.display_name.to_upper(), ["—", "BRONCE", "PLATA", "ORO"][player_progress.get_medal(cup.id, difficulty.id) if player_progress else 0]])
 			cup_info.text = "%s\n%s" % [cup.display_name.to_upper(), "     ".join(medals)]; cup_card.add_child(cup_info)
-	var collection := Label.new(); collection.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; collection.add_theme_font_size_override("font_size", 22)
+	var collection := Label.new(); collection.name = "GarageLink"; collection.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; collection.add_theme_font_size_override("font_size", 22)
 	var equipped_name := "—"
 	if progression_catalog != null and player_progress != null:
 		var equipped := progression_catalog.unlocks.get_variant(player_progress.equipped_kart_variant_id)
@@ -749,8 +762,6 @@ func _build_settings_panel() -> Control:
 	var card_panel := PanelContainer.new()
 	card_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	card_panel.anchor_bottom = 1.0
-	card_panel.offset_left = -308.0
-	card_panel.offset_right = 308.0
 	card_panel.offset_top = 24.0
 	card_panel.offset_bottom = -24.0
 	card_panel.add_theme_stylebox_override("panel", _style(Color("#12404a"), 24))
@@ -767,7 +778,7 @@ func _build_settings_panel() -> Control:
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
 	content.add_theme_constant_override("separation", 12)
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content.custom_minimum_size.x = 560.0
+	content.custom_minimum_size.x = 0.0
 	scroll.add_child(content)
 
 	var title := Label.new()
@@ -778,14 +789,22 @@ func _build_settings_panel() -> Control:
 	content.add_child(title)
 
 	var sections := TabContainer.new()
-	sections.custom_minimum_size = Vector2(540.0, 420.0)
+	sections.custom_minimum_size = Vector2(0.0, 420.0)
 	sections.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sections.add_theme_stylebox_override("panel", _style(UiTokens.GRAPHITE, UiTokens.RADIUS_MEDIUM))
+	sections.add_theme_stylebox_override("tab_unselected", _style(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL))
+	sections.add_theme_stylebox_override("tab_selected", _style(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, 1))
+	sections.add_theme_stylebox_override("tab_hovered", _style(Color("#2a5362"), UiTokens.RADIUS_SMALL, 1))
+	sections.add_theme_color_override("font_unselected_color", UiTokens.TEXT_TERTIARY)
+	sections.add_theme_color_override("font_selected_color", UiTokens.TEXT_PRIMARY)
 	content.add_child(sections)
 	var gameplay_section := VBoxContainer.new()
 	gameplay_section.name = "Juego"
+	gameplay_section.add_theme_constant_override("separation", UiTokens.SPACE_3)
 	sections.add_child(gameplay_section)
 	var gameplay_help := Label.new()
 	gameplay_help.text = "Preferencias de carrera y ayudas disponibles."
+	gameplay_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	gameplay_help.add_theme_color_override("font_color", UiTokens.MUTED)
 	gameplay_section.add_child(gameplay_help)
 	var graphics_section := VBoxContainer.new()
@@ -858,22 +877,27 @@ func _build_settings_panel() -> Control:
 	_profile_value.add_theme_color_override("font_color", Color("#f5d66f"))
 	graphics_section.add_child(_profile_value)
 
-	var profile_row := HBoxContainer.new()
-	profile_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var profile_row := GridContainer.new()
+	profile_row.columns = 4
+	profile_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	profile_row.add_theme_constant_override("separation", 12)
 	graphics_section.add_child(profile_row)
 	_first_settings_button = _create_button("BAJA", Color("#73cdbf"), Vector2(150.0, 64.0))
 	_first_settings_button.pressed.connect(func() -> void: _set_graphics_profile("low"))
+	_quality_buttons[&"low"] = _first_settings_button
 	profile_row.add_child(_first_settings_button)
-	var medium := _create_button("MEDIA", Color("#f5d25f"), Vector2(150.0, 64.0))
+	var medium := _create_button("MEDIA", UiTokens.INK_RAISED, Vector2(150.0, 64.0))
 	medium.pressed.connect(func() -> void: _set_graphics_profile("medium"))
+	_quality_buttons[&"medium"] = medium
 	profile_row.add_child(medium)
-	var high := _create_button("ALTA", Color("#78d9a0"), Vector2(110.0, 64.0))
+	var high := _create_button("ALTA", UiTokens.INK_RAISED, Vector2(110.0, 64.0))
 	high.pressed.connect(func() -> void: _set_graphics_profile("high"))
+	_quality_buttons[&"high"] = high
 	profile_row.add_child(high)
-	var ultra := _create_button("ULTRA", Color("#ca8cff"), Vector2(110.0, 64.0))
+	var ultra := _create_button("ULTRA", UiTokens.INK_RAISED, Vector2(110.0, 64.0))
 	ultra.tooltip_text = "Máxima calidad para escritorio potente"
 	ultra.pressed.connect(func() -> void: _set_graphics_profile("ultra"))
+	_quality_buttons[&"ultra"] = ultra
 	profile_row.add_child(ultra)
 
 	_vibration_toggle = CheckButton.new()
@@ -912,7 +936,8 @@ func _build_settings_panel() -> Control:
 	_ghost_toggle.custom_minimum_size = Vector2(220.0, 48.0)
 	_ghost_toggle.add_theme_font_size_override("font_size", 19)
 	_ghost_toggle.toggled.connect(func(enabled: bool) -> void: ghost_enabled_changed.emit(enabled))
-	graphics_section.add_child(_ghost_toggle)
+	_style_setting_toggle(_ghost_toggle)
+	gameplay_section.add_child(_ghost_toggle)
 
 	var restore := _create_button("RESTAURAR VALORES", Color("#f5d25f"), Vector2(250.0, 54.0))
 	restore.tooltip_text = "Calidad media, movimiento reducido, indicadores activos y vibración al 100 %"
@@ -922,6 +947,17 @@ func _build_settings_panel() -> Control:
 	var close := _create_button("VOLVER", Color("#ef7656"), Vector2(180.0, 64.0))
 	close.pressed.connect(_toggle_settings)
 	content.add_child(close)
+	var update_settings_layout := func() -> void:
+		var horizontal_margin := 12.0 if overlay.size.x < 800.0 else 24.0
+		var half_width := maxf(0.0, (overlay.size.x - horizontal_margin * 2.0) * 0.5)
+		card_panel.offset_left = -half_width
+		card_panel.offset_right = half_width
+		card_panel.offset_top = 12.0 if overlay.size.y < 500.0 else 24.0
+		card_panel.offset_bottom = -12.0 if overlay.size.y < 500.0 else -24.0
+		profile_row.columns = 2 if overlay.size.x < 760.0 else 4
+		sections.custom_minimum_size.y = maxf(260.0, minf(420.0, overlay.size.y - 170.0))
+	overlay.resized.connect(update_settings_layout)
+	update_settings_layout.call_deferred()
 	return overlay
 
 func _create_volume_slider(label_text: String, initial: float, changed_signal: Signal) -> HSlider:
@@ -977,8 +1013,19 @@ func _create_setting_toggle(label_text: String, initial: bool, changed_signal: S
 	var toggle := CheckButton.new()
 	toggle.text = label_text
 	toggle.button_pressed = initial
+	_style_setting_toggle(toggle)
 	toggle.toggled.connect(func(enabled: bool) -> void: changed_signal.emit(enabled))
 	return toggle
+
+func _style_setting_toggle(toggle: CheckButton) -> void:
+	toggle.custom_minimum_size.y = UiTokens.TOUCH_TARGET
+	toggle.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY)
+	toggle.add_theme_color_override("font_hover_color", UiTokens.TEXT_PRIMARY)
+	toggle.add_theme_color_override("font_pressed_color", UiTokens.GRAPHITE)
+	toggle.add_theme_stylebox_override("normal", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL))
+	toggle.add_theme_stylebox_override("hover", UiTokens.panel(Color("#2a5362"), UiTokens.RADIUS_SMALL, UiTokens.CYAN))
+	toggle.add_theme_stylebox_override("pressed", UiTokens.panel(UiTokens.ELECTRIC_YELLOW.darkened(0.08), UiTokens.RADIUS_SMALL))
+	toggle.add_theme_stylebox_override("focus", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, UiTokens.ELECTRIC_YELLOW))
 
 
 func _toggle_settings() -> void:
@@ -1007,7 +1054,18 @@ func _bind_ui_feedback() -> void:
 func _set_graphics_profile(profile: String) -> void:
 	graphics_profile = profile
 	_profile_value.text = "ACTUAL: " + profile.to_upper()
+	_refresh_quality_buttons()
 	graphics_profile_changed.emit(profile)
+
+func _refresh_quality_buttons() -> void:
+	if _profile_value != null:
+		_profile_value.text = "ACTUAL: " + graphics_profile.to_upper()
+	for profile_id in _quality_buttons:
+		var button := _quality_buttons[profile_id] as Button
+		var active := String(profile_id) == graphics_profile
+		button.add_theme_stylebox_override("normal", _style(UiTokens.ELECTRIC_YELLOW if active else UiTokens.INK_RAISED, 18))
+		button.add_theme_color_override("font_color", UiTokens.GRAPHITE if active else UiTokens.TEXT_PRIMARY)
+		button.add_theme_color_override("font_hover_color", UiTokens.GRAPHITE)
 
 
 func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button:

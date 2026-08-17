@@ -1,6 +1,9 @@
 class_name RaceStatusView
 extends Control
 
+const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
+const UiColorUtils = preload("res://scripts/ui/ui_color_utils.gd")
+
 var lap_label: Label
 var position_label: Label
 var time_label: Label
@@ -20,6 +23,8 @@ var split_label: Label
 var delta_label: Label
 var _split_generation := 0
 var _game_mode := GameModeDefinition.RACE
+var _has_item := false
+var _track_accent := UiTokens.ELECTRIC_YELLOW
 
 
 func build_interface() -> void:
@@ -159,7 +164,16 @@ func update_speed(speed_kph: float) -> void:
 	speed_label.text = "%03d km/h" % speed_kph
 
 
+func set_track_accent(accent: Color) -> void:
+	_track_accent = accent
+	drift_bar.add_theme_stylebox_override(
+		"fill", RaceHudStyle.style(accent, 8)
+	)
+	speed_label.add_theme_color_override("font_color", UiColorUtils.readable_foreground(accent))
+
+
 func show_item(item: ItemDefinition) -> void:
+	_has_item = item != null
 	item_label.text = (
 		item.display_name.to_upper()
 		if item != null
@@ -167,6 +181,7 @@ func show_item(item: ItemDefinition) -> void:
 	)
 	item_icon.texture = item.icon if item != null else null
 	item_icon.visible = item != null
+	item_chip.visible = _has_item and _game_mode != GameModeDefinition.TIME_TRIAL
 
 
 func show_shield(
@@ -198,7 +213,7 @@ func set_game_mode(game_mode: int) -> void:
 	_game_mode = GameModeDefinition.sanitize(game_mode)
 	var is_time_trial := game_mode == GameModeDefinition.TIME_TRIAL
 	position_label.visible = not is_time_trial
-	item_chip.visible = not is_time_trial
+	item_chip.visible = _has_item and not is_time_trial
 	delta_label.visible = is_time_trial
 
 
@@ -247,6 +262,8 @@ func set_race_elements_visible(
 		position_label.visible = false
 		item_chip.visible = false
 		delta_label.visible = is_visible
+	elif is_visible:
+		item_chip.visible = _has_item
 	if is_visible and not has_active_shield:
 		shield_panel.visible = false
 

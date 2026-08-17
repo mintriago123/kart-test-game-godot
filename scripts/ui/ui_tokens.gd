@@ -6,10 +6,16 @@ const INK := Color("#172A3A")
 const INK_RAISED := Color("#203B4D")
 const WARM_WHITE := Color("#FFF7DF")
 const MUTED := Color("#A9BEC7")
+const TEXT_PRIMARY := WARM_WHITE
+const TEXT_SECONDARY := Color("#D5E2DF")
+const TEXT_TERTIARY := Color("#A9BEC7")
+const TEXT_DISABLED := Color("#6B7B82")
 const ELECTRIC_YELLOW := Color("#FFD928")
 const CORAL := Color("#FF647C")
 const CYAN := Color("#39D9F5")
 const SUCCESS := Color("#66E39A")
+const WARNING := Color("#FFB238")
+const DANGER := CORAL
 const SCRIM := Color(0.025, 0.045, 0.065, 0.88)
 
 const SPACE_1 := 4
@@ -22,6 +28,9 @@ const RADIUS_SMALL := 8
 const RADIUS_MEDIUM := 14
 const RADIUS_LARGE := 22
 const TOUCH_TARGET := 48
+const PRESS_DURATION := 0.12
+const ENTER_DURATION := 0.18
+const EXIT_DURATION := 0.12
 const BODY_FONT = preload("res://assets/fonts/Inter.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/BarlowCondensed-SemiBold.ttf")
 

@@ -1,16 +1,16 @@
-[gd_resource type="Resource" script_class="TrackCatalog" format=3]
+[gd_resource type="Resource" script_class="TrackCatalog" format=3 uid="uid://x6v2myfqq4kc"]
 
-[ext_resource type="Script" path="res://scripts/data/track_catalog.gd" id="1"]
+[ext_resource type="Script" uid="uid://eoyi70lot677" path="res://scripts/data/track_catalog.gd" id="1"]
 [ext_resource type="Resource" path="res://levels/definitions/coastal.tres" id="2"]
-[ext_resource type="Script" path="res://scripts/data/track_definition.gd" id="2_hb87e"]
+[ext_resource type="Script" uid="uid://4rdkup4ywfp8" path="res://scripts/data/track_definition.gd" id="2_hb87e"]
 [ext_resource type="Resource" path="res://levels/definitions/garden.tres" id="3"]
 [ext_resource type="Resource" path="res://levels/definitions/bahia_turbo.tres" id="4"]
-[ext_resource type="AudioStream" path="res://assets/music/bahia_turbo.ogg" id="6_sapuk"]
-[ext_resource type="Script" path="res://scripts/data/track_minimap_data.gd" id="7_l3s7q"]
+[ext_resource type="AudioStream" uid="uid://o2ogmchh1nwl" path="res://assets/music/bahia_turbo.ogg" id="6_sapuk"]
+[ext_resource type="Script" uid="uid://cblvdeuhqe2kn" path="res://scripts/data/track_minimap_data.gd" id="7_l3s7q"]
 [ext_resource type="PackedScene" path="res://levels/tracks/dunas_doradas.tscn" id="8_2kmnd"]
-[ext_resource type="AudioStream" path="res://assets/music/garden.ogg" id="9_l3s7q"]
+[ext_resource type="AudioStream" uid="uid://bho3swf4xffny" path="res://assets/music/garden.ogg" id="9_l3s7q"]
 [ext_resource type="PackedScene" path="res://levels/tracks/pantano_brumoso.tscn" id="10_2kmnd"]
-[ext_resource type="AudioStream" path="res://assets/music/coastal.ogg" id="11_lle2a"]
+[ext_resource type="AudioStream" uid="uid://c4o1286dldljx" path="res://assets/music/coastal.ogg" id="11_lle2a"]
 [ext_resource type="PackedScene" path="res://levels/tracks/can_carmes.tscn" id="12_cqx33"]
 [ext_resource type="PackedScene" path="res://levels/tracks/valle_de_otoo.tscn" id="13_cqx33"]
 [ext_resource type="PackedScene" path="res://levels/tracks/baha_pirata.tscn" id="14_blset"]
@@ -34,6 +34,7 @@ script = ExtResource("2_hb87e")
 id = &"dunas_doradas"
 display_name = "Dunas Doradas"
 description = "Desierto abierto entre oasis y ruinas, con amplias curvas sobre arena."
+origin = 1
 preview_color = Color(0.88, 0.58, 0.22, 1)
 preview_map = SubResource("Resource_q5pq8")
 scene = ExtResource("8_2kmnd")
@@ -56,6 +57,7 @@ script = ExtResource("2_hb87e")
 id = &"pantano_brumoso"
 display_name = "Pantano Brumoso"
 description = "Humedal de agua oscura, árboles retorcidos y pasos de tierra entre la bruma."
+origin = 1
 preview_color = Color(0.25, 0.38, 0.2, 1)
 preview_map = SubResource("Resource_c4s5h")
 scene = ExtResource("10_2kmnd")
@@ -78,6 +80,7 @@ script = ExtResource("2_hb87e")
 id = &"can_carmes"
 display_name = "Cañón Carmesí"
 description = "Rectas rápidas y horquillas elevadas entre barrancos rojizos."
+origin = 1
 preview_color = Color(0.64, 0.22, 0.12, 1)
 preview_map = SubResource("Resource_v4gnk")
 scene = ExtResource("12_cqx33")
@@ -100,6 +103,7 @@ script = ExtResource("2_hb87e")
 id = &"valle_de_otoo"
 display_name = "Valle de Otoño"
 description = "Un trazado fluido entre campos dorados, robles y flores."
+origin = 1
 preview_color = Color(0.62, 0.48, 0.16, 1)
 preview_map = SubResource("Resource_p1dd2")
 scene = ExtResource("13_cqx33")
@@ -122,6 +126,7 @@ script = ExtResource("2_hb87e")
 id = &"baha_pirata"
 display_name = "Bahía Pirata"
 description = "Costa de palmeras, muelles y tesoros, con una escapada por la playa."
+origin = 1
 preview_color = Color(0.79, 0.66, 0.38, 1)
 preview_map = SubResource("Resource_knu8l")
 scene = ExtResource("14_blset")
@@ -144,6 +149,7 @@ script = ExtResource("2_hb87e")
 id = &"caldera_furiosa"
 display_name = "Caldera Furiosa"
 description = "Ascensos técnicos sobre roca negra junto a una caldera de lava."
+origin = 1
 preview_color = Color(0.07, 0.045, 0.04, 1)
 preview_map = SubResource("Resource_g3kl1")
 scene = ExtResource("15_0x04r")
@@ -167,6 +173,7 @@ script = ExtResource("2_hb87e")
 id = &"cumbre_glacial"
 display_name = "Cumbre Glacial"
 description = "Rasantes exigentes y curvas sobre hielo entre cumbres nevadas."
+origin = 1
 preview_color = Color(0.76, 0.88, 0.93, 1)
 preview_map = SubResource("Resource_qp6la")
 scene = ExtResource("16_03e5t")
@@ -190,6 +197,7 @@ script = ExtResource("2_hb87e")
 id = &"ruinas_esmeralda"
 display_name = "Ruinas Esmeralda"
 description = "Una ruta estrecha entre templos y vegetación de selva profunda."
+origin = 1
 preview_color = Color(0.055, 0.3, 0.12, 1)
 preview_map = SubResource("Resource_1ixs5")
 scene = ExtResource("17_05qxe")
@@ -213,6 +221,7 @@ script = ExtResource("2_hb87e")
 id = &"nen_medianoche"
 display_name = "Neón Medianoche"
 description = "Curvas rápidas encadenadas entre túneles y luces de una ciudad nocturna."
+origin = 1
 preview_color = Color(0.018, 0.02, 0.055, 1)
 preview_map = SubResource("Resource_ant4k")
 scene = ExtResource("18_p1dd2")

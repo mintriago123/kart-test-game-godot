@@ -376,7 +376,7 @@ func _build_track_list() -> void:
 	for definition in track_catalog.tracks:
 		if definition == null or not definition.is_valid():
 			continue
-		if definition.scene.resource_path.begins_with("res://levels/tracks/"):
+		if definition.origin == TrackDefinition.Origin.CUSTOM:
 			custom_tracks.append(definition)
 		else:
 			official_tracks.append(definition)
@@ -454,13 +454,17 @@ func _update_details() -> void:
 		]
 	)
 	_ghost_available_label.visible = _selected_game_mode == GameModeDefinition.TIME_TRIAL and _ghost_available
-	_preview_texture.texture = definition.preview_texture
-	_preview_texture.visible = definition.preview_texture != null
-	_minimap_view.visible = definition.preview_texture == null
+	var cover := definition.preview_texture
+	var generated_cover_path := "res://assets/track/previews/%s.webp" % definition.id
+	if cover == null and ResourceLoader.exists(generated_cover_path):
+		cover = load(generated_cover_path) as Texture2D
+	_preview_texture.texture = cover
+	_preview_texture.visible = cover != null
+	_minimap_view.visible = cover == null
 	_minimap_view.set_minimap_data(preview_map)
 	_preview_panel.tooltip_text = (
 		"Portada de %s." % definition.display_name
-		if definition.preview_texture != null
+		if cover != null
 		else (
 			"Plano de %s: %d metros y %d atajos."
 			% [

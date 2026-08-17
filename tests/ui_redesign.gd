@@ -1,5 +1,7 @@
 extends SceneTree
 
+const UiColorUtils = preload("res://scripts/ui/ui_color_utils.gd")
+
 var failed := false
 
 
@@ -17,6 +19,7 @@ func _run() -> void:
 	await _test_pause_contract()
 	_test_reduced_motion_persistence()
 	await _test_shared_components_and_flow()
+	_test_visual_asset_package_and_fallbacks()
 	_test_progress_schema_two()
 	quit(1 if failed else 0)
 
@@ -115,6 +118,16 @@ func _test_title_input_gate() -> void:
 
 func _test_tokens_and_input_modes() -> void:
 	_check(UiTokens.TOUCH_TARGET >= 48, "Shared controls preserve the 48 px touch target.")
+	var bundled := TrackDefinition.new()
+	var custom := TrackDefinition.new()
+	custom.origin = TrackDefinition.Origin.CUSTOM
+	var accent := UiColorUtils.safe_accent(Color("#f5d66f"))
+	_check(
+		bundled.origin == TrackDefinition.Origin.BUNDLED
+		and custom.origin == TrackDefinition.Origin.CUSTOM
+		and UiColorUtils.contrast_ratio(accent, UiColorUtils.readable_foreground(accent)) >= 4.5,
+		"Track origins default safely and contextual accents meet readable contrast."
+	)
 	var controller := UiInputModeController.new()
 	root.add_child(controller)
 	controller.set_mode(UiInputModeController.GAMEPAD)
@@ -232,6 +245,28 @@ func _test_progress_schema_two() -> void:
 	_check(loaded.get_medal(&"tropical", &"competitive") == 2 and loaded.equipped_kart_variant_id == &"taxi" and not loaded.active_cup.is_empty(), "Schema 2 medals, equipped vehicle, and active cup survive migration.")
 	_check(loaded.seen_reward_ids.has(&"career_12") and not loaded.seen_reward_ids.has(&"competitive_bronze") and loaded.get_new_reward_count() == 0, "Schema 2 rewards migrate to their vehicle-equivalent IDs as already seen.")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _test_visual_asset_package_and_fallbacks() -> void:
+	var wordmark := load("res://assets/brand/michikart-wordmark.svg") as Texture2D
+	_check(wordmark != null, "Wordmark asset imports as a texture.")
+	for cup_id in [&"tropical", &"horizontes", &"salvaje", &"extrema", &"contrastes", &"expedicion", &"festival"]:
+		_check(ResourceLoader.exists("res://assets/cups/emblems/%s.svg" % cup_id), "Cup emblem exists for %s." % cup_id)
+	for racer_id in [&"brisa", &"coco", &"coral", &"lima", &"marea", &"nube", &"perla", &"sol"]:
+		var portrait := load("res://assets/racers/portraits/%s.png" % racer_id) as Texture2D
+		_check(portrait != null and portrait.get_width() == 256 and portrait.get_height() == 256, "Portrait %s is 256x256." % racer_id)
+	for cover in DirAccess.get_files_at("res://assets/track/previews"):
+		if not cover.ends_with(".webp"): continue
+		var texture := load("res://assets/track/previews/%s" % cover) as Texture2D
+		_check(texture != null and texture.get_width() == 960 and texture.get_height() == 540, "Track cover %s is 960x540." % cover)
+	var emblem := FallbackEmblem.new()
+	var portrait_view := RacerPortrait.new()
+	var badge := UiBadge.new()
+	root.add_child(emblem); root.add_child(portrait_view); root.add_child(badge)
+	await process_frame
+	badge.configure(UiBadge.State.LOCKED)
+	_check(emblem.custom_minimum_size.x >= 48 and portrait_view.custom_minimum_size.x >= 48 and badge.custom_minimum_size.y >= 48, "Visual fallbacks preserve readable and touch-safe minimums.")
+	emblem.queue_free(); portrait_view.queue_free(); badge.queue_free()
 
 
 func _check(condition: bool, message: String) -> void:

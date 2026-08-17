@@ -1,6 +1,8 @@
 class_name CupSelectScreen
 extends Control
 
+const FallbackEmblem = preload("res://scripts/ui/fallback_emblem.gd")
+
 signal cup_selected(payload: Dictionary)
 signal back_requested
 signal abandon_requested(payload: Dictionary)
@@ -19,6 +21,7 @@ var _list: HBoxContainer
 var _content: VBoxContainer
 var _active_banner: Label
 var _warning_banner: Label
+var _hero_status: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -65,6 +68,7 @@ func select_cup(cup_id: StringName) -> void:
 		if child != _title: child.queue_free()
 	_title.text = cup.display_name.to_upper()
 	var unlocked := _is_cup_unlocked(cup)
+	_add_cup_hero(cup, unlocked)
 	if not unlocked: _add_section("ACCESO BLOQUEADO", _cup_requirement_text(cup))
 	_add_track_cards(cup)
 	_add_section("PUNTUACIÓN", "1º %d  ·  2º %d  ·  3º %d  ·  4º %d\nMEDALLAS  ·  BRONCE %d  ·  PLATA %d  ·  ORO %d" % [cup.scoring_table[0], cup.scoring_table[1], cup.scoring_table[2], cup.scoring_table[3], cup.medal_thresholds[0], cup.medal_thresholds[1], cup.medal_thresholds[2]])
@@ -78,11 +82,40 @@ func select_cup(cup_id: StringName) -> void:
 	_continue.disabled = not unlocked and active_id != cup.id
 	_continue.grab_focus.call_deferred()
 
+func _add_cup_hero(cup: CupDefinition, unlocked: bool) -> void:
+	var hero := PanelContainer.new()
+	hero.custom_minimum_size.y = 116
+	hero.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_LARGE, UiTokens.CYAN if unlocked else UiTokens.CORAL))
+	_content.add_child(hero)
+	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", UiTokens.SPACE_6); hero.add_child(row)
+	var emblem: Control
+	var emblem_path := "res://assets/cups/emblems/%s.svg" % cup.id
+	var emblem_texture := cup.icon
+	if emblem_texture == null and ResourceLoader.exists(emblem_path): emblem_texture = load(emblem_path) as Texture2D
+	if emblem_texture != null:
+		var image := TextureRect.new(); image.texture = emblem_texture; image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED; image.custom_minimum_size = Vector2(84, 84); emblem = image
+	else:
+		var fallback := FallbackEmblem.new(); fallback.accent = UiTokens.CYAN if unlocked else UiTokens.MUTED; fallback.seed_text = cup.id.to_upper().substr(0, 2); fallback.custom_minimum_size = Vector2(84, 84); emblem = fallback
+	row.add_child(emblem)
+	var copy := VBoxContainer.new(); copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL; row.add_child(copy)
+	var active := progress != null and StringName(progress.active_cup.get("cup_id", "")) == cup.id
+	var state := UiBadge.new(); copy.add_child(state)
+	state.configure(UiBadge.State.ACTIVE if active else (UiBadge.State.AVAILABLE if unlocked else UiBadge.State.LOCKED))
+	var description := Label.new(); description.text = cup.description if not cup.description.is_empty() else "Tres circuitos. Una copa. Tu mejor vuelta cuenta."; description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; description.add_theme_color_override("font_color", UiTokens.TEXT_SECONDARY); copy.add_child(description)
+	var progress_label := Label.new(); progress_label.text = _cup_progress_text(cup); progress_label.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW); copy.add_child(progress_label)
+
+func _cup_progress_text(cup: CupDefinition) -> String:
+	if progress == null: return "PROGRESO · SIN DATOS"
+	var best := progress.get_best_cup_medal(cup.id)
+	var active := StringName(progress.active_cup.get("cup_id", "")) == cup.id
+	var race_index := int(progress.active_cup.get("current_race_index", 0)) + 1 if active else 0
+	return "MEJOR MEDALLA · %s   ·   %s" % [["SIN MEDALLA", "BRONCE", "PLATA", "ORO"][best], "%d/3 CARRERAS" % race_index if active else "LISTA PARA EMPEZAR"]
+
 func _add_track_cards(cup: CupDefinition) -> void:
 	var row := HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER; _content.add_child(row)
 	var compact := size.x < 760.0
 	for index in cup.tracks.size():
-		var panel := PanelContainer.new(); panel.custom_minimum_size = Vector2(170 if compact else 210, 132); row.add_child(panel)
+		var panel := PanelContainer.new(); panel.custom_minimum_size = Vector2(170 if compact else 210, 148); panel.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_MEDIUM)); row.add_child(panel)
 		var box := VBoxContainer.new(); panel.add_child(box)
 		var name_label := Label.new(); name_label.text = "%02d  %s" % [index + 1, cup.tracks[index].display_name.to_upper()]; name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; box.add_child(name_label)
 		var map := TrackMinimapView.new(); map.custom_minimum_size = Vector2(150 if compact else 190, 92); map.set_minimap_data(cup.tracks[index].preview_map); box.add_child(map)

@@ -116,7 +116,6 @@ func _ready() -> void:
 		PhysicsLayers.WORLD
 		| PhysicsLayers.MAIN_BARRIERS
 		| PhysicsLayers.SHORTCUT_BARRIERS
-		| PhysicsLayers.KARTS
 	)
 	floor_snap_length = FLOOR_SNAP_DISTANCE
 	floor_max_angle = deg_to_rad(52.0)

@@ -7,6 +7,7 @@ const STEERING_ZONE_RIGHT := 0.52
 var steering_pad: CoastalJoystick
 var item_button: MobileActionButton
 var launch_button: MobileActionButton
+var auto_label: Label
 
 var _player_kart: Kart
 var _mobile_controls_enabled := false
@@ -58,6 +59,7 @@ func build_interface(
 		Vector2(-280.0, -128.0),
 		vibration_enabled
 	)
+	item_button.visible = false
 	_add_action_button(
 		"BrakeButton",
 		&"brake",
@@ -68,7 +70,7 @@ func build_interface(
 		vibration_enabled
 	)
 
-	var auto_label := Label.new()
+	auto_label = Label.new()
 	auto_label.name = "AutoAccelerateIndicator"
 	auto_label.text = "GAS AUTO"
 	auto_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -82,7 +84,9 @@ func build_interface(
 	auto_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	auto_label.position = Vector2(-286.0, -184.0)
 	auto_label.size = Vector2(122.0, 34.0)
+	auto_label.visible = false
 	add_child(auto_label)
+	_update_button_opacity()
 
 
 func bind_player(kart: Kart) -> void:
@@ -94,6 +98,7 @@ func bind_player(kart: Kart) -> void:
 func show_item(item: ItemDefinition) -> void:
 	if item_button == null:
 		return
+	item_button.visible = item != null
 	item_button.set_item_icon(
 		item.icon if item != null else null,
 		item.display_name if item != null else ""
@@ -128,6 +133,7 @@ func set_controls_visible(is_visible: bool) -> void:
 	if visible == is_visible:
 		return
 	visible = is_visible
+	_update_button_opacity()
 	if not is_visible:
 		release_auto_acceleration()
 
@@ -168,6 +174,15 @@ func _update_auto_acceleration(
 	else:
 		Input.action_release(&"accelerate")
 		_set_player_virtual_action(&"accelerate", 0.0)
+	if auto_label != null:
+		auto_label.visible = _is_auto_accelerating and visible
+	_update_button_opacity()
+
+
+func _update_button_opacity() -> void:
+	var opacity := 1.0 if visible else 0.0
+	for button in find_children("*", "MobileActionButton", true, false):
+		(button as CanvasItem).modulate.a = 0.82 * opacity
 
 
 func _add_action_button(

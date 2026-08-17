@@ -187,6 +187,7 @@ func publish(laps: int, description: String) -> Error:
 	definition.id = _session.track.track_id
 	definition.display_name = _session.track.display_name
 	definition.description = description
+	definition.origin = TrackDefinition.Origin.CUSTOM
 	definition.scene = ResourceLoader.load(
 		_session.scene_path,
 		"PackedScene",

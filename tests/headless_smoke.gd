@@ -293,8 +293,9 @@ func _run() -> void:
 			"Continuous barriers protect both sides of the main route."
 		)
 		_check(
-			(player.collision_mask & PhysicsLayers.SHORTCUTS) == 0,
-			"Player ignores shortcut seams while driving on the main route."
+			(player.collision_mask & PhysicsLayers.SHORTCUTS) == 0
+			and (player.collision_mask & PhysicsLayers.KARTS) == 0,
+			"Player ignores shortcut seams and rival karts in physical motion."
 		)
 		_check(
 			(player.collision_mask & PhysicsLayers.MAIN_BARRIERS) != 0

@@ -14,6 +14,7 @@ var cards: HBoxContainer
 var card_scroll: ScrollContainer
 var title_label: Label
 var status_label: Label
+var status_badge: UiBadge
 var requirement_label: Label
 var stats: VBoxContainer
 var primary: ActionButton
@@ -34,6 +35,7 @@ func _ready() -> void:
 	details_panel = VBoxContainer.new(); details_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE); details_panel.anchor_left = 0.7; details_panel.offset_left = 12; details_panel.offset_right = -24; details_panel.offset_top = 28; details_panel.offset_bottom = -158; details_panel.add_theme_constant_override("separation", 8); add_child(details_panel)
 	var panel := details_panel
 	title_label = Label.new(); title_label.add_theme_font_size_override("font_size", 32); panel.add_child(title_label)
+	status_badge = UiBadge.new(); panel.add_child(status_badge)
 	status_label = Label.new(); status_label.add_theme_font_size_override("font_size", 18); panel.add_child(status_label)
 	requirement_label = Label.new(); requirement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; panel.add_child(requirement_label)
 	stats = VBoxContainer.new(); stats.size_flags_vertical = Control.SIZE_EXPAND_FILL; panel.add_child(stats)
@@ -71,11 +73,7 @@ func _build_cards() -> void:
 	for variant in _variants:
 		var unlock := _get_unlock(variant.id)
 		var unlocked := _is_unlocked(variant.id)
-		var badges := ""
-		if not unlocked: badges = "\n🔒 BLOQUEADO"
-		elif progress != null and progress.equipped_kart_variant_id == variant.id: badges = "\n✓ EQUIPADO"
-		elif unlock != null and progress.is_reward_new(unlock.id): badges = "\n★ NUEVO"
-		var button := Button.new(); button.name = str(variant.id); button.text = variant.display_name.to_upper() + badges; button.custom_minimum_size = Vector2(190, 88); button.focus_mode = Control.FOCUS_ALL
+		var button := Button.new(); button.name = str(variant.id); button.text = variant.display_name.to_upper(); button.custom_minimum_size = Vector2(190, 88); button.focus_mode = Control.FOCUS_ALL
 		button.pressed.connect(focus_variant.bind(variant.id)); button.focus_entered.connect(focus_variant.bind(variant.id)); cards.add_child(button)
 	var trailing := Control.new(); trailing.custom_minimum_size.x = maxf(0.0, card_scroll.size.x * 0.5 - 95.0); trailing.mouse_filter = Control.MOUSE_FILTER_IGNORE; cards.add_child(trailing)
 
@@ -115,6 +113,8 @@ func focus_variant(variant_id: StringName) -> void:
 		_update_card_badges()
 	var locked_by_cup := bool(payload.get("continue_active", false)) and str(payload.get("source", "")) == "play" and not equipped
 	status_label.text = "EQUIPADO" if equipped else ("NUEVO" if is_new else ("DISPONIBLE" if unlocked else "BLOQUEADO"))
+	status_label.add_theme_color_override("font_color", UiTokens.SUCCESS if equipped or unlocked else UiTokens.CORAL)
+	status_badge.configure(UiBadge.State.EQUIPPED if equipped else (UiBadge.State.NEW if is_new else (UiBadge.State.AVAILABLE if unlocked else UiBadge.State.LOCKED)))
 	if locked_by_cup:
 		requirement_label.text = "Vehículo fijado para esta copa activa."
 	elif unlocked:
@@ -138,8 +138,7 @@ func _update_card_badges() -> void:
 		if button == null: continue
 		var unlock := _get_unlock(variant.id)
 		var unlocked := _is_unlocked(variant.id)
-		var badge := "\n🔒 BLOQUEADO" if not unlocked else ("\n✓ EQUIPADO" if progress != null and progress.equipped_kart_variant_id == variant.id else ("\n★ NUEVO" if unlock != null and progress.is_reward_new(unlock.id) else ""))
-		button.text = variant.display_name.to_upper() + badge
+		button.text = variant.display_name.to_upper()
 
 func _center_focused_card(animated := true) -> void:
 	if card_scroll == null or cards == null: return
@@ -162,6 +161,8 @@ func _build_stats(variant: KartVariantDefinition) -> void:
 		var row := HBoxContainer.new(); stats.add_child(row)
 		var label := Label.new(); label.text = str(data[0]); label.custom_minimum_size.x = 90; row.add_child(label)
 		var bar := ProgressBar.new(); bar.max_value = float(data[2]); bar.value = current; bar.show_percentage = false; bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL; row.add_child(bar)
+		bar.add_theme_stylebox_override("background", UiTokens.panel(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL))
+		bar.add_theme_stylebox_override("fill", UiTokens.panel(UiTokens.CYAN if difference >= -0.001 else UiTokens.CORAL, UiTokens.RADIUS_SMALL))
 		var value := Label.new(); value.text = "%.2f  %s %.2f" % [current, "↑" if difference > 0.001 else ("↓" if difference < -0.001 else "="), absf(difference)]; value.custom_minimum_size.x = 112; row.add_child(value)
 
 func _stat_value(variant: KartVariantDefinition, label: String) -> float:
