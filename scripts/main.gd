@@ -56,7 +56,9 @@ func start_game(
 		if cup_manager.active_run == null and not cup_manager.start(selected_cup_id, selected_cup_difficulty_id, cc_id):
 			push_error("Unable to start the configured cup.")
 			return
-		_start_session(cup_manager.create_session(), should_play_intro)
+		var cup_session := cup_manager.create_session()
+		_apply_active_gamepad(cup_session)
+		_start_session(cup_session, should_play_intro)
 		return
 	var track_definition := TRACK_CATALOG.get_valid_track(track_id)
 	if track_definition == null:
@@ -80,7 +82,22 @@ func start_game(
 		session.equipped_variant = PROGRESSION_CATALOG.unlocks.get_variant(player_progress.equipped_kart_variant_id)
 		session.ensure_participants()
 	session.race_seed = randi()
+	if game_mode != GameModeDefinition.LOCAL_MULTIPLAYER:
+		_apply_active_gamepad(session)
 	_start_session(session, should_play_intro)
+
+
+func _apply_active_gamepad(session: RaceSessionConfig) -> void:
+	if session == null or main_menu == null:
+		return
+	var gamepad_id := main_menu.get_active_gamepad_id()
+	if gamepad_id < 0:
+		return
+	for participant in session.participants:
+		if participant != null and participant.is_local() and participant.is_human():
+			participant.device_type = RaceParticipantConfig.DEVICE_GAMEPAD
+			participant.device_id = gamepad_id
+			return
 
 
 func _complete_multiplayer_grid(humans: Array) -> Array[RaceParticipantConfig]:
@@ -481,6 +498,14 @@ func _configure_input_map() -> void:
 	_add_joypad_button_action(&"use_item", JOY_BUTTON_X)
 	_add_joypad_button_action(&"pause", JOY_BUTTON_START)
 	_add_joypad_button_action(&"reset_kart", JOY_BUTTON_Y)
+	# Keep UI navigation explicit. Built-in UI actions are not guaranteed to
+	# include a gamepad mapping on every Godot platform/backend.
+	_add_joypad_button_action(&"ui_accept", JOY_BUTTON_A)
+	_add_joypad_button_action(&"ui_cancel", JOY_BUTTON_B)
+	_add_joypad_button_action(&"ui_up", JOY_BUTTON_DPAD_UP)
+	_add_joypad_button_action(&"ui_down", JOY_BUTTON_DPAD_DOWN)
+	_add_joypad_button_action(&"ui_left", JOY_BUTTON_DPAD_LEFT)
+	_add_joypad_button_action(&"ui_right", JOY_BUTTON_DPAD_RIGHT)
 
 
 func _add_key_action(action: StringName, physical_keycode: Key) -> void:

@@ -88,7 +88,13 @@ func _event_strength(event: InputEvent) -> float:
 		return float(Input.is_joy_button_pressed(device_id, (event as InputEventJoypadButton).button_index))
 	if event is InputEventJoypadMotion:
 		var motion := event as InputEventJoypadMotion
-		var value := Input.get_joy_axis(device_id, motion.axis) * signf(motion.axis_value)
+		var raw_value := Input.get_joy_axis(device_id, motion.axis)
+		# SDL/Godot reports DualSense triggers in two valid formats depending on
+		# the backend: 0..1 or -1..1 (released/pressed). Normalize both before
+		# applying the action direction and deadzone.
+		if motion.axis == JOY_AXIS_TRIGGER_LEFT or motion.axis == JOY_AXIS_TRIGGER_RIGHT:
+			raw_value = raw_value if raw_value >= 0.0 else (raw_value + 1.0) * 0.5
+		var value := raw_value * signf(motion.axis_value)
 		var deadzone := InputMap.action_get_deadzone(_find_action_for_event(event))
 		return inverse_lerp(deadzone, 1.0, value) if value > deadzone else 0.0
 	return 0.0
