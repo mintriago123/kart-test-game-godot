@@ -1,11 +1,11 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://vugufx5dog35"]
 
-[ext_resource type="Script" path="res://scripts/world/track_level.gd" id="1_u7i04"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_u7i04"]
 [ext_resource type="Resource" path="res://levels/themes/desert_theme.tres" id="2_vj860"]
-[ext_resource type="AudioStream" path="res://assets/music/bahia_turbo.ogg" id="3_wn3gx"]
+[ext_resource type="AudioStream" uid="uid://o2ogmchh1nwl" path="res://assets/music/bahia_turbo.ogg" id="3_wn3gx"]
 [ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="4_gdato"]
-[ext_resource type="Script" path="res://scripts/world/track_shortcut.gd" id="4_vj860"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="5_nd04o"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="4_vj860"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="5_nd04o"]
 [ext_resource type="Resource" path="res://levels/surfaces/sand.tres" id="6_o7ga6"]
 
 [sub_resource type="Curve3D" id="Curve3D_fty4l"]
@@ -78,6 +78,8 @@ transform = Transform3D(6, 0, 0, 0, 6, 0, 0, 0, 6, -91.836754, -1.3418629, 97.28
 [node name="Surfaces" type="Node3D" parent="." unique_id=770222257]
 
 [node name="IdentitySurface" type="Area3D" parent="Surfaces" unique_id=410052175]
+collision_layer = 0
+collision_mask = 2
 script = ExtResource("5_nd04o")
 id = &"sand_zone"
 surface = ExtResource("6_o7ga6")

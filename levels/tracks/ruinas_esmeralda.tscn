@@ -1,11 +1,11 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://io6qn016jgw"]
 
-[ext_resource type="Script" path="res://scripts/world/track_level.gd" id="1_6sc2t"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_6sc2t"]
 [ext_resource type="Resource" path="res://levels/themes/jungle_theme.tres" id="2_axqyk"]
-[ext_resource type="AudioStream" path="res://assets/music/garden.ogg" id="3_e0j5e"]
-[ext_resource type="Script" path="res://scripts/world/track_shortcut.gd" id="4_axqyk"]
+[ext_resource type="AudioStream" uid="uid://bho3swf4xffny" path="res://assets/music/garden.ogg" id="3_e0j5e"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="4_axqyk"]
 [ext_resource type="PackedScene" path="res://assets/track/large_bush.tscn" id="4_dm3cn"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="5_ihxun"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="5_ihxun"]
 [ext_resource type="Resource" path="res://levels/surfaces/grass.tres" id="6_bphyf"]
 
 [sub_resource type="Curve3D" id="Curve3D_bgu47"]
@@ -100,6 +100,8 @@ transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -121.19071, -1.041768, 77.799
 [node name="Surfaces" type="Node3D" parent="." unique_id=1265834371]
 
 [node name="IdentitySurface" type="Area3D" parent="Surfaces" unique_id=937271831]
+collision_layer = 0
+collision_mask = 2
 script = ExtResource("5_ihxun")
 id = &"grass_zone"
 surface = ExtResource("6_bphyf")

@@ -1,11 +1,11 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://bdg8cdxksw5ng"]
 
-[ext_resource type="Script" path="res://scripts/world/track_level.gd" id="1_fuqmt"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_fuqmt"]
 [ext_resource type="Resource" path="res://levels/themes/autumn_theme.tres" id="2_fib7g"]
-[ext_resource type="AudioStream" path="res://assets/music/bahia_turbo.ogg" id="3_hvvht"]
-[ext_resource type="Script" path="res://scripts/world/track_shortcut.gd" id="4_fib7g"]
+[ext_resource type="AudioStream" uid="uid://o2ogmchh1nwl" path="res://assets/music/bahia_turbo.ogg" id="3_hvvht"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="4_fib7g"]
 [ext_resource type="PackedScene" path="res://assets/track/oak_tree.tscn" id="4_ubpxj"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="5_gp3nv"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="5_gp3nv"]
 [ext_resource type="Resource" path="res://levels/surfaces/grass.tres" id="6_fsmyy"]
 
 [sub_resource type="Curve3D" id="Curve3D_bgu47"]
@@ -78,6 +78,8 @@ transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -102.3637, 3.651485, 76.42769
 [node name="Surfaces" type="Node3D" parent="." unique_id=1888884638]
 
 [node name="IdentitySurface" type="Area3D" parent="Surfaces" unique_id=2022861559]
+collision_layer = 0
+collision_mask = 2
 script = ExtResource("5_gp3nv")
 id = &"grass_zone"
 surface = ExtResource("6_fsmyy")

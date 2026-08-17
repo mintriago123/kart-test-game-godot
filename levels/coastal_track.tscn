@@ -6,9 +6,11 @@
 [ext_resource type="PackedScene" path="res://assets/track/palm_tree.tscn" id="4_palm"]
 [ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="5_rock"]
 [ext_resource type="PackedScene" path="res://assets/track/racing_tents.tscn" id="6_tents"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="7_surface"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="7_surface"]
 [ext_resource type="Resource" path="res://levels/surfaces/sand.tres" id="8_sand"]
 [ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="9_dirt"]
+[ext_resource type="Script" uid="uid://x55l4aohqyex" path="res://scripts/visual/kenney_colormap_applier.gd" id="10_21t0i"]
+[ext_resource type="Texture2D" uid="uid://cbwmr6menwbnp" path="res://assets/vendor/kenney/racing-kit/Textures/colormap.png" id="11_y7lpf"]
 
 [sub_resource type="Curve3D" id="Curve3D_main"]
 closed = true
@@ -44,25 +46,6 @@ curve = SubResource("Curve3D_main")
 
 [node name="Shortcuts" type="Node3D" parent="." unique_id=762247422]
 
-[node name="WestHairpinSand" type="Area3D" parent="."]
-script = ExtResource("7_surface")
-id = &"west_hairpin_sand"
-surface = ExtResource("8_sand")
-start_progress = 0.70
-end_progress = 0.86
-lateral_offset = 3.4
-width = 3.2
-
-[node name="PasoLagunaDirt" type="Area3D" parent="."]
-script = ExtResource("7_surface")
-id = &"paso_laguna_dirt"
-surface = ExtResource("9_dirt")
-path_kind = 1
-shortcut_id = 0
-start_progress = 0.0
-end_progress = 1.0
-width = 7.0
-
 [node name="PasoLaguna" type="Path3D" parent="Shortcuts" unique_id=39717027]
 curve = SubResource("Curve3D_72ys7")
 script = ExtResource("2_shortcut")
@@ -95,6 +78,28 @@ exit_handle_length = 20.2271118164062
 midpoint_in_handle_length = 17.87006
 midpoint_out_handle_length = 18.90196
 metadata/editor_safety_checked = true
+
+[node name="WestHairpinSand" type="Area3D" parent="." unique_id=1368824133]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("7_surface")
+id = &"west_hairpin_sand"
+surface = ExtResource("8_sand")
+start_progress = 0.7
+end_progress = 0.86
+lateral_offset = 3.4
+width = 3.2
+
+[node name="PasoLagunaDirt" type="Area3D" parent="." unique_id=1301647738]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("7_surface")
+id = &"paso_laguna_dirt"
+surface = ExtResource("9_dirt")
+path_kind = 1
+shortcut_id = 0
+end_progress = 1.0
+width = 7.0
 
 [node name="Props" type="Node3D" parent="." unique_id=1445996684]
 
@@ -142,6 +147,8 @@ transform = Transform3D(1.1973792, 0, -0.46730202, 0, 1.6, 0, 0.5062438, 0, 1.10
 
 [node name="Paddock" type="Node3D" parent="Props" unique_id=10464684 instance=ExtResource("6_tents")]
 transform = Transform3D(-1, 0, 2.5351817e-06, 0, 1, 0, -2.5351817e-06, 0, -1, -4, 0, 35)
+script = ExtResource("10_21t0i")
+colormap = ExtResource("11_y7lpf")
 
 [node name="ItemSpawns" type="Node3D" parent="." unique_id=1942958891]
 

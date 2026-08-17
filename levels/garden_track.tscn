@@ -7,7 +7,7 @@
 [ext_resource type="PackedScene" path="res://assets/track/large_bush.tscn" id="5_bush"]
 [ext_resource type="PackedScene" path="res://assets/track/yellow_flower.tscn" id="6_flower"]
 [ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="7_rock"]
-[ext_resource type="Script" path="res://scripts/world/track_surface_zone.gd" id="8_surface"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="8_surface"]
 [ext_resource type="Resource" path="res://levels/surfaces/grass.tres" id="9_grass"]
 [ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="10_dirt"]
 
@@ -47,42 +47,6 @@ curve = SubResource("Curve3D_main")
 
 [node name="Shortcuts" type="Node3D" parent="." unique_id=813799320]
 
-[node name="WideCurveGrassEast" type="Area3D" parent="."]
-script = ExtResource("8_surface")
-id = &"garden_grass_east"
-surface = ExtResource("9_grass")
-start_progress = 0.15
-end_progress = 0.31
-lateral_offset = 3.2
-width = 3.0
-
-[node name="WideCurveGrassWest" type="Area3D" parent="."]
-script = ExtResource("8_surface")
-id = &"garden_grass_west"
-surface = ExtResource("9_grass")
-start_progress = 0.62
-end_progress = 0.80
-lateral_offset = 3.2
-width = 3.0
-
-[node name="GardenShortcutDirt0" type="Area3D" parent="."]
-script = ExtResource("8_surface")
-id = &"garden_shortcut_dirt_0"
-surface = ExtResource("10_dirt")
-path_kind = 1
-shortcut_id = 0
-end_progress = 1.0
-width = 7.0
-
-[node name="GardenShortcutDirt1" type="Area3D" parent="."]
-script = ExtResource("8_surface")
-id = &"garden_shortcut_dirt_1"
-surface = ExtResource("10_dirt")
-path_kind = 1
-shortcut_id = 1
-end_progress = 1.0
-width = 7.0
-
 [node name="SenderoCentral" type="Path3D" parent="Shortcuts" unique_id=1442997536]
 curve = SubResource("Curve3D_fvrsc")
 script = ExtResource("2_shortcut")
@@ -114,25 +78,64 @@ exit_handle_length = 8.0
 midpoint_in_handle_length = 13.360819
 midpoint_out_handle_length = 13.360819
 
+[node name="WideCurveGrassEast" type="Area3D" parent="." unique_id=662035034]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("8_surface")
+id = &"garden_grass_east"
+surface = ExtResource("9_grass")
+start_progress = 0.15
+end_progress = 0.31
+lateral_offset = 3.2
+
+[node name="WideCurveGrassWest" type="Area3D" parent="." unique_id=1353121515]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("8_surface")
+id = &"garden_grass_west"
+surface = ExtResource("9_grass")
+start_progress = 0.62
+end_progress = 0.8
+lateral_offset = 3.2
+
+[node name="GardenShortcutDirt0" type="Area3D" parent="." unique_id=27124626]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("8_surface")
+id = &"garden_shortcut_dirt_0"
+surface = ExtResource("10_dirt")
+path_kind = 1
+shortcut_id = 0
+end_progress = 1.0
+width = 7.0
+
+[node name="GardenShortcutDirt1" type="Area3D" parent="." unique_id=2086420273]
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("8_surface")
+id = &"garden_shortcut_dirt_1"
+surface = ExtResource("10_dirt")
+path_kind = 1
+shortcut_id = 1
+end_progress = 1.0
+width = 7.0
+
 [node name="Props" type="Node3D" parent="." unique_id=1197494539]
 
 [node name="OakNorthWest" type="Node3D" parent="Props" unique_id=1755703405 instance=ExtResource("4_oak")]
-transform = Transform3D(0.87758255, 0, 0.47942555, 0, 1, 0, -0.47942555, 0, 0.87758255, -23, 0, 27)
-scale = Vector3(5.436674, 5.436674, 5.436674)
+transform = Transform3D(4.7711306, 0, 2.6064804, 0, 5.436674, 0, -2.6064804, 0, 4.7711306, -23, 0, 27)
 metadata/track_editor_asset_id = &"oak_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.436674, 5.436674, 5.436674)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
 [node name="OakNorthEast" type="Node3D" parent="Props" unique_id=1151983017 instance=ExtResource("4_oak")]
-transform = Transform3D(0.7648422, 0, -0.64421767, 0, 1, 0, 0.64421767, 0, 0.7648422, 43, 0, 24)
-scale = Vector3(5.436674, 5.436674, 5.436674)
+transform = Transform3D(4.158198, 0, -3.5024016, 0, 5.436674, 0, 3.5024016, 0, 4.158198, 43, 0, 24)
 metadata/track_editor_asset_id = &"oak_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.436674, 5.436674, 5.436674)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
 [node name="OakSouth" type="Node3D" parent="Props" unique_id=1454497522 instance=ExtResource("4_oak")]
-transform = Transform3D(0.16996716, 0, 0.98544973, 0, 1, 0, -0.98544973, 0, 0.16996716, -10, 0, -32)
-scale = Vector3(5.436674, 5.436674, 5.436674)
+transform = Transform3D(0.92405605, 0, 5.357569, 0, 5.436674, 0, -5.357569, 0, 0.92405605, -10, 0, -32)
 metadata/track_editor_asset_id = &"oak_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.436674, 5.436674, 5.436674)
 metadata/track_editor_prop_scale_multiplier = 1.0
