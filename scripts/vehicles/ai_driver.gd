@@ -94,10 +94,6 @@ func setup(
 func _physics_process(delta: float) -> void:
 	if kart == null or race_manager == null or race_manager.route_points.is_empty():
 		return
-	if kart.race_class != null and kart.race_class.id == &"200":
-		_update_contact_state(delta)
-		_legacy_drive(delta)
-		return
 	if racing_line == null or not racing_line.is_valid():
 		_legacy_drive(delta)
 		return
@@ -254,10 +250,8 @@ func _update_drift_decision(sample: RacingLineSample, steer: float, speed: float
 func _update_shortcut_choice(distance: float) -> void:
 	if _active_branch_id >= 0 or _correction_remaining > 0.0 or _drive_state != DriveState.DRIVING:
 		return
-	# Authored shortcut risk currently describes geometry at normal race pace.
-	# Until a branch has a 200 CC-safe rating, keep the fast class on the main corridor.
-	if kart.race_class != null and kart.race_class.id == &"200":
-		return
+	# Shortcut eligibility is driven by authored branch risk and the AI profile.
+	# Race class affects the shared driving parameters through Kart.stats.
 	for branch in racing_line.shortcut_branches:
 		var key := "%d:%d" % [race_manager.get_completed_checkpoint_count(kart), branch.shortcut_id]
 		if _decided_branches.has(key):
