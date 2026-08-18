@@ -116,6 +116,23 @@ func _process(_delta: float) -> void:
 	speed_lines.amount_ratio = clampf(strength, 0.12 if profile == "low" and active else 0.0, 1.0)
 	speed_line_overlay.intensity = clampf(strength, 0.12 if profile == "low" and active else 0.0, 1.0) if active else 0.0
 
+
+func animate_vehicle(root: Node3D, delta: float, steer: float, drifting: bool, landing_ratio: float, stunned: bool) -> void:
+	if root == null:
+		return
+	var target_roll := -steer * (0.12 if drifting else 0.06)
+	root.rotation.z = lerpf(root.rotation.z, target_roll, delta * 8.0)
+	root.position.y = sin(Time.get_ticks_msec() * 0.012) * 0.015 - landing_ratio * 0.08
+	root.scale = Vector3(
+		1.0 + landing_ratio * 0.025,
+		1.0 - landing_ratio * 0.08,
+		1.0 + landing_ratio * 0.025
+	)
+	if stunned:
+		root.rotation.y += delta * 8.0
+	else:
+		root.rotation.y = lerp_angle(root.rotation.y, 0.0, delta * 10.0)
+
 func _burst(color: Color, intensity: float) -> void:
 	var material := flash_particles.draw_pass_1.surface_get_material(0) as StandardMaterial3D
 	material.albedo_color = color

@@ -94,10 +94,6 @@ func setup(
 func _physics_process(delta: float) -> void:
 	if kart == null or race_manager == null or race_manager.route_points.is_empty():
 		return
-	if kart.race_class != null and kart.race_class.id == &"200":
-		_update_contact_state(delta)
-		_legacy_drive(delta)
-		return
 	if racing_line == null or not racing_line.is_valid():
 		_legacy_drive(delta)
 		return
@@ -254,10 +250,8 @@ func _update_drift_decision(sample: RacingLineSample, steer: float, speed: float
 func _update_shortcut_choice(distance: float) -> void:
 	if _active_branch_id >= 0 or _correction_remaining > 0.0 or _drive_state != DriveState.DRIVING:
 		return
-	# Authored shortcut risk currently describes geometry at normal race pace.
-	# Until a branch has a 200 CC-safe rating, keep the fast class on the main corridor.
-	if kart.race_class != null and kart.race_class.id == &"200":
-		return
+	# Shortcut eligibility is driven by authored branch risk and the AI profile.
+	# Race class affects the shared driving parameters through Kart.stats.
 	for branch in racing_line.shortcut_branches:
 		var key := "%d:%d" % [race_manager.get_completed_checkpoint_count(kart), branch.shortcut_id]
 		if _decided_branches.has(key):
@@ -407,9 +401,8 @@ func _legacy_drive(delta: float) -> void:
 		return
 	var speed := kart.get_horizontal_speed()
 	var speed_ratio := clampf(speed / maxf(kart.stats.max_speed, 0.1), 0.0, 1.2)
-	var high_speed_class := kart.race_class != null and kart.race_class.id == &"200"
 	var lookahead_steps := clampi(
-		2 + roundi(speed_ratio * 1.5) + (1 if high_speed_class else 0),
+		2 + roundi(speed_ratio * 1.5),
 		2,
 		5
 	)
@@ -421,16 +414,16 @@ func _legacy_drive(delta: float) -> void:
 	var alignment := forward.dot(to_target)
 	var brake := 0.0
 	var throttle := 1.0
-	var corner_alignment_threshold := 0.72 if high_speed_class else 0.69
-	var corner_speed_ratio := 0.65 if high_speed_class else 0.72
+	var corner_alignment_threshold := 0.69
+	var corner_speed_ratio := 0.72
 	if alignment < -0.1:
 		throttle = 0.0
 		brake = 1.0 if speed > kart.stats.max_speed * 0.08 else 0.7
 		if speed <= kart.stats.max_speed * 0.08:
 			steer = -steer
 	elif alignment < corner_alignment_threshold and speed > kart.stats.max_speed * corner_speed_ratio:
-		brake = 0.7 if high_speed_class else 0.55
-		throttle = 0.15 if high_speed_class else 0.25
+		brake = 0.55
+		throttle = 0.25
 	elif alignment < 0.82:
 		throttle = 0.72
 	var sensors := _sense_barriers(speed)
@@ -448,7 +441,7 @@ func _legacy_drive(delta: float) -> void:
 		_drive_state == DriveState.DRIVING
 		and absf(steer) > 0.48
 		and speed > kart.stats.max_speed * 0.38
-		and checkpoint_distance < maxf(18.0, speed * (1.0 if high_speed_class else 0.8))
+		and checkpoint_distance < maxf(18.0, speed * 0.8)
 	)
 	var use_item := _should_use_item(forward) if _drive_state != DriveState.WALL_RECOVERY else false
 	if use_item:
