@@ -36,22 +36,18 @@ func _test_recovery_sampling_reset() -> void:
 	var kart := Kart.new()
 	root.add_child(kart)
 	kart.set_physics_process(false)
-	kart._recovery_controller._stuck_time = 2.5
-	kart._recovery_controller._movement_sample_time = 1.0
-	kart._recovery_controller._movement_sample_distance = 0.2
-	kart._recovery_controller._last_motion_position = Vector3(100.0, 0.0, 100.0)
+	kart.is_control_enabled = true
+	kart.set_drive_input(1.0, 0.0, 0.0, false, false)
+	kart._recovery_controller.update(1.25)
+	kart._recovery_controller.update(1.25)
 	kart.set_respawn_transform(kart.global_transform)
+	kart._recovery_controller.update(1.25)
+	kart._recovery_controller.update(1.25)
 	_check(
-		is_zero_approx(kart._recovery_controller._stuck_time)
-		and is_zero_approx(kart._recovery_controller._movement_sample_time)
-		and is_zero_approx(kart._recovery_controller._movement_sample_distance)
-		and kart._recovery_controller._last_motion_position.is_equal_approx(kart.global_position),
+		kart.recovery_count == 0,
 		"Assigning a respawn point clears stale recovery motion samples."
 	)
-	kart.is_control_enabled = true
-	kart._input_controller.throttle = 1.0
-	for _sample in 3:
-		kart._recovery_controller.update(1.25)
+	kart._recovery_controller.update(1.25)
 	_check(
 		kart.recovery_count == 1 and kart.last_recovery_reason == "stalled",
 		"A genuinely stationary kart still recovers after three seconds."
@@ -312,8 +308,12 @@ func _test_drift_boost_levels() -> void:
 		kart.configure_for_race(KartStats.new(), definition)
 		kart.set_physics_process(false)
 		fixture.add_child(kart)
-		kart._drift_controller.charge = Kart.DRIFT_LEVEL_TIMES[boost_level - 1] + 0.01
-		kart._drift_controller.side = 1.0
+		kart.velocity = Vector3(2.0, 0.0, -10.0)
+		kart._drift_controller.update_charge(
+			Kart.DRIFT_LEVEL_TIMES[boost_level - 1] + 0.01,
+			1.0
+		)
+		kart.velocity = Vector3.ZERO
 		kart._release_drift()
 		var expected_power := (3.5 + boost_level * 2.0) * definition.boost_multiplier
 		_check(
@@ -328,7 +328,7 @@ func _test_drift_boost_levels() -> void:
 	side_kart.velocity = Vector3(0.0, 0.0, -10.0)
 	side_kart._try_start_drift_hop(-1.0)
 	var left_side := side_kart.get_drift_side()
-	side_kart._drift_controller.side = 0.0
+	side_kart._drift_controller.reset()
 	side_kart._try_start_drift_hop(1.0)
 	_check(
 		left_side < 0.0 and side_kart.get_drift_side() > 0.0,

@@ -43,7 +43,7 @@ var game_mode := GameModeDefinition.RACE
 var previous_best_time := -1.0
 var previous_best_lap_time := -1.0
 
-var _race_states: Dictionary = {}
+var _race_states: Dictionary[int, RacerRaceState] = {}
 var _countdown_remaining := 3.0
 var _last_countdown_text := ""
 var _finish_count := 0

@@ -1,5 +1,5 @@
 class_name KartRecoveryController
-extends Node
+extends RefCounted
 
 var kart: Kart
 var respawn_transform := Transform3D.IDENTITY
@@ -30,11 +30,9 @@ func reset_to_last_checkpoint(reason: String) -> void:
 	kart.global_transform = respawn_transform
 	kart.velocity = Vector3.ZERO
 	kart._drive_state = Kart.DriveState.AIR
-	kart._drift_controller.side = 0.0
-	kart._drift_controller.charge = 0.0
-	kart._drift_controller.low_quality_time = 0.0
-	kart._input_controller.previous_drift = kart._input_controller.drift
-	kart._status_timers.landing_compression_remaining = 0.0
+	kart._drift_controller.reset_for_recovery()
+	kart._input_controller.reset_drift_state()
+	kart._status_timers.clear_landing_compression()
 	kart._collision_response.reset()
 	kart.floor_snap_length = 0.0
 	reset_sampling()
@@ -54,7 +52,7 @@ func update(delta: float) -> void:
 	if kart == null:
 		return
 	if kart.global_position.y < -2.5:
-		kart.reset_to_last_checkpoint("fell")
+		reset_to_last_checkpoint("fell")
 		return
 	var horizontal_motion := Vector2(
 		kart.global_position.x - _last_motion_position.x,
@@ -75,4 +73,4 @@ func update(delta: float) -> void:
 	_movement_sample_time = 0.0
 	_movement_sample_distance = 0.0
 	if _stuck_time >= 3.0:
-		kart.reset_to_last_checkpoint("stalled")
+		reset_to_last_checkpoint("stalled")

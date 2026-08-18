@@ -1,5 +1,5 @@
 class_name KartMotor
-extends Node
+extends RefCounted
 
 var kart: Kart
 
@@ -71,9 +71,10 @@ func apply_ground_drive(delta: float, throttle: float, brake: float, steer: floa
 	var steering_command := steer
 	var is_drifting := kart._drive_state == Kart.DriveState.DRIFT
 	if is_drifting:
-		var is_turning_inward := steer * kart._drift_controller.side >= 0.0
+		var drift_side := kart.get_drift_side()
+		var is_turning_inward := steer * drift_side >= 0.0
 		var countersteer_scale := 1.08 if is_turning_inward else 0.72
-		steering_command = clampf(kart._drift_controller.side * 0.3 + steer * countersteer_scale, -1.35, 1.35)
+		steering_command = clampf(drift_side * 0.3 + steer * countersteer_scale, -1.35, 1.35)
 	var yaw_change := steering_command * kart.stats.steering_speed * steering_factor * delta
 	kart.rotation.y -= yaw_change
 
@@ -127,10 +128,10 @@ func update_drive_state_after_move(was_on_floor: bool) -> void:
 			kart.presentation_landed.emit(clampf(absf(kart.velocity.y) / 12.0, 0.0, 1.0))
 			var landed_from_drift_hop := kart._drive_state == Kart.DriveState.DRIFT_HOP
 			stabilize_landing()
-			kart._status_timers.landing_compression_remaining = Kart.LANDING_COMPRESSION_DURATION
-			kart._drive_state = Kart.DriveState.DRIFT if kart._input_controller.drift and kart._drift_controller.side != 0.0 else Kart.DriveState.GROUND
+			kart._status_timers.start_landing_compression(Kart.LANDING_COMPRESSION_DURATION)
+			kart._drive_state = Kart.DriveState.DRIFT if kart._input_controller.is_drift_pressed() and kart._drift_controller.is_active() else Kart.DriveState.GROUND
 			if landed_from_drift_hop and kart._drive_state == Kart.DriveState.DRIFT:
-				kart._drift_controller.grace_remaining = kart.driving_tuning.hop_grace
+				kart._drift_controller.refresh_hop_grace()
 	elif kart._drive_state != Kart.DriveState.DRIFT_HOP:
 		kart._drive_state = Kart.DriveState.AIR
 

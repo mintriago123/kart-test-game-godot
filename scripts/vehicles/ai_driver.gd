@@ -401,9 +401,8 @@ func _legacy_drive(delta: float) -> void:
 		return
 	var speed := kart.get_horizontal_speed()
 	var speed_ratio := clampf(speed / maxf(kart.stats.max_speed, 0.1), 0.0, 1.2)
-	var high_speed_class := kart.race_class != null and kart.race_class.id == &"200"
 	var lookahead_steps := clampi(
-		2 + roundi(speed_ratio * 1.5) + (1 if high_speed_class else 0),
+		2 + roundi(speed_ratio * 1.5),
 		2,
 		5
 	)
@@ -415,16 +414,16 @@ func _legacy_drive(delta: float) -> void:
 	var alignment := forward.dot(to_target)
 	var brake := 0.0
 	var throttle := 1.0
-	var corner_alignment_threshold := 0.72 if high_speed_class else 0.69
-	var corner_speed_ratio := 0.65 if high_speed_class else 0.72
+	var corner_alignment_threshold := 0.69
+	var corner_speed_ratio := 0.72
 	if alignment < -0.1:
 		throttle = 0.0
 		brake = 1.0 if speed > kart.stats.max_speed * 0.08 else 0.7
 		if speed <= kart.stats.max_speed * 0.08:
 			steer = -steer
 	elif alignment < corner_alignment_threshold and speed > kart.stats.max_speed * corner_speed_ratio:
-		brake = 0.7 if high_speed_class else 0.55
-		throttle = 0.15 if high_speed_class else 0.25
+		brake = 0.55
+		throttle = 0.25
 	elif alignment < 0.82:
 		throttle = 0.72
 	var sensors := _sense_barriers(speed)
@@ -442,7 +441,7 @@ func _legacy_drive(delta: float) -> void:
 		_drive_state == DriveState.DRIVING
 		and absf(steer) > 0.48
 		and speed > kart.stats.max_speed * 0.38
-		and checkpoint_distance < maxf(18.0, speed * (1.0 if high_speed_class else 0.8))
+		and checkpoint_distance < maxf(18.0, speed * 0.8)
 	)
 	var use_item := _should_use_item(forward) if _drive_state != DriveState.WALL_RECOVERY else false
 	if use_item:

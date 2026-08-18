@@ -65,31 +65,26 @@ var item_catalog: ItemCatalog
 var item_rng: RandomNumberGenerator
 var race_manager: RaceManager
 var driving_tuning := DrivingTuningDefinition.new()
-var _surface_controller: KartSurfaceController
-var _input_controller: KartInputController
-var _motor: KartMotor
-var _drive_controller: KartDriveController
+var _surface_controller := KartSurfaceController.new()
+var _input_controller := KartInputController.new()
+var _motor := KartMotor.new()
+var _drive_controller := KartDriveController.new()
 var current_surface: SurfaceDefinition:
 	get:
 		return _surface_controller.get_surface()
 	set(value):
 		_surface_controller.set_surface(value)
 
-var _drive_state_controller: KartDriveStateController
-var _drive_state: DriveState:
-	get:
-		return _drive_state_controller.state
-	set(value):
-		_drive_state_controller.state = value
-var _recovery_controller: KartRecoveryController
-var _collision_response: KartCollisionResponse
-var _hit_controller: KartHitController
+var _drive_state := DriveState.AIR
+var _recovery_controller := KartRecoveryController.new()
+var _collision_response := KartCollisionResponse.new()
+var _hit_controller := KartHitController.new()
 var _shield_controller: KartShieldController
-var _drift_controller: KartDriftController
-var _boost_controller: KartBoostController
-var _status_timers: KartStatusTimerController
-var _item_controller: KartItemController
-var _launch_controller: KartLaunchController
+var _drift_controller := KartDriftController.new()
+var _boost_controller := KartBoostController.new()
+var _status_timers := KartStatusTimerController.new()
+var _item_controller := KartItemController.new()
+var _launch_controller := KartLaunchController.new()
 var _visual_builder := KartVisualBuilder.new()
 var held_item: ItemDefinition:
 	get:
@@ -118,46 +113,19 @@ func _ready() -> void:
 	)
 	floor_snap_length = FLOOR_SNAP_DISTANCE
 	floor_max_angle = deg_to_rad(52.0)
-	_recovery_controller = KartRecoveryController.new()
-	add_child(_recovery_controller)
 	_recovery_controller.setup(self)
-	_collision_response = KartCollisionResponse.new()
-	add_child(_collision_response)
 	_collision_response.setup(self)
-	_hit_controller = KartHitController.new()
-	add_child(_hit_controller)
 	_hit_controller.setup(self)
 	_shield_controller = KartShieldController.new()
 	add_child(_shield_controller)
 	_shield_controller.setup(self)
-	_drift_controller = KartDriftController.new()
-	add_child(_drift_controller)
 	_drift_controller.setup(self)
-	_boost_controller = KartBoostController.new()
-	add_child(_boost_controller)
 	_boost_controller.setup(self)
-	_surface_controller = KartSurfaceController.new()
-	add_child(_surface_controller)
-	_surface_controller.setup(self)
-	_input_controller = KartInputController.new()
-	add_child(_input_controller)
 	_input_controller.setup(self)
-	_motor = KartMotor.new()
-	add_child(_motor)
 	_motor.setup(self)
-	_drive_controller = KartDriveController.new()
-	add_child(_drive_controller)
 	_drive_controller.setup(self)
-	_status_timers = KartStatusTimerController.new()
-	add_child(_status_timers)
-	_item_controller = KartItemController.new()
-	add_child(_item_controller)
 	_item_controller.setup(self)
-	_launch_controller = KartLaunchController.new()
-	add_child(_launch_controller)
 	_launch_controller.setup(self)
-	_drive_state_controller = KartDriveStateController.new()
-	add_child(_drive_state_controller)
 	_build_collision()
 	_build_visual()
 
@@ -181,15 +149,11 @@ func get_drive_state() -> DriveState:
 
 
 func get_drift_side() -> float:
-	return _drift_controller.side
+	return _drift_controller.get_side()
 
 
 func get_landing_compression_ratio() -> float:
-	return clampf(
-		_status_timers.landing_compression_remaining / LANDING_COMPRESSION_DURATION,
-		0.0,
-		1.0
-	)
+	return _status_timers.get_landing_compression_ratio(LANDING_COMPRESSION_DURATION)
 
 
 func get_horizontal_speed() -> float:
@@ -205,16 +169,16 @@ func get_current_surface() -> SurfaceDefinition:
 	return current_surface
 
 func get_throttle_input() -> float:
-	return _input_controller.throttle
+	return _input_controller.get_throttle()
 
 func get_brake_input() -> float:
-	return _input_controller.brake
+	return _input_controller.get_brake()
 
 func is_launch_bogged() -> bool:
-	return _status_timers.launch_bog_remaining > 0.0
+	return _status_timers.is_launch_bogged()
 
 func get_drift_quality() -> float:
-	return _drift_controller.presentation_quality
+	return _drift_controller.get_presentation_quality()
 
 func get_lateral_speed_ratio() -> float:
 	var local_velocity := global_transform.basis.inverse() * velocity
@@ -283,7 +247,7 @@ func set_drive_input(
 
 
 func get_drive_input_frame() -> Dictionary:
-	return _input_controller.last_frame.duplicate()
+	return _input_controller.get_last_frame()
 
 
 func grant_random_item() -> bool:
@@ -322,7 +286,7 @@ func can_receive_kart_interaction() -> bool:
 	return is_control_enabled and not _status_timers.is_stunned() and not _status_timers.is_invulnerable()
 
 func is_braking() -> bool:
-	return _input_controller.brake > 0.05
+	return _input_controller.get_brake() > 0.05
 
 
 func activate_shield(item: ItemDefinition) -> void:
@@ -330,7 +294,7 @@ func activate_shield(item: ItemDefinition) -> void:
 
 
 func get_shield_remaining() -> float:
-	return _shield_controller.get_remaining()
+	return _shield_controller.get_remaining() if _shield_controller != null else 0.0
 
 
 func get_held_item_time() -> float:
@@ -348,7 +312,8 @@ func consume_straight_launch_request() -> bool:
 func clear_item_effects() -> void:
 	_item_controller.clear()
 	_boost_controller.clear()
-	_shield_controller.clear_shield()
+	if _shield_controller != null:
+		_shield_controller.clear_shield()
 	item_changed.emit(null)
 
 
@@ -403,8 +368,8 @@ func _update_timers(delta: float) -> void:
 	_collision_response.update(delta)
 	_item_controller.update(delta)
 	_shield_controller.update(delta)
-	if _drift_controller.charge > 0.0:
-		boost_changed.emit(_drift_controller.charge / driving_tuning.drift_level_times[-1])
+	if _drift_controller.get_charge() > 0.0:
+		boost_changed.emit(_drift_controller.get_charge() / driving_tuning.drift_level_times[-1])
 
 
 func _animate_visual(delta: float, steer: float, drifting: bool) -> void:

@@ -1,5 +1,5 @@
 class_name KartItemController
-extends Node
+extends RefCounted
 
 var kart: Kart
 var item: ItemDefinition

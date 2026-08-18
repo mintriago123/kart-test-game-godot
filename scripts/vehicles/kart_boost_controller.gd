@@ -1,5 +1,5 @@
 class_name KartBoostController
-extends Node
+extends RefCounted
 
 var kart: Kart
 var _remaining := 0.0

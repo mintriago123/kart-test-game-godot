@@ -1,5 +1,5 @@
 class_name KartCollisionResponse
-extends Node
+extends RefCounted
 
 var kart: Kart
 var _contact_remaining := 0.0

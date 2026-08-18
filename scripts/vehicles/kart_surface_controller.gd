@@ -1,13 +1,8 @@
 class_name KartSurfaceController
-extends Node
+extends RefCounted
 
-var kart: Kart
 var _surface := SurfaceDefinition.asphalt()
 var _zones := {}
-
-
-func setup(controlled_kart: Kart) -> void:
-	kart = controlled_kart
 
 
 func get_surface() -> SurfaceDefinition:

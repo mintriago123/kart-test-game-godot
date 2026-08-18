@@ -1,5 +1,5 @@
 class_name KartDriveController
-extends Node
+extends RefCounted
 
 var kart: Kart
 
@@ -18,31 +18,27 @@ func physics_step(delta: float) -> void:
 	var can_drive := kart.is_control_enabled and not kart._status_timers.is_stunned()
 	kart._launch_controller.capture_input()
 	var throttle := (
-		kart._input_controller.throttle
-		if can_drive and kart._status_timers.launch_bog_remaining <= 0.0
+		kart._input_controller.get_throttle()
+		if can_drive and not kart._status_timers.is_launch_bogged()
 		else 0.0
 	)
-	var brake := kart._input_controller.brake if can_drive else 0.0
-	var steer := kart._input_controller.steer if can_drive else 0.0
+	var brake := kart._input_controller.get_brake() if can_drive else 0.0
+	var steer := kart._input_controller.get_steer() if can_drive else 0.0
 	var was_on_floor := kart.is_on_floor()
-	var drift_was_pressed := (
-		kart._input_controller.drift
-		and not kart._input_controller.previous_drift
-	)
-	kart._input_controller.previous_drift = kart._input_controller.drift
-	if not can_drive and kart._drift_controller.side != 0.0:
+	var drift_was_pressed := kart._input_controller.consume_drift_pressed()
+	if not can_drive and kart._drift_controller.is_active():
 		kart._release_drift()
 	if was_on_floor and kart._drive_state == Kart.DriveState.AIR:
 		kart._drive_state = (
 			Kart.DriveState.DRIFT
-			if kart._input_controller.drift and kart._drift_controller.side != 0.0
+			if kart._input_controller.is_drift_pressed() and kart._drift_controller.is_active()
 			else Kart.DriveState.GROUND
 		)
 
 	var hop_started := false
 	if was_on_floor and drift_was_pressed and can_drive:
 		hop_started = kart._try_start_drift_hop(steer)
-	if not kart._input_controller.drift and kart._drift_controller.side != 0.0:
+	if not kart._input_controller.is_drift_pressed() and kart._drift_controller.is_active():
 		kart._release_drift()
 
 	var is_ground_driving := was_on_floor and kart._drive_state != Kart.DriveState.DRIFT_HOP
@@ -50,7 +46,7 @@ func physics_step(delta: float) -> void:
 		kart._motor.apply_ground_drive(delta, throttle, brake, steer)
 	else:
 		kart._motor.apply_air_drive(delta, steer, hop_started)
-	if kart._drive_state == Kart.DriveState.DRIFT and kart._input_controller.drift:
+	if kart._drive_state == Kart.DriveState.DRIFT and kart._input_controller.is_drift_pressed():
 		kart._drift_controller.update_charge(delta, steer)
 
 	kart._motor.update_floor_snap()

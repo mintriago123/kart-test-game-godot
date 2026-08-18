@@ -38,6 +38,7 @@ CORE_SUITES=(
 	tests/cup_editor.gd
 	tests/frontend_layout.gd
 	tests/ui_redesign.gd
+	tests/unit/kart/controllers.gd
 	tests/driving_physics.gd
 	tests/race_telemetry.gd
 	tests/time_trial.gd

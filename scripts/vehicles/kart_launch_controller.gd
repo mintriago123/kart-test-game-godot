@@ -1,5 +1,5 @@
 class_name KartLaunchController
-extends Node
+extends RefCounted
 
 var kart: Kart
 var crossing := INF
@@ -29,7 +29,7 @@ func resolve(enabled: bool) -> int:
 		return 0
 	resolved = true
 	if crossing < kart.driving_tuning.launch_early_limit:
-		kart._status_timers.launch_bog_remaining = kart.driving_tuning.launch_bog_duration
+		kart._status_timers.start_launch_bog(kart.driving_tuning.launch_bog_duration)
 		kart.presentation_launch_bogged.emit()
 		return -1
 	if crossing >= kart.driving_tuning.launch_perfect_start and crossing <= 0.0:
