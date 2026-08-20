@@ -190,9 +190,6 @@ func get_surface_audio_pitch() -> float:
 func get_surface_audio_volume() -> float:
 	return current_surface.audio_volume if current_surface != null else 0.75
 
-func get_surface_audio_roughness() -> float:
-	return current_surface.audio_roughness if current_surface != null else 0.15
-
 func get_surface_particle_color() -> Color:
 	return current_surface.particle_color if current_surface != null else Color.WHITE
 
@@ -297,10 +294,6 @@ func get_shield_remaining() -> float:
 	return _shield_controller.get_remaining() if _shield_controller != null else 0.0
 
 
-func get_held_item_time() -> float:
-	return _item_controller.elapsed
-
-
 func request_straight_launch() -> void:
 	_launch_controller.request_straight_launch()
 
@@ -319,11 +312,6 @@ func clear_item_effects() -> void:
 
 func set_respawn_transform(respawn_transform: Transform3D) -> void:
 	_recovery_controller.set_respawn_transform(respawn_transform)
-
-
-func _reset_recovery_sampling() -> void:
-	if _recovery_controller != null:
-		_recovery_controller.reset_sampling()
 
 
 func set_shortcut_surface_enabled(is_enabled: bool) -> void:
