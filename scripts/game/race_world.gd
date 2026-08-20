@@ -305,7 +305,6 @@ func _build_race() -> void:
 	race_manager.countdown_changed.connect(_sound.play_countdown)
 	race_manager.lap_completed.connect(_handle_lap_completed)
 	race_manager.race_completed.connect(_handle_race_completed)
-	race_manager.player_finished.connect(_handle_player_finished)
 	race_manager.human_finished.connect(_handle_human_finished)
 	race_manager.racer_finished.connect(_handle_racer_finished)
 	race_manager.race_started.connect(_handle_race_started)
@@ -501,10 +500,6 @@ func _handle_item_collected(kart: Node) -> void:
 		_vibrate_local_kart(kart as Kart, 35, 0.35)
 
 
-func _handle_player_hit() -> void:
-	_handle_local_player_hit(player_kart)
-
-
 func _handle_local_player_hit(kart: Kart) -> void:
 	if vibration_enabled and vibration_intensity > 0.0:
 		_vibrate_local_kart(kart, roundi(120.0 * vibration_intensity), 0.55 * vibration_intensity)
@@ -673,10 +668,6 @@ func _handle_lap_completed(racer: Node, lap_number: int, lap_time: float) -> voi
 	var hud := _hud_by_kart.get(racer) as RaceHud
 	if hud != null:
 		hud.show_lap_split(lap_number, lap_time, previous_best_lap_time)
-
-
-func _handle_player_finished(_position: int, _time: float) -> void:
-	pass # Compatibility signal; per-human handling lives in _handle_human_finished.
 
 
 func _handle_human_finished(racer: Node, _position: int, _time: float) -> void:
