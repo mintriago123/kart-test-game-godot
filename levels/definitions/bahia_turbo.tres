@@ -11,7 +11,7 @@ shortcut_points = PackedVector2Array()
 shortcut_ranges = PackedInt32Array()
 start_position = Vector2(-7.9827347, 57.502243)
 start_direction = Vector2(0.99779326, 0.06639683)
-length_meters = 968.2365961074829
+length_meters = 968.2365961074828
 
 [resource]
 script = ExtResource("1")

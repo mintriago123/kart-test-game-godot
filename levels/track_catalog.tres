@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="TrackCatalog" format=3 uid="uid://x6v2myfqq4kc"]
 
 [ext_resource type="Script" uid="uid://eoyi70lot677" path="res://scripts/data/track_catalog.gd" id="1"]
-[ext_resource type="Resource" path="res://levels/definitions/coastal.tres" id="2"]
+[ext_resource type="Resource" uid="uid://csn2bqov6n4jw" path="res://levels/definitions/coastal.tres" id="2"]
 [ext_resource type="Script" uid="uid://4rdkup4ywfp8" path="res://scripts/data/track_definition.gd" id="2_hb87e"]
-[ext_resource type="Resource" path="res://levels/definitions/garden.tres" id="3"]
-[ext_resource type="Resource" path="res://levels/definitions/bahia_turbo.tres" id="4"]
+[ext_resource type="Resource" uid="uid://ca7euphn7hd24" path="res://levels/definitions/garden.tres" id="3"]
+[ext_resource type="Resource" uid="uid://cf5mjggcpcvci" path="res://levels/definitions/bahia_turbo.tres" id="4"]
 [ext_resource type="AudioStream" uid="uid://o2ogmchh1nwl" path="res://assets/music/bahia_turbo.ogg" id="6_sapuk"]
 [ext_resource type="Script" uid="uid://cblvdeuhqe2kn" path="res://scripts/data/track_minimap_data.gd" id="7_l3s7q"]
 [ext_resource type="PackedScene" uid="uid://vugufx5dog35" path="res://levels/tracks/dunas_doradas.tscn" id="8_2kmnd"]
