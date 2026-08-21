@@ -52,7 +52,6 @@ var _drift_committed := false
 var _smoothed_throttle := 0.0
 var _smoothed_brake := 0.0
 var _correction_remaining := 0.0
-var _previous_velocity := Vector3.ZERO
 var _drive_state := DriveState.DRIVING
 var _barrier_contact_time := 0.0
 var _contact_grace_remaining := 0.0
@@ -197,7 +196,6 @@ func _physics_process(delta: float) -> void:
 	telemetry.drift_time += delta if should_drift else 0.0
 	telemetry.avoidance_time += delta if _drive_state != DriveState.DRIVING else 0.0
 	telemetry.maximum_lateral_error = maxf(telemetry.maximum_lateral_error, absf(projection.lateral_error))
-	_previous_velocity = kart.velocity
 
 
 func _update_section_variation(section_id: int) -> void:
@@ -520,7 +518,7 @@ func _should_use_item(forward: Vector3) -> bool:
 		return false
 	match kart.held_item.type:
 		ItemDefinition.ItemType.BOOST:
-			return _horizontal_speed() < kart.stats.max_speed * 0.9
+			return kart.get_horizontal_speed() < kart.stats.max_speed * 0.9
 		ItemDefinition.ItemType.TURBO_COCONUT:
 			return _has_aligned_racer_ahead(forward, 22.0, 0.82)
 		ItemDefinition.ItemType.SEA_BUBBLE:
@@ -551,10 +549,6 @@ func _update_held_item_time(delta: float) -> void:
 		_held_item_time = 0.0
 		return
 	_held_item_time += delta
-
-
-func _horizontal_speed() -> float:
-	return Vector2(kart.velocity.x, kart.velocity.z).length()
 
 
 func _has_aligned_racer_ahead(
