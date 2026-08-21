@@ -566,7 +566,7 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 	button.add_theme_stylebox_override("focus", _style(UiTokens.WARM_WHITE, 16, 4, UiTokens.WARM_WHITE))
 	button.add_theme_stylebox_override(
 		"disabled",
-		_style(Color(0.23, 0.28, 0.31, 0.65), 16)
+		_style(UiTokens.BUTTON_DISABLED_BG, 16)
 	)
 	return button
 

@@ -14,7 +14,7 @@ static func create_chip(text: String, font_size: int) -> Label:
 	label.add_theme_color_override("font_color", UiTokens.WARM_WHITE)
 	label.add_theme_stylebox_override(
 		"normal",
-		style(Color(UiTokens.INK.r, UiTokens.INK.g, UiTokens.INK.b, 0.92), 14)
+		style(UiTokens.surface_alpha(UiTokens.INK, 3), 14)
 	)
 	return label
 
@@ -38,7 +38,7 @@ static func apply_button_style(button: Button, color: Color) -> void:
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		style(Color(0.23, 0.28, 0.31, 0.62), 16)
+		style(UiTokens.BUTTON_DISABLED_BG, 16)
 	)
 
 
@@ -59,8 +59,10 @@ static func style(
 		style_box.border_width_right = border_width
 		style_box.border_width_bottom = border_width
 		style_box.border_color = UiTokens.WARM_WHITE
-	style_box.content_margin_left = 14.0
-	style_box.content_margin_right = 14.0
+	style_box.content_margin_left = UiTokens.SPACE_3
+	style_box.content_margin_right = UiTokens.SPACE_3
+	style_box.content_margin_top = UiTokens.SPACE_2
+	style_box.content_margin_bottom = UiTokens.SPACE_2
 	return style_box
 
 

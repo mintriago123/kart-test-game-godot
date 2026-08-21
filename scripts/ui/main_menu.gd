@@ -962,11 +962,12 @@ func _add_volume_control(parent: VBoxContainer, label_text: String, initial: flo
 	return slider
 
 func _confirm_restore_defaults() -> void:
-	var dialog := ConfirmationDialog.new()
-	dialog.title = "Restaurar valores"
-	dialog.dialog_text = "¿Restaurar los ajustes de presentación y audio? El progreso y los récords se conservarán."
-	dialog.ok_button_text = "Restaurar"
-	dialog.confirmed.connect(func() -> void:
+	var modal := ConfirmationModal.new()
+	modal.configure("RESTAURAR VALORES", "¿Restaurar los ajustes de presentación y audio? El progreso y los récords se conservarán.")
+	modal.set_anchors_preset(Control.PRESET_CENTER)
+	modal.position = Vector2(-220, -95)
+	modal.size = Vector2(440, 190)
+	modal.confirmed.connect(func() -> void:
 		_set_graphics_profile("medium")
 		_vibration_toggle.button_pressed = true
 		_volume_slider.value = 0.8
@@ -978,9 +979,11 @@ func _confirm_restore_defaults() -> void:
 		_threat_toggle.button_pressed = true
 		_vibration_intensity_slider.value = 1.0
 		restore_defaults_requested.emit()
+		modal.queue_free()
 	)
-	add_child(dialog)
-	dialog.popup_centered(Vector2i(460, 190))
+	modal.cancelled.connect(modal.queue_free)
+	add_child(modal)
+	modal.confirm_button.grab_focus.call_deferred()
 
 func _create_setting_toggle(label_text: String, initial: bool, changed_signal: Signal) -> CheckButton:
 	var toggle := CheckButton.new()
@@ -1052,7 +1055,7 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 	button.add_theme_stylebox_override("hover", _style(color.lightened(0.1), 18))
 	button.add_theme_stylebox_override("pressed", _style(color.darkened(0.14), 18))
 	button.add_theme_stylebox_override("focus", _style(UiTokens.WARM_WHITE, 18, 4))
-	button.add_theme_stylebox_override("disabled", _style(Color(0.23, 0.28, 0.31, 0.6), 18))
+	button.add_theme_stylebox_override("disabled", _style(UiTokens.BUTTON_DISABLED_BG, 18))
 	return button
 
 

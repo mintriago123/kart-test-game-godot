@@ -496,19 +496,18 @@ func _pause_action(text: String, color: Color) -> Button:
 
 
 func _show_confirmation(title: String, confirmed_signal: Signal) -> void:
-	var dialog := ConfirmationDialog.new()
-	dialog.title = title
-	dialog.dialog_text = "Esta acción no se puede deshacer."
-	dialog.ok_button_text = "CONFIRMAR"
-	dialog.cancel_button_text = "CANCELAR"
-	dialog.process_mode = Node.PROCESS_MODE_ALWAYS
-	dialog.confirmed.connect(func() -> void:
+	var modal := ConfirmationModal.new()
+	modal.configure(title, "Esta acción no se puede deshacer.")
+	modal.set_anchors_preset(Control.PRESET_CENTER)
+	modal.position = Vector2(-200, -95)
+	modal.size = Vector2(400, 190)
+	modal.confirmed.connect(func() -> void:
 		confirmed_signal.emit()
-		dialog.queue_free()
+		modal.queue_free()
 	)
-	dialog.canceled.connect(dialog.queue_free)
-	add_child(dialog)
-	dialog.popup_centered(Vector2i(420, 190))
+	modal.cancelled.connect(modal.queue_free)
+	add_child(modal)
+	modal.confirm_button.grab_focus.call_deferred()
 
 
 func _build_results_panel() -> Control:

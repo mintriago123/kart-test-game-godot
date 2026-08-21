@@ -17,6 +17,26 @@ const SUCCESS := Color("#75C995")
 const WARNING := Color("#E9A84A")
 const DANGER := CORAL
 const SCRIM := Color(0.02, 0.035, 0.05, 0.9)
+const SHIELD_SURFACE := Color(0.03, 0.16, 0.18)
+const SHIELD_FILL := Color("#77d9df")
+const SHIELD_TEXT := Color("#e9fffa")
+const SHIELD_TRACK := Color(0.01, 0.08, 0.1)
+const SPLIT_SURFACE := Color(0.02, 0.12, 0.14)
+const BUTTON_DISABLED_BG := Color(0.23, 0.28, 0.31, 0.62)
+
+const SURFACE_ALPHA_1 := 0.80
+const SURFACE_ALPHA_2 := 0.88
+const SURFACE_ALPHA_3 := 0.92
+const SURFACE_ALPHA_4 := 0.94
+
+const FONT_CAPTION := 12
+const FONT_BODY := 15
+const FONT_LABEL := 18
+const FONT_H3 := 22
+const FONT_H2 := 28
+const FONT_H1 := 36
+const FONT_DISPLAY := 48
+const FONT_HERO := 72
 
 const SPACE_1 := 4
 const SPACE_2 := 8
@@ -28,11 +48,23 @@ const RADIUS_SMALL := 8
 const RADIUS_MEDIUM := 14
 const RADIUS_LARGE := 22
 const TOUCH_TARGET := 48
+const BUTTON_HEIGHT := 56
+const BUTTON_HEIGHT_LARGE := 64
 const PRESS_DURATION := 0.12
 const ENTER_DURATION := 0.18
 const EXIT_DURATION := 0.12
 const BODY_FONT = preload("res://assets/fonts/Inter.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/BarlowCondensed-SemiBold.ttf")
+
+
+static func surface_alpha(color: Color, level: int) -> Color:
+	var alpha := SURFACE_ALPHA_2
+	match level:
+		1: alpha = SURFACE_ALPHA_1
+		2: alpha = SURFACE_ALPHA_2
+		3: alpha = SURFACE_ALPHA_3
+		4: alpha = SURFACE_ALPHA_4
+	return Color(color.r, color.g, color.b, alpha)
 
 
 static func panel(color := INK, radius := RADIUS_MEDIUM, border_color := Color.TRANSPARENT) -> StyleBoxFlat:

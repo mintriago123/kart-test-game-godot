@@ -70,7 +70,7 @@ func build_interface() -> void:
 	item_chip.size = Vector2(300.0, 58.0)
 	item_chip.add_theme_stylebox_override(
 		"panel",
-		RaceHudStyle.style(Color(UiTokens.INK.r, UiTokens.INK.g, UiTokens.INK.b, 0.92), 14)
+		RaceHudStyle.style(UiTokens.surface_alpha(UiTokens.INK, 3), 14)
 	)
 	add_child(item_chip)
 	race_elements.append(item_chip)
@@ -110,7 +110,7 @@ func build_interface() -> void:
 	drift_bar.size = Vector2(180.0, 13.0)
 	drift_bar.add_theme_stylebox_override(
 		"background",
-		RaceHudStyle.style(Color(UiTokens.GRAPHITE.r, UiTokens.GRAPHITE.g, UiTokens.GRAPHITE.b, 0.86), 8)
+		RaceHudStyle.style(UiTokens.surface_alpha(UiTokens.GRAPHITE, 1), 8)
 	)
 	drift_bar.add_theme_stylebox_override(
 		"fill",
@@ -277,7 +277,7 @@ func _build_shield_status() -> void:
 	shield_panel.visible = false
 	shield_panel.add_theme_stylebox_override(
 		"panel",
-		RaceHudStyle.style(Color(0.03, 0.16, 0.18, 0.92), 12)
+		RaceHudStyle.style(UiTokens.surface_alpha(UiTokens.SHIELD_SURFACE, 3), 12)
 	)
 	add_child(shield_panel)
 	race_elements.append(shield_panel)
@@ -302,7 +302,7 @@ func _build_shield_status() -> void:
 	shield_label.add_theme_font_size_override("font_size", 13)
 	shield_label.add_theme_color_override(
 		"font_color",
-		Color("#e9fffa")
+		UiTokens.SHIELD_TEXT
 	)
 	details.add_child(shield_label)
 
@@ -311,11 +311,11 @@ func _build_shield_status() -> void:
 	shield_bar.show_percentage = false
 	shield_bar.add_theme_stylebox_override(
 		"background",
-		RaceHudStyle.style(Color(0.01, 0.08, 0.1, 0.8), 6)
+		RaceHudStyle.style(UiTokens.surface_alpha(UiTokens.SHIELD_TRACK, 1), 6)
 	)
 	shield_bar.add_theme_stylebox_override(
 		"fill",
-		RaceHudStyle.style(Color("#77d9df"), 6)
+		RaceHudStyle.style(UiTokens.SHIELD_FILL, 6)
 	)
 	details.add_child(shield_bar)
 
@@ -328,7 +328,7 @@ func _build_split_status() -> void:
 	split_panel.size = Vector2(310.0, 80.0)
 	split_panel.visible = false
 	split_panel.add_theme_stylebox_override(
-		"panel", RaceHudStyle.style(Color(0.02, 0.12, 0.14, 0.94), 14)
+		"panel", RaceHudStyle.style(UiTokens.surface_alpha(UiTokens.SPLIT_SURFACE, 4), 14)
 	)
 	add_child(split_panel)
 	race_elements.append(split_panel)
