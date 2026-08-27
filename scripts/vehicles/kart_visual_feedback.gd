@@ -8,7 +8,6 @@ var speed_lines: GPUParticles3D
 var flash_particles: GPUParticles3D
 var speed_line_layer: CanvasLayer
 var speed_line_overlay: SpeedLineOverlay
-var _flash_energy := 0.0
 
 class SpeedLineOverlay:
 	extends Control
@@ -33,34 +32,34 @@ class SpeedLineOverlay:
 		var radius_scale := Vector2(size.x * 0.66, size.y * 0.72)
 		var visible_count := maxi(4, roundi(float(line_count) * 0.58))
 		for index in visible_count:
-			var seed := fmod(float(index) * 0.61803398875, 1.0)
+			var jitter_seed := fmod(float(index) * 0.61803398875, 1.0)
 			var jitter := fmod(absf(sin(float(index) * 91.73)) * 19.19, 1.0)
 			# Favor the side and lower periphery. Avoid a uniform 360-degree spinner.
 			var side := 0.0 if index % 2 == 0 else PI
-			var angle := side + lerpf(-0.48, 0.48, seed) + lerpf(-0.05, 0.05, jitter)
+			var angle := side + lerpf(-0.48, 0.48, jitter_seed) + lerpf(-0.05, 0.05, jitter)
 			var individual_speed := lerpf(0.58, 1.62, jitter)
-			var travel := fmod(phase * individual_speed + seed * 2.37 + jitter, 1.0)
+			var travel := fmod(phase * individual_speed + jitter_seed * 2.37 + jitter, 1.0)
 			# Keep the center and the road immediately around the kart unobstructed.
 			var radius := lerpf(0.48, 1.0, travel * travel)
 			var radial := Vector2(cos(angle), sin(angle))
-			var position := center + radial * radius_scale * radius
-			var direction := (position - center).normalized()
+			var line_position := center + radial * radius_scale * radius
+			var direction := (line_position - center).normalized()
 			var length := lerpf(38.0, 156.0, travel) * lerpf(0.72, 1.0, intensity)
 			var flicker := smoothstep(0.04, 0.2, travel) * (1.0 - smoothstep(0.72, 1.0, travel))
 			var alpha := clampf((0.22 + flicker * 0.78) * intensity * visibility_gain, 0.0, 0.95)
-			var start := position - direction * length
+			var start := line_position - direction * length
 			var perpendicular := Vector2(-direction.y, direction.x)
 			var head_width := lerpf(1.8, 4.8, travel) * lerpf(0.75, 1.0, intensity)
 			if glow_strength > 0.0:
-				draw_line(start, position, Color(0.62, 0.88, 1.0, alpha * 0.22 * glow_strength), head_width * 2.4, true)
+				draw_line(start, line_position, Color(0.62, 0.88, 1.0, alpha * 0.22 * glow_strength), head_width * 2.4, true)
 			# A tapered wedge reads as forward motion instead of rain.
 			draw_colored_polygon(PackedVector2Array([
 				start,
-				position + perpendicular * head_width,
-				position + direction * head_width * 1.8,
-				position - perpendicular * head_width,
+				line_position + perpendicular * head_width,
+				line_position + direction * head_width * 1.8,
+				line_position - perpendicular * head_width,
 			]), Color(0.94, 0.97, 0.93, alpha * 0.88))
-			draw_line(position - perpendicular * head_width * 0.45, position + perpendicular * head_width * 0.45, Color(1.0, 1.0, 0.98, alpha * 0.9), 1.35, true)
+			draw_line(line_position - perpendicular * head_width * 0.45, line_position + perpendicular * head_width * 0.45, Color(1.0, 1.0, 0.98, alpha * 0.9), 1.35, true)
 
 func setup(value: Kart, quality_profile: String, lines_enabled := true) -> void:
 	kart = value

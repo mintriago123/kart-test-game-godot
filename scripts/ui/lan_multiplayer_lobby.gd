@@ -24,6 +24,8 @@ var _status: Label
 var _ready_toggle: CheckButton
 var _start: ActionButton
 var _host_button: ActionButton
+var _profile_summary: Label
+var _room_summary: Label
 var _page: Control
 var _columns: BoxContainer
 var _columns_scroll: ScrollContainer
@@ -152,14 +154,22 @@ func _build_profile_panel() -> PanelContainer:
 	_name_edit.text = "Piloto"
 	_name_edit.max_length = 24
 	_name_edit.custom_minimum_size.y = UiTokens.TOUCH_TARGET
+	_name_edit.text_changed.connect(func(_value: String) -> void: _refresh_profile_summary())
 	column.add_child(_name_edit)
+	_profile_summary = Label.new()
+	_profile_summary.text = "PERFIL LOCAL · CONFIGURA TU PILOTO"
+	_profile_summary.add_theme_color_override("font_color", UiTokens.MUTED)
+	_profile_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_profile_summary)
 	_add_label(column, "PILOTO")
 	_racer_option = OptionButton.new()
 	_racer_option.custom_minimum_size.y = UiTokens.TOUCH_TARGET
+	_racer_option.item_selected.connect(func(_index: int) -> void: _refresh_profile_summary())
 	column.add_child(_racer_option)
 	_add_label(column, "VEHÍCULO LOCAL")
 	_vehicle_option = OptionButton.new()
 	_vehicle_option.custom_minimum_size.y = UiTokens.TOUCH_TARGET
+	_vehicle_option.item_selected.connect(func(_index: int) -> void: _refresh_profile_summary())
 	column.add_child(_vehicle_option)
 	return panel
 
@@ -174,17 +184,22 @@ func _build_connection_panel() -> PanelContainer:
 	host.pressed.connect(_host_room)
 	column.add_child(host)
 	_add_label(column, "IP MANUAL")
+	var address_row := HBoxContainer.new()
+	address_row.add_theme_constant_override("separation", UiTokens.SPACE_2)
+	column.add_child(address_row)
 	_address_edit = LineEdit.new()
 	_address_edit.text = "127.0.0.1"
 	_address_edit.placeholder_text = "192.168.1.25"
 	_address_edit.custom_minimum_size.y = UiTokens.TOUCH_TARGET
-	column.add_child(_address_edit)
+	_address_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	address_row.add_child(_address_edit)
 	_port_spin = SpinBox.new()
 	_port_spin.min_value = 1
 	_port_spin.max_value = 65535
 	_port_spin.value = LanProtocol.RACE_PORT
 	_port_spin.custom_minimum_size.y = UiTokens.TOUCH_TARGET
-	column.add_child(_port_spin)
+	_port_spin.custom_minimum_size.x = 108
+	address_row.add_child(_port_spin)
 	var join := ActionButton.new()
 	join.text = "UNIRSE POR IP"
 	join.pressed.connect(func() -> void: _join_room(_address_edit.text, int(_port_spin.value)))
@@ -218,6 +233,11 @@ func _build_room_panel() -> PanelContainer:
 	_items_toggle.custom_minimum_size.y = UiTokens.TOUCH_TARGET
 	_items_toggle.toggled.connect(func(_enabled: bool) -> void: _host_options_changed())
 	column.add_child(_items_toggle)
+	_room_summary = Label.new()
+	_room_summary.text = "CONFIGURACIÓN DE SALA"
+	_room_summary.add_theme_color_override("font_color", UiTokens.MUTED)
+	_room_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_room_summary)
 	_add_label(column, "SLOTS HUMANOS")
 	var slots_scroll := ScrollContainer.new()
 	slots_scroll.name = "HumanSlotsScroll"
@@ -278,6 +298,8 @@ func _populate_options() -> void:
 	for race_class in RaceClassDefinition.get_all():
 		_cc_option.add_item(race_class.display_name)
 		_cc_option.set_item_metadata(_cc_option.item_count - 1, race_class.id)
+	_refresh_profile_summary()
+	_refresh_room_summary()
 
 
 func _profile() -> Dictionary:
@@ -346,6 +368,8 @@ func _rebuild_rooms(rooms: Array) -> void:
 		var button := Button.new()
 		button.text = "%s · %d/%d%s" % [room.get("name", "Sala"), int(room.get("humans", 0)), int(room.get("max_humans", 4)), "" if compatible else " · INCOMPATIBLE"]
 		button.disabled = not compatible
+		button.custom_minimum_size.y = UiTokens.TOUCH_TARGET
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.tooltip_text = "Versión o catálogo distintos" if not compatible else "Unirse a %s:%d" % [room.address, int(room.port)]
 		button.pressed.connect(_join_room.bind(str(room.address), int(room.port)))
 		_rooms_list.add_child(button)
@@ -368,7 +392,11 @@ func _rebuild_slots(values: Array, settings: Dictionary) -> void:
 			var racer := progression.racers.get_racer(StringName(slot.racer_id))
 			label.text = "%02d  ·  %s · %s · %s" % [index + 1, str(slot.name).to_upper(), racer.display_name.to_upper() if racer != null else str(slot.racer_id), "LISTO" if bool(slot.ready) else ("IA TEMPORAL" if not bool(slot.connected) else "ELIGIENDO")]
 			label.add_theme_color_override("font_color", UiTokens.SUCCESS if bool(slot.ready) else UiTokens.WARM_WHITE)
-		_slots_list.add_child(label)
+		var row := PanelContainer.new()
+		row.custom_minimum_size.y = UiTokens.TOUCH_TARGET
+		row.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL))
+		row.add_child(label)
+		_slots_list.add_child(row)
 	if settings.has("track_id"):
 		_select_metadata(_track_option, settings.track_id)
 	if settings.has("cc_id"):
@@ -381,6 +409,7 @@ func _rebuild_slots(values: Array, settings: Dictionary) -> void:
 			"track_id": settings.get("track_id", &""),
 		})
 	_refresh_start_state()
+	_refresh_room_summary()
 
 
 func _selected_room_settings(port := LanProtocol.RACE_PORT) -> Dictionary:
@@ -394,6 +423,7 @@ func _selected_room_settings(port := LanProtocol.RACE_PORT) -> Dictionary:
 
 
 func _host_options_changed() -> void:
+	_refresh_room_summary()
 	if session == null or not session.is_host or session.race_active:
 		return
 	session.host_update_room_settings(_selected_room_settings(int(_port_spin.value)))
@@ -409,6 +439,23 @@ func _select_metadata(option: OptionButton, value: Variant) -> void:
 func _refresh_start_state() -> void:
 	if _start != null:
 		_start.disabled = not session.can_host_start()
+	_refresh_profile_summary()
+
+
+func _refresh_profile_summary() -> void:
+	if _profile_summary != null:
+		var name := _name_edit.text.strip_edges() if _name_edit != null and not _name_edit.text.strip_edges().is_empty() else "PILOTO"
+		var racer := _racer_option.get_item_text(_racer_option.selected) if _racer_option != null and _racer_option.item_count > 0 else "PILOTO SIN ELEGIR"
+		var vehicle := _vehicle_option.get_item_text(_vehicle_option.selected) if _vehicle_option != null and _vehicle_option.item_count > 0 else "VEHÍCULO SIN ELEGIR"
+		_profile_summary.text = "%s · %s\n%s" % [name, racer, vehicle]
+
+
+func _refresh_room_summary() -> void:
+	if _room_summary == null:
+		return
+	var track := _track_option.get_item_text(_track_option.selected) if _track_option.item_count > 0 else "CIRCUITO SIN ELEGIR"
+	var race_class := _cc_option.get_item_text(_cc_option.selected) if _cc_option.item_count > 0 else "CILINDRADA SIN ELEGIR"
+	_room_summary.text = "%s · %s · OBJETOS %s" % [track, race_class, "ACTIVOS" if _items_toggle.button_pressed else "DESACTIVADOS"]
 
 
 func _set_status(message: String, color: Color) -> void:
