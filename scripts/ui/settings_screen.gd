@@ -90,7 +90,7 @@ func _build() -> void:
 
 func _row(parent: VBoxContainer, label_text: String) -> HBoxContainer:
 	var row := HBoxContainer.new()
-	row.custom_minimum_size.y = 54
+	row.custom_minimum_size.y = UiTokens.BUTTON_HEIGHT
 	parent.add_child(row)
 	var label := Label.new()
 	label.text = label_text

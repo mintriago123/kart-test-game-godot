@@ -32,6 +32,7 @@ var _is_resuming := false
 var reduced_motion := false
 var _primary_result_action: StringName = &"menu"
 var _resume_progress: ProgressBar
+var _pause_focus_index := 0
 var _cup_result: RaceResult
 var _cup_stage := -1
 var _cup_transitioning := false
@@ -49,7 +50,7 @@ func build_interface() -> void:
 	pause_button.name = "PauseButton"
 	pause_button.text = "Ⅱ"
 	pause_button.tooltip_text = "Pausa"
-	pause_button.custom_minimum_size = Vector2(64.0, 64.0)
+	pause_button.custom_minimum_size = Vector2(UiTokens.BUTTON_HEIGHT_LARGE, UiTokens.BUTTON_HEIGHT_LARGE)
 	pause_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	pause_button.position = Vector2(-88.0, 278.0)
 	pause_button.size = Vector2(64.0, 64.0)
@@ -427,7 +428,7 @@ func _build_intro_overlay() -> Control:
 	intro_skip_button.tooltip_text = (
 		"Omitir introducción (Enter o Espacio)"
 	)
-	intro_skip_button.custom_minimum_size = Vector2(180.0, 64.0)
+	intro_skip_button.custom_minimum_size = Vector2(180.0, UiTokens.BUTTON_HEIGHT_LARGE)
 	intro_skip_button.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	intro_skip_button.position = Vector2(-90.0, -102.0)
 	intro_skip_button.size = Vector2(180.0, 64.0)
@@ -490,7 +491,7 @@ func _build_pause_overlay() -> Control:
 func _pause_action(text: String, color: Color) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(360, 58)
+	button.custom_minimum_size = Vector2(360, UiTokens.BUTTON_HEIGHT)
 	RaceHudStyle.apply_button_style(button, color)
 	return button
 
@@ -569,7 +570,7 @@ func _build_results_panel() -> Control:
 	retry_button = Button.new()
 	retry_button.name = "Retry"
 	retry_button.text = "OTRA CARRERA"
-	retry_button.custom_minimum_size = Vector2(190.0, 72.0)
+	retry_button.custom_minimum_size = Vector2(190.0, UiTokens.BUTTON_HEIGHT_LARGE)
 	retry_button.pressed.connect(_activate_primary_result)
 	RaceHudStyle.apply_button_style(
 		retry_button,
@@ -580,7 +581,7 @@ func _build_results_panel() -> Control:
 	var menu := Button.new()
 	_result_menu_button = menu
 	menu.text = "MENÚ"
-	menu.custom_minimum_size = Vector2(140.0, 72.0)
+	menu.custom_minimum_size = Vector2(140.0, UiTokens.BUTTON_HEIGHT_LARGE)
 	menu.pressed.connect(func() -> void: menu_requested.emit())
 	RaceHudStyle.apply_button_style(menu, UiTokens.CORAL)
 	actions.add_child(menu)
@@ -618,7 +619,52 @@ func _toggle_pause() -> void:
 	update_pause_visibility(true)
 	var resume := pause_overlay.find_child("Resume", true, false) as Button
 	if resume != null:
+		_pause_focus_index = 0
 		resume.grab_focus.call_deferred()
+
+
+func request_pause() -> void:
+	_toggle_pause()
+
+
+func handle_pause_input(event: InputEvent) -> bool:
+	if not pause_overlay.visible:
+		return false
+	var buttons: Array[Button] = []
+	var modal_buttons: Array[Button] = []
+	for node in find_children("*", "", true, false):
+		if not node is ConfirmationModal:
+			continue
+		for button_node in (node as ConfirmationModal).find_children("*", "Button", true, false):
+			var button := button_node as Button
+			if button != null and button.visible and not button.disabled:
+				modal_buttons.append(button)
+	if not modal_buttons.is_empty():
+		buttons = modal_buttons
+		_pause_focus_index = 0
+	else:
+		for node in pause_overlay.find_children("*", "Button", true, false):
+			var button := node as Button
+			if button != null and button.visible and not button.disabled:
+				buttons.append(button)
+	if buttons.is_empty():
+		return false
+	_pause_focus_index = clampi(_pause_focus_index, 0, buttons.size() - 1)
+	if event.is_action_pressed(&"ui_down") or event.is_action_pressed(&"ui_right"):
+		_pause_focus_index = (_pause_focus_index + 1) % buttons.size()
+		buttons[_pause_focus_index].grab_focus()
+		return true
+	if event.is_action_pressed(&"ui_up") or event.is_action_pressed(&"ui_left"):
+		_pause_focus_index = (_pause_focus_index - 1 + buttons.size()) % buttons.size()
+		buttons[_pause_focus_index].grab_focus()
+		return true
+	if event.is_action_pressed(&"ui_accept"):
+		buttons[_pause_focus_index].pressed.emit()
+		return true
+	if event.is_action_pressed(&"ui_cancel"):
+		request_resume()
+		return true
+	return false
 
 
 func request_resume() -> void:

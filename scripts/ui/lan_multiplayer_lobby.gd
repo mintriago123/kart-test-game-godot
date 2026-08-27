@@ -309,9 +309,8 @@ func _rebuild_rooms(rooms: Array) -> void:
 	for child in _rooms_list.get_children():
 		child.queue_free()
 	if rooms.is_empty():
-		var empty := Label.new()
-		empty.text = "Buscando anuncios…"
-		empty.add_theme_color_override("font_color", UiTokens.MUTED)
+		var empty := EmptyState.new()
+		empty.configure("BUSCANDO PARTIDAS", "Esperando anuncios UDP en la red local…")
 		_rooms_list.add_child(empty)
 		return
 	for room in rooms:

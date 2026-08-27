@@ -61,7 +61,7 @@ func _build() -> void:
 	page.add_child(content)
 	prompt_bar = HBoxContainer.new()
 	prompt_bar.alignment = BoxContainer.ALIGNMENT_END
-	prompt_bar.custom_minimum_size.y = 58
+	prompt_bar.custom_minimum_size.y = UiTokens.BUTTON_HEIGHT
 	page.add_child(prompt_bar)
 
 func _update_layout() -> void:

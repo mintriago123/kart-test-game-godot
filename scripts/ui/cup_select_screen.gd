@@ -56,7 +56,7 @@ func _build_cups() -> void:
 	var group := ButtonGroup.new()
 	for cup in catalog.get_valid_cups():
 		var unlocked := _is_cup_unlocked(cup)
-		var button := Button.new(); button.text = "%s%s" % ["" if unlocked else "🔒 ", cup.display_name.to_upper()]; button.custom_minimum_size = Vector2(240, 58); button.toggle_mode = true; button.button_group = group
+		var button := Button.new(); button.text = "%s%s" % ["" if unlocked else "🔒 ", cup.display_name.to_upper()]; button.custom_minimum_size = Vector2(240, UiTokens.BUTTON_HEIGHT); button.toggle_mode = true; button.button_group = group
 		button.pressed.connect(select_cup.bind(cup.id)); _list.add_child(button); cup_buttons[cup.id] = button
 
 func select_cup(cup_id: StringName) -> void:

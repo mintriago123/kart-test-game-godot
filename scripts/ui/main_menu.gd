@@ -204,9 +204,9 @@ func _build_interface() -> void:
 
 	if has_active_cup:
 		var continue_cup := actions.add_action("CONTINUAR COPA", _open_active_cup_flow, true)
-		continue_cup.custom_minimum_size.y = 58.0
+		continue_cup.custom_minimum_size.y = UiTokens.BUTTON_HEIGHT
 	_play_button = actions.add_action("JUGAR", _show_mode_selector, true)
-	_play_button.custom_minimum_size.y = 58.0
+	_play_button.custom_minimum_size.y = UiTokens.BUTTON_HEIGHT
 	var garage := actions.add_action("GARAJE", func() -> void: pass)
 	var profile := actions.add_action("PERFIL", func() -> void: pass)
 	var settings := actions.add_action("AJUSTES", _toggle_settings)
@@ -876,7 +876,7 @@ func _build_settings_panel() -> Control:
 	_vibration_toggle = CheckButton.new()
 	_vibration_toggle.text = "Vibración"
 	_vibration_toggle.button_pressed = true
-	_vibration_toggle.custom_minimum_size = Vector2(220.0, 56.0)
+	_vibration_toggle.custom_minimum_size = Vector2(220.0, UiTokens.BUTTON_HEIGHT)
 	_vibration_toggle.add_theme_font_size_override("font_size", 19)
 	_vibration_toggle.toggled.connect(func(enabled: bool) -> void: vibration_changed.emit(enabled))
 	accessibility_section.add_child(_vibration_toggle)
@@ -906,7 +906,7 @@ func _build_settings_panel() -> Control:
 	_ghost_toggle = CheckButton.new()
 	_ghost_toggle.text = "Mostrar fantasma"
 	_ghost_toggle.button_pressed = true
-	_ghost_toggle.custom_minimum_size = Vector2(220.0, 48.0)
+	_ghost_toggle.custom_minimum_size = Vector2(220.0, UiTokens.BUTTON_HEIGHT)
 	_ghost_toggle.add_theme_font_size_override("font_size", 19)
 	_ghost_toggle.toggled.connect(func(enabled: bool) -> void: ghost_enabled_changed.emit(enabled))
 	_style_setting_toggle(_ghost_toggle)

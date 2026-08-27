@@ -47,6 +47,7 @@ var _intro_laps: Label
 var _intro_skip_button: Button
 var _is_intro_visible := false
 var _minimap: RaceMinimap
+var _pause_menu_owner := true
 
 var mobile_controls_enabled := (
 	OS.has_feature("android")
@@ -164,6 +165,7 @@ func set_game_mode(game_mode: int) -> void:
 
 func set_compact_mode(enabled: bool, shared_controls: bool = true) -> void:
 	compact_mode = enabled
+	_pause_menu_owner = shared_controls
 	if not is_node_ready():
 		return
 	_status_view.scale = Vector2.ONE * (0.82 if enabled else 1.0)
@@ -185,10 +187,29 @@ func request_resume() -> void:
 	_flow_overlay.request_resume()
 
 
+func request_pause() -> void:
+	_flow_overlay.request_pause()
+
+
+func handle_pause_input(event: InputEvent) -> bool:
+	return _flow_overlay != null and _flow_overlay.handle_pause_input(event)
+
+
+func set_pause_menu_owner(is_owner: bool) -> void:
+	_pause_menu_owner = is_owner
+	if _flow_overlay == null:
+		return
+	var pause_button := _flow_overlay.get_node_or_null("PauseButton") as Button
+	if pause_button != null:
+		pause_button.visible = is_owner
+	if not is_owner:
+		_flow_overlay.update_pause_visibility(false)
+
+
 func _process(_delta: float) -> void:
 	if _player_kart != null:
 		_status_view.update_speed(_player_kart.get_speed_kph())
-	if _flow_overlay != null:
+	if _flow_overlay != null and _pause_menu_owner:
 		_flow_overlay.update_pause_visibility(get_tree().paused)
 	if _touch_view != null:
 		_touch_view.update_state(

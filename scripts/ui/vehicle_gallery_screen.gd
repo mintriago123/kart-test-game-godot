@@ -30,8 +30,8 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var bg := ColorRect.new(); bg.color = UiTokens.INK; bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); add_child(bg)
 	showroom = VehicleViewport.new(); showroom.set_anchors_preset(Control.PRESET_LEFT_WIDE); showroom.anchor_right = 0.7; showroom.offset_left = 20; showroom.offset_top = 20; showroom.offset_bottom = -150; showroom.set_framing(VehicleViewport.Framing.GARAGE); add_child(showroom)
-	left_button = Button.new(); left_button.text = "‹"; left_button.custom_minimum_size = Vector2(52, 64); left_button.set_anchors_preset(Control.PRESET_CENTER_LEFT); left_button.position.x = 22; left_button.pressed.connect(_move.bind(-1)); add_child(left_button)
-	right_button = Button.new(); right_button.text = "›"; right_button.custom_minimum_size = Vector2(52, 64); right_button.set_anchors_preset(Control.PRESET_CENTER); right_button.anchor_left = 0.7; right_button.anchor_right = 0.7; right_button.position = Vector2(-74, -32); right_button.pressed.connect(_move.bind(1)); add_child(right_button)
+	left_button = Button.new(); left_button.text = "‹"; left_button.custom_minimum_size = Vector2(52, UiTokens.BUTTON_HEIGHT_LARGE); left_button.set_anchors_preset(Control.PRESET_CENTER_LEFT); left_button.position.x = 22; left_button.pressed.connect(_move.bind(-1)); add_child(left_button)
+	right_button = Button.new(); right_button.text = "›"; right_button.custom_minimum_size = Vector2(52, UiTokens.BUTTON_HEIGHT_LARGE); right_button.set_anchors_preset(Control.PRESET_CENTER); right_button.anchor_left = 0.7; right_button.anchor_right = 0.7; right_button.position = Vector2(-74, -32); right_button.pressed.connect(_move.bind(1)); add_child(right_button)
 	details_panel = VBoxContainer.new(); details_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE); details_panel.anchor_left = 0.7; details_panel.offset_left = 12; details_panel.offset_right = -24; details_panel.offset_top = 28; details_panel.offset_bottom = -158; details_panel.add_theme_constant_override("separation", 8); add_child(details_panel)
 	var panel := details_panel
 	title_label = Label.new(); title_label.add_theme_font_size_override("font_size", 32); panel.add_child(title_label)
@@ -73,7 +73,7 @@ func _build_cards() -> void:
 	for variant in _variants:
 		var unlock := _get_unlock(variant.id)
 		var unlocked := _is_unlocked(variant.id)
-		var button := Button.new(); button.name = str(variant.id); button.text = variant.display_name.to_upper(); button.custom_minimum_size = Vector2(190, 88); button.focus_mode = Control.FOCUS_ALL
+		var button := Button.new(); button.name = str(variant.id); button.text = variant.display_name.to_upper(); button.custom_minimum_size = Vector2(190, UiTokens.BUTTON_HEIGHT_LARGE); button.focus_mode = Control.FOCUS_ALL
 		button.pressed.connect(focus_variant.bind(variant.id)); button.focus_entered.connect(focus_variant.bind(variant.id)); cards.add_child(button)
 	var trailing := Control.new(); trailing.custom_minimum_size.x = maxf(0.0, card_scroll.size.x * 0.5 - 95.0); trailing.mouse_filter = Control.MOUSE_FILTER_IGNORE; cards.add_child(trailing)
 

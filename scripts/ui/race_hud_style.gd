@@ -7,7 +7,7 @@ const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
 static func create_chip(text: String, font_size: int) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.custom_minimum_size = Vector2(122.0, 58.0)
+	label.custom_minimum_size = Vector2(122.0, UiTokens.BUTTON_HEIGHT)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)

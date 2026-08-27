@@ -53,6 +53,7 @@ func setup(value: RaceSessionConfig) -> void:
 
 var _track: CoastalTrack
 var _hud: RaceHud
+var _pause_owner_hud: RaceHud
 var _sound: SoundManager
 var _follow_camera: FollowCamera
 var _intro_camera: RaceIntroCamera
@@ -302,6 +303,7 @@ func _build_race() -> void:
 
 	_build_local_huds(kart_count)
 	_hud = local_huds.front() if not local_huds.is_empty() else null
+	_pause_owner_hud = _hud
 	race_manager.countdown_changed.connect(_sound.play_countdown)
 	race_manager.lap_completed.connect(_handle_lap_completed)
 	race_manager.race_completed.connect(_handle_race_completed)
@@ -343,7 +345,10 @@ func _prepare_split_screen(player_count: int) -> void:
 		viewport.name = "Viewport"
 		viewport.world_3d = get_viewport().world_3d
 		viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		viewport.handle_input_locally = false
+		# HUD controls live inside each split-screen viewport. Let each viewport
+		# receive keyboard/gamepad navigation so the focused player's pause menu
+		# can be controlled without relying on mouse coordinates.
+		viewport.handle_input_locally = true
 		viewport.msaa_3d = Viewport.MSAA_DISABLED
 		container.add_child(viewport)
 		_split_viewports.append(viewport)
@@ -412,6 +417,35 @@ func _bind_hud_actions(hud: RaceHud) -> void:
 	hud.settings_requested.connect(func() -> void: settings_requested.emit())
 	hud.controls_requested.connect(func() -> void: controls_requested.emit())
 	hud.intro_skip_requested.connect(_handle_intro_skip_requested)
+
+
+func request_pause(event: InputEvent) -> void:
+	if race_manager == null or race_manager.state == RaceManager.RaceState.FINISHED:
+		return
+	if get_tree().paused:
+		if _pause_owner_hud != null:
+			_pause_owner_hud.request_resume()
+		return
+	var owner_hud := _find_pause_hud(event)
+	if owner_hud == null:
+		owner_hud = _hud
+	if owner_hud == null:
+		return
+	for hud in local_huds:
+		hud.set_pause_menu_owner(hud == owner_hud)
+	_pause_owner_hud = owner_hud
+	owner_hud.request_pause()
+
+
+func handle_pause_input(event: InputEvent) -> bool:
+	return get_tree().paused and _pause_owner_hud != null and _pause_owner_hud.handle_pause_input(event)
+
+
+func _find_pause_hud(event: InputEvent) -> RaceHud:
+	for kart in local_player_karts:
+		if kart.input_source != null and kart.input_source.accepts_event(event):
+			return _hud_by_kart.get(kart) as RaceHud
+	return null
 
 
 func _start_pre_race() -> void:
@@ -630,6 +664,7 @@ func _handle_retry_requested() -> void:
 
 
 func _handle_menu_requested() -> void:
+	get_tree().paused = false
 	shutdown()
 	menu_requested.emit()
 
@@ -671,6 +706,10 @@ func _handle_lap_completed(racer: Node, lap_number: int, lap_time: float) -> voi
 
 
 func _handle_human_finished(racer: Node, _position: int, _time: float) -> void:
+	call_deferred("_handle_human_finished_deferred", racer)
+
+
+func _handle_human_finished_deferred(_racer: Node) -> void:
 	if race_manager.state != RaceManager.RaceState.WAITING_FOR_RIVALS:
 		return
 	for hud in local_huds:
@@ -678,10 +717,7 @@ func _handle_human_finished(racer: Node, _position: int, _time: float) -> void:
 			race_manager.get_provisional_standings(),
 			race_manager.get_results_wait_remaining()
 		)
-	var camera := _camera_by_kart.get(racer) as FollowCamera
-	var active_racer := race_manager.get_best_active_racer() as Kart
-	if camera != null and active_racer != null:
-		camera.set_target(active_racer)
+	_follow_best_active_racer()
 
 
 func _handle_racer_finished(_racer: Node, _position: int, _time: float) -> void:
@@ -690,9 +726,14 @@ func _handle_racer_finished(_racer: Node, _position: int, _time: float) -> void:
 
 
 func _follow_best_active_racer() -> void:
+	if race_manager.state != RaceManager.RaceState.WAITING_FOR_RIVALS:
+		return
 	var racer := race_manager.get_best_active_racer() as Kart
-	if racer != null and _follow_camera != null:
-		_follow_camera.set_target(racer)
+	if racer == null:
+		return
+	for camera in local_cameras:
+		if camera != null and is_instance_valid(camera):
+			camera.set_target(racer, true)
 
 
 func _handle_race_completed(result: RaceResult) -> void:

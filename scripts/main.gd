@@ -92,6 +92,10 @@ func _apply_active_gamepad(session: RaceSessionConfig) -> void:
 		return
 	var gamepad_id := main_menu.get_active_gamepad_id()
 	if gamepad_id < 0:
+		var connected_gamepads := Input.get_connected_joypads()
+		if not connected_gamepads.is_empty():
+			gamepad_id = int(connected_gamepads.front())
+	if gamepad_id < 0:
 		return
 	for participant in session.participants:
 		if participant != null and participant.is_local() and participant.is_human():
@@ -473,10 +477,12 @@ func _exit_tree() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"pause") and race_world != null:
-		if get_tree().paused:
-			race_world._hud.request_resume()
-		else:
-			get_tree().paused = true
+		race_world.request_pause(event)
+		get_viewport().set_input_as_handled()
+		return
+	if race_world != null and race_world.handle_pause_input(event):
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed(&"reset_kart") and race_world != null and race_world.player_kart != null:
 		race_world.player_kart.reset_to_last_checkpoint()
 
