@@ -33,7 +33,15 @@ func _test_catalog_and_modes() -> void:
 	_expect(GameModeDefinition.LAN_MULTIPLAYER in desktop_modes and GameModeDefinition.LOCAL_MULTIPLAYER in desktop_modes, "Desktop exposes both multiplayer modes.")
 	var export_config := ConfigFile.new()
 	var export_loaded := export_config.load("res://export_presets.cfg") == OK
-	_expect(export_loaded and bool(export_config.get_value("preset.0.options", "permissions/internet", false)), "The Android export enables network sockets for ENet and UDP discovery.")
+	var android_network_enabled := false
+	if export_loaded:
+		for section in export_config.get_sections():
+			if not section.begins_with("preset.") or not section.ends_with(".options"):
+				continue
+			var preset_section := section.trim_suffix(".options")
+			if str(export_config.get_value(preset_section, "platform", "")) == "Android":
+				android_network_enabled = bool(export_config.get_value(section, "permissions/internet", false))
+		_expect(export_loaded and android_network_enabled, "The Android export enables network sockets for ENet and UDP discovery.")
 	_expect(PROGRESSION.racers.racers.size() == 8, "The shared catalog contains eight racers.")
 	var expected := {
 		&"sol": ["f6c945", &"hatchback_sports"],
@@ -96,6 +104,9 @@ func _test_protocol_and_snapshots() -> void:
 	var fingerprint := LanProtocol.calculate_catalog_fingerprint(PROGRESSION, TRACKS)
 	var valid := {"protocol": 1, "catalog_fingerprint": fingerprint, "racer_id": &"marea", "vehicle_id": &"sedan", "track_id": &"coastal"}
 	_expect(LanProtocol.validate_handshake(valid, fingerprint, PROGRESSION, TRACKS).is_empty(), "Compatible LAN handshakes pass before room entry.")
+	var incompatible := valid.duplicate(true)
+	incompatible.catalog_fingerprint = LanProtocol.calculate_catalog_fingerprint(PROGRESSION, TRACKS, "different-build")
+	_expect("build o catálogo incompatible" in LanProtocol.validate_handshake(incompatible, fingerprint, PROGRESSION, TRACKS), "Build changes reject LAN handshakes with a clear compatibility message.")
 	valid.protocol = 99
 	_expect("Versión LAN incompatible" in LanProtocol.validate_handshake(valid, fingerprint, PROGRESSION, TRACKS), "Protocol mismatches return an explicit message.")
 	var discovery := LanDiscoveryService.new()
