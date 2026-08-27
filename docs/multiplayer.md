@@ -33,10 +33,13 @@ ordenado; el anfitrión publica snapshots a 20 Hz. Los rivales se interpolan con
 100 ms de buffer y el kart local reconcilia correcciones gradualmente. Sala,
 ready, inicio, objetos, vueltas y resultados usan entrega fiable.
 
-La entrada valida `LAN_PROTOCOL_VERSION = 1`, fingerprint de catálogo, pista,
-piloto y vehículo. Una incompatibilidad se rechaza con texto explícito. Cada
-cliente conserva un token de sesión: al desconectarse, la IA toma su kart y el
-slot queda reservado; al volver con el token recupera el control. Si cae el
+La entrada valida `LAN_PROTOCOL_VERSION = 1`, la identidad de build, fingerprint
+de catálogo, pista, piloto y vehículo. La identidad se genera automáticamente
+al exportar desde el editor o la línea de comandos y se guarda dentro del
+artefacto como `.lan_build_id`; una ejecución directa desde el editor usa
+`editor-dev`. Una incompatibilidad se rechaza con texto explícito. Cada cliente
+conserva un token de sesión: al desconectarse, la IA toma su kart y el slot
+queda reservado; al volver con el token recupera el control. Si cae el
 anfitrión, la carrera termina y no se migra el host.
 
 LAN no incluye cifrado, cuentas, chat, UPnP, matchmaking ni servicios externos.

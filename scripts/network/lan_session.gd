@@ -1,6 +1,8 @@
 class_name LanSession
 extends Node
 
+const LanBuildIdentityScript = preload("res://scripts/network/lan_build_identity.gd")
+
 static var reconnect_token_cache := ""
 
 signal connection_state_changed(state: StringName, message: String)
@@ -16,6 +18,7 @@ signal host_lost(message: String)
 
 var progression: ProgressionCatalog
 var tracks: TrackCatalog
+var build_id := ""
 var catalog_fingerprint := ""
 var peer: ENetMultiplayerPeer
 var is_host := false
@@ -35,7 +38,8 @@ var _last_snapshot_ms := -1
 func configure(value_progression: ProgressionCatalog, value_tracks: TrackCatalog) -> void:
 	progression = value_progression
 	tracks = value_tracks
-	catalog_fingerprint = LanProtocol.calculate_catalog_fingerprint(progression, tracks)
+	build_id = LanBuildIdentityScript.current_id()
+	catalog_fingerprint = LanProtocol.calculate_catalog_fingerprint(progression, tracks, build_id)
 
 
 func host_room(profile: Dictionary, settings: Dictionary, port := LanProtocol.RACE_PORT) -> Error:
