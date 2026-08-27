@@ -17,6 +17,9 @@ var _gamepad_ids: Array[int] = []
 var _mock_gamepads := false
 var _page: Control
 var _actions: HBoxContainer
+var _cards: GridContainer
+var _card_scroll: ScrollContainer
+var _title: Label
 
 
 func _ready() -> void:
@@ -27,10 +30,11 @@ func _ready() -> void:
 	add_child(background)
 	var page := VBoxContainer.new()
 	_page = page
-	page.set_anchors_preset(Control.PRESET_CENTER)
-	page.position = Vector2(-520, -300)
-	page.size = Vector2(1040, 600)
-	page.pivot_offset = page.size * 0.5
+	page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	page.offset_left = 24.0
+	page.offset_top = 18.0
+	page.offset_right = -24.0
+	page.offset_bottom = -104.0
 	page.add_theme_constant_override("separation", UiTokens.SPACE_4)
 	add_child(page)
 	var eyebrow := Label.new()
@@ -39,15 +43,25 @@ func _ready() -> void:
 	eyebrow.add_theme_color_override("font_color", UiTokens.CYAN)
 	page.add_child(eyebrow)
 	var title := Label.new()
+	_title = title
 	title.text = "DOS JUGADORES, UNA PANTALLA"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 42)
 	page.add_child(title)
-	var cards := HBoxContainer.new()
-	cards.alignment = BoxContainer.ALIGNMENT_CENTER
-	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cards.add_theme_constant_override("separation", UiTokens.SPACE_6)
-	page.add_child(cards)
+	_card_scroll = ScrollContainer.new()
+	_card_scroll.name = "PlayersScroll"
+	_card_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_card_scroll.follow_focus = true
+	_card_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.add_child(_card_scroll)
+	var cards := GridContainer.new()
+	_cards = cards
+	cards.columns = 2
+	cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cards.add_theme_constant_override("h_separation", UiTokens.SPACE_6)
+	cards.add_theme_constant_override("v_separation", UiTokens.SPACE_4)
+	_card_scroll.add_child(cards)
 	for index in 2:
 		cards.add_child(_build_player_card(index))
 	_status = Label.new()
@@ -57,11 +71,7 @@ func _ready() -> void:
 	var actions := HBoxContainer.new()
 	_actions = actions
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
-	actions.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	actions.offset_left = 20.0
-	actions.offset_right = -20.0
-	actions.offset_top = -78.0
-	actions.offset_bottom = -14.0
+	_set_action_bar(actions)
 	add_child(actions)
 	var back := ActionButton.new()
 	back.text = "VOLVER"
@@ -72,6 +82,8 @@ func _ready() -> void:
 	_start.text = "ELEGIR CIRCUITO"
 	_start.pressed.connect(_confirm)
 	actions.add_child(_start)
+	# The first player selector is the useful entry point for both keyboard and pad.
+	_device_options[0].grab_focus.call_deferred()
 	if not Input.joy_connection_changed.is_connected(_on_joy_connection_changed):
 		Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	_refresh_gamepads()
@@ -288,11 +300,24 @@ func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
 func _update_layout() -> void:
 	if _page == null:
 		return
-	var factor := minf(1.0, minf(
-		(size.x - 32.0) / 1040.0,
-		(size.y - 32.0) / 600.0
-	))
-	_page.scale = Vector2.ONE * maxf(factor, 0.5)
-	if _actions != null:
-		_actions.offset_top = -78.0 if size.y >= 600.0 else -70.0
-		_actions.offset_bottom = -14.0
+	var compact := size.x < 980.0 or size.y < 620.0
+	_cards.columns = 1 if compact else 2
+	var available_width := maxf(280.0, size.x - 48.0)
+	var content_width := minf(1160.0, available_width)
+	_cards.custom_minimum_size.x = content_width
+	_cards.size.x = content_width
+	var width := content_width if compact else (content_width - UiTokens.SPACE_6) / 2.0
+	_title.add_theme_font_size_override("font_size", 32 if compact else 42)
+	for child in _cards.get_children():
+		(child as Control).custom_minimum_size = Vector2(width, 350.0 if compact else 370.0)
+		(child as Control).size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_set_action_bar(_actions)
+
+
+func _set_action_bar(actions: Control) -> void:
+	actions.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	actions.offset_left = UiTokens.SPACE_4
+	actions.offset_right = -UiTokens.SPACE_4
+	actions.offset_top = -UiTokens.BUTTON_HEIGHT_LARGE - UiTokens.SPACE_3
+	actions.offset_bottom = -UiTokens.SPACE_3

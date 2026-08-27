@@ -23,7 +23,12 @@ var _slots_list: VBoxContainer
 var _status: Label
 var _ready_toggle: CheckButton
 var _start: ActionButton
+var _host_button: ActionButton
 var _page: Control
+var _columns: BoxContainer
+var _columns_scroll: ScrollContainer
+var _actions: HBoxContainer
+var _title: Label
 
 
 func _ready() -> void:
@@ -34,12 +39,14 @@ func _ready() -> void:
 	add_child(background)
 	var page := VBoxContainer.new()
 	_page = page
-	page.set_anchors_preset(Control.PRESET_CENTER)
-	page.position = Vector2(-560, -340)
-	page.size = Vector2(1120, 680)
-	page.pivot_offset = page.size * 0.5
+	page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	page.offset_left = 24.0
+	page.offset_top = 18.0
+	page.offset_right = -24.0
+	page.offset_bottom = -104.0
 	add_child(page)
 	var title := Label.new()
+	_title = title
 	title.text = "RED LOCAL · HASTA 4 DISPOSITIVOS"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 42)
@@ -49,20 +56,32 @@ func _ready() -> void:
 	trust.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	trust.add_theme_color_override("font_color", UiTokens.CORAL)
 	page.add_child(trust)
-	var columns := HBoxContainer.new()
-	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	columns.add_theme_constant_override("separation", UiTokens.SPACE_4)
-	page.add_child(columns)
-	columns.add_child(_build_profile_panel())
-	columns.add_child(_build_connection_panel())
-	columns.add_child(_build_room_panel())
+	var columns_scroll := ScrollContainer.new()
+	_columns_scroll = columns_scroll
+	columns_scroll.name = "LobbyScroll"
+	columns_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	columns_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	columns_scroll.follow_focus = true
+	columns_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.add_child(columns_scroll)
+	_columns = BoxContainer.new()
+	_columns.vertical = false
+	_columns.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_columns.add_theme_constant_override("h_separation", UiTokens.SPACE_4)
+	_columns.add_theme_constant_override("v_separation", UiTokens.SPACE_4)
+	columns_scroll.add_child(_columns)
+	_columns.add_child(_build_profile_panel())
+	_columns.add_child(_build_connection_panel())
+	_columns.add_child(_build_room_panel())
 	_status = Label.new()
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status.add_theme_color_override("font_color", UiTokens.MUTED)
 	page.add_child(_status)
 	var actions := HBoxContainer.new()
+	_actions = actions
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
-	page.add_child(actions)
+	_set_action_bar(actions)
+	add_child(actions)
 	var back := ActionButton.new()
 	back.text = "VOLVER"
 	back.pressed.connect(_back)
@@ -79,6 +98,7 @@ func _ready() -> void:
 	_start.disabled = true
 	_start.pressed.connect(_host_start)
 	actions.add_child(_start)
+	_host_room_focus.call_deferred()
 	_setup_services()
 	_populate_options()
 	if DisplayServer.get_name() != "headless":
@@ -148,6 +168,7 @@ func _build_connection_panel() -> PanelContainer:
 	var panel := _panel("CONECTAR")
 	var column := panel.get_child(0) as VBoxContainer
 	var host := ActionButton.new()
+	_host_button = host
 	host.kind = ActionButton.Kind.PRIMARY
 	host.text = "CREAR SALA"
 	host.pressed.connect(_host_room)
@@ -198,8 +219,15 @@ func _build_room_panel() -> PanelContainer:
 	_items_toggle.toggled.connect(func(_enabled: bool) -> void: _host_options_changed())
 	column.add_child(_items_toggle)
 	_add_label(column, "SLOTS HUMANOS")
+	var slots_scroll := ScrollContainer.new()
+	slots_scroll.name = "HumanSlotsScroll"
+	slots_scroll.custom_minimum_size.y = 132
+	slots_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	slots_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	column.add_child(slots_scroll)
 	_slots_list = VBoxContainer.new()
-	column.add_child(_slots_list)
+	_slots_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slots_scroll.add_child(_slots_list)
 	return panel
 
 
@@ -403,8 +431,33 @@ func _back() -> void:
 func _update_layout() -> void:
 	if _page == null:
 		return
-	var factor := minf(1.0, minf(
-		(size.x - 32.0) / 1120.0,
-		(size.y - 32.0) / 680.0
-	))
-	_page.scale = Vector2.ONE * maxf(factor, 0.45)
+	var compact := size.x < 1120.0 or size.y < 680.0
+	_columns.vertical = compact
+	var available_width := maxf(280.0, minf(1240.0, size.x - 48.0))
+	_columns_scroll.custom_minimum_size.x = available_width
+	_columns_scroll.size.x = available_width
+	_columns.custom_minimum_size.x = available_width
+	_columns.size.x = available_width
+	var width := maxf(280.0, (available_width - (UiTokens.SPACE_4 * 2.0 if not compact else 0.0)) / (1.0 if compact else 3.0))
+	_title.add_theme_font_size_override("font_size", 32 if compact else 42)
+	for child in _columns.get_children():
+		var panel := child as Control
+		panel.custom_minimum_size.x = width
+		panel.size.x = width
+		panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_set_action_bar(_actions)
+
+
+func _set_action_bar(actions: Control) -> void:
+	actions.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	actions.offset_left = UiTokens.SPACE_4
+	actions.offset_right = -UiTokens.SPACE_4
+	actions.offset_top = -UiTokens.BUTTON_HEIGHT_LARGE - UiTokens.SPACE_3
+	actions.offset_bottom = -UiTokens.SPACE_3
+
+
+func _host_room_focus() -> void:
+	# Creating a room is the first useful action when entering the LAN lobby.
+	if is_instance_valid(_host_button) and not _host_button.disabled:
+		_host_button.grab_focus()

@@ -38,6 +38,14 @@ func _check_size(viewport_size: Vector2i) -> void:
 			if rect.position.x < 0.0 or rect.end.x > bounds.end.x or button.custom_minimum_size.y < 48.0:
 				print("LAYOUT: %s/%s rect=%s minimum=%s" % [MenuRoute.route_name(route), button.name, rect, button.custom_minimum_size])
 			valid = valid and rect.position.x >= 0.0 and rect.end.x <= bounds.end.x and button.custom_minimum_size.y >= 48.0
+		if route == MenuRoute.Id.PLAY_LOCAL_LOBBY:
+			var local := screen as LocalMultiplayerLobby
+			valid = valid and _check_action_bar(local._actions, bounds, "local", viewport_size)
+			valid = valid and local._card_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED
+		elif route == MenuRoute.Id.PLAY_LAN_LOBBY:
+			var lan := screen as LanMultiplayerLobby
+			valid = valid and _check_action_bar(lan._actions, bounds, "LAN", viewport_size)
+			valid = valid and lan._columns_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED
 		_check(valid, "%s fits %dx%d with accessible actions." % [MenuRoute.route_name(route), viewport_size.x, viewport_size.y])
 	_check((menu._cup_selector.cup_buttons[&"horizontes"] as Button).text.begins_with("🔒"), "The cup selector exposes locked campaign events at %dx%d." % [viewport_size.x, viewport_size.y])
 	menu.queue_free()
@@ -47,3 +55,13 @@ func _check_size(viewport_size: Vector2i) -> void:
 func _check(condition: bool, message: String) -> void:
 	if condition: print("PASS: ", message)
 	else: failed = true; push_error("FAIL: " + message)
+
+
+func _check_action_bar(actions: Control, bounds: Rect2, lobby_name: String, viewport_size: Vector2i) -> bool:
+	var valid := actions != null and actions.is_visible_in_tree()
+	if valid:
+		var rect := actions.get_global_rect()
+		valid = rect.position.x >= bounds.position.x and rect.end.x <= bounds.end.x and rect.position.y >= bounds.position.y and rect.end.y <= bounds.end.y
+	if not valid:
+		push_error("FAIL: %s action bar is not fixed inside %dx%d viewport." % [lobby_name, viewport_size.x, viewport_size.y])
+	return valid
