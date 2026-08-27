@@ -57,6 +57,7 @@ var _title_screen: Control
 var _title_dismissing := false
 var _showroom: VehicleViewport
 var _mode_screen: ModeSelectScreen
+var _configuration_screen: RaceConfigurationScreen
 var _preparation_screen: PreparationScreen
 var _garage_panel: Control
 var _vehicle_gallery: VehicleGalleryScreen
@@ -80,6 +81,7 @@ var _garage_showroom: VehicleViewport
 var _local_lobby: LocalMultiplayerLobby
 var _pending_multiplayer_participants: Array[RaceParticipantConfig] = []
 var _lan_lobby: LanMultiplayerLobby
+var _active_play_payload: Dictionary = {}
 
 
 func _ready() -> void:
@@ -151,6 +153,21 @@ func apply_settings(
 		_showroom.reduced_motion = reduced_motion
 	if _vehicle_gallery != null and _vehicle_gallery.showroom != null:
 		_vehicle_gallery.showroom.reduced_motion = reduced_motion
+	if _settings_panel is SettingsScreen:
+		var snapshot := GameSettings.new()
+		snapshot.graphics_profile = profile
+		snapshot.vibration_enabled = vibration
+		snapshot.master_volume = volume
+		snapshot.music_volume = music_volume
+		snapshot.effects_volume = effects_volume
+		snapshot.camera_motion = camera_motion
+		snapshot.speed_lines_enabled = speed_lines
+		snapshot.threat_indicators_enabled = threat_indicators
+		snapshot.vibration_intensity = vibration_intensity
+		snapshot.ui_reduced_motion = reduced_motion
+		snapshot.gamepad_visual_family = gamepad_family
+		snapshot.ghost_enabled = ghost_enabled
+		(_settings_panel as SettingsScreen).apply_snapshot(snapshot)
 	_update_best_time_label()
 
 
@@ -256,7 +273,15 @@ func _build_interface() -> void:
 	_track_selector.race_requested.connect(
 		func(track_id: StringName, cc_id: StringName, game_mode: int, difficulty_id: StringName) -> void:
 			_selected_game_mode = game_mode
-			var value := {"source": "play", "mode": game_mode, "track_id": track_id, "cup_id": &"", "variant_id": player_progress.equipped_kart_variant_id if player_progress else &"", "cc_id": cc_id, "difficulty_id": difficulty_id, "ghost_enabled": _ghost_toggle.button_pressed if _ghost_toggle else true, "continue_active": false}
+			var value := _active_play_payload.duplicate(true)
+			value["track_id"] = track_id
+			value["cc_id"] = cc_id
+			value["mode"] = game_mode
+			value["difficulty_id"] = difficulty_id
+			value["variant_id"] = player_progress.equipped_kart_variant_id if player_progress else value.get("variant_id", &"")
+			value["source"] = "play"
+			value["cup_id"] = value.get("cup_id", &"")
+			value["continue_active"] = false
 			if game_mode == GameModeDefinition.LOCAL_MULTIPLAYER:
 				_show_preparation_payload(value)
 			else:
@@ -272,6 +297,11 @@ func _build_interface() -> void:
 	root.add_child(_mode_screen)
 	_mode_screen.mode_selected.connect(_handle_mode_card_selected)
 	_mode_screen.back_requested.connect(_back_to_main)
+	_configuration_screen = RaceConfigurationScreen.new()
+	_configuration_screen.visible = false
+	root.add_child(_configuration_screen)
+	_configuration_screen.configuration_confirmed.connect(_handle_configuration_confirmed)
+	_configuration_screen.back_requested.connect(func() -> void: _router.back())
 	_cup_selector = CupSelectScreen.new()
 	_cup_selector.visible = false
 	root.add_child(_cup_selector)
@@ -297,8 +327,23 @@ func _build_interface() -> void:
 	_lan_lobby.race_requested.connect(func(value_session: LanSession, value_payload: Dictionary) -> void: lan_race_requested.emit(value_session, value_payload))
 	_lan_lobby.back_requested.connect(func() -> void: _router.back())
 
-	_settings_panel = _build_settings_panel()
+	_settings_panel = SettingsScreen.new()
 	root.add_child(_settings_panel)
+	_settings_panel.graphics_profile_changed.connect(func(value: String) -> void: graphics_profile_changed.emit(value))
+	_settings_panel.vibration_changed.connect(func(value: bool) -> void: vibration_changed.emit(value))
+	_settings_panel.volume_changed.connect(func(value: float) -> void: volume_changed.emit(value))
+	_settings_panel.music_volume_changed.connect(func(value: float) -> void: music_volume_changed.emit(value))
+	_settings_panel.effects_volume_changed.connect(func(value: float) -> void: effects_volume_changed.emit(value))
+	_settings_panel.camera_motion_changed.connect(func(value: String) -> void: camera_motion_changed.emit(value))
+	_settings_panel.speed_lines_changed.connect(func(value: bool) -> void: speed_lines_changed.emit(value))
+	_settings_panel.threat_indicators_changed.connect(func(value: bool) -> void: threat_indicators_changed.emit(value))
+	_settings_panel.vibration_intensity_changed.connect(func(value: float) -> void: vibration_intensity_changed.emit(value))
+	_settings_panel.reduced_motion_changed.connect(func(value: bool) -> void: reduced_motion_changed.emit(value))
+	_settings_panel.gamepad_family_changed.connect(func(value: StringName) -> void: gamepad_family_changed.emit(value))
+	_settings_panel.ghost_enabled_changed.connect(func(value: bool) -> void: ghost_enabled_changed.emit(value))
+	_settings_panel.restore_defaults_requested.connect(_confirm_restore_defaults)
+	_settings_panel.controls_requested.connect(func() -> void: _router.navigate(MenuRoute.Id.CONTROLS))
+	_settings_panel.back_requested.connect(func() -> void: _router.back())
 	_controls_panel = ControlsScreen.new()
 	_controls_panel.visible = false
 	root.add_child(_controls_panel)
@@ -307,6 +352,7 @@ func _build_interface() -> void:
 	root.add_child(_title_screen)
 	_router.register_screen(MenuRoute.Id.TITLE, _title_screen)
 	_router.register_screen(MenuRoute.Id.PLAY_MODE, _mode_screen)
+	_router.register_screen(MenuRoute.Id.PLAY_CONFIG, _configuration_screen)
 	_router.register_screen(MenuRoute.Id.PLAY_TRACK, _track_selector)
 	_router.register_screen(MenuRoute.Id.PLAY_CUP, _cup_selector)
 	_router.register_screen(MenuRoute.Id.PLAY_VEHICLE, _vehicle_gallery)
@@ -710,12 +756,20 @@ func _select_cc(cc_id: StringName, should_emit: bool = true) -> void:
 	_selected_cc_id = _track_selector.get_selected_cc_id()
 
 
-func _show_track_selector() -> void:
-	_router.navigate(MenuRoute.Id.PLAY_TRACK, {"mode": _selected_game_mode, "track": _selected_track_id, "cc": _selected_cc_id})
+func _show_track_selector(value: Dictionary = {}) -> void:
+	if value.is_empty():
+		value = _active_play_payload.duplicate(true)
+	value["mode"] = int(value.get("mode", _selected_game_mode))
+	value["track_id"] = StringName(value.get("track_id", _selected_track_id))
+	value["cc_id"] = StringName(value.get("cc_id", _selected_cc_id))
+	value["difficulty_id"] = StringName(value.get("difficulty_id", &"competitive"))
+	_active_play_payload = value.duplicate(true)
+	_router.navigate(MenuRoute.Id.PLAY_TRACK, value)
 	_track_selector.update_best_times(_best_times)
-	_track_selector.select_track(_selected_track_id, false)
-	_track_selector.select_cc(_selected_cc_id, false)
-	_track_selector.select_game_mode(_selected_game_mode, false)
+	_track_selector.select_track(StringName(value.get("track_id", _selected_track_id)), false)
+	_track_selector.select_cc(StringName(value.get("cc_id", _selected_cc_id)), false)
+	_track_selector.select_game_mode(int(value.get("mode", _selected_game_mode)), false)
+	_track_selector.set_context_payload(value)
 	_track_selector.show_screen()
 
 func _show_mode_selector() -> void:
@@ -737,13 +791,27 @@ func _handle_mode_card_selected(mode: int) -> void:
 		_router.navigate(MenuRoute.Id.PLAY_CUP, cup_payload)
 	elif mode == GameModeDefinition.LOCAL_MULTIPLAYER:
 		_pending_multiplayer_participants.clear()
+		_active_play_payload = {"source": "play", "mode": mode, "track_id": _selected_track_id, "cup_id": &"", "variant_id": player_progress.equipped_kart_variant_id if player_progress else &"", "cc_id": _selected_cc_id, "difficulty_id": &"competitive", "items_enabled": true, "continue_active": false, "player_summary": "2 JUGADORES"}
 		_local_lobby.configure(progression_catalog, player_progress)
 		_router.navigate(MenuRoute.Id.PLAY_LOCAL_LOBBY, {"mode": mode})
 	elif mode == GameModeDefinition.LAN_MULTIPLAYER:
+		_active_play_payload = {"source": "play", "mode": mode, "track_id": _selected_track_id, "cup_id": &"", "variant_id": player_progress.equipped_kart_variant_id if player_progress else &"", "cc_id": _selected_cc_id, "difficulty_id": &"competitive", "items_enabled": true, "continue_active": false, "player_summary": "RED LOCAL"}
 		_lan_lobby.configure(progression_catalog, track_catalog, player_progress)
 		_router.navigate(MenuRoute.Id.PLAY_LAN_LOBBY, {"mode": mode})
 	else:
-		_show_track_selector()
+		var config_payload := {"source": "play", "mode": mode, "track_id": _selected_track_id, "cup_id": &"", "variant_id": player_progress.equipped_kart_variant_id if player_progress else &"", "cc_id": _selected_cc_id, "difficulty_id": &"competitive", "items_enabled": true, "ghost_enabled": true, "ghost_available": _ghost_available(), "continue_active": false}
+		_active_play_payload = config_payload.duplicate(true)
+		_configuration_screen.configure(config_payload)
+		_router.navigate(MenuRoute.Id.PLAY_CONFIG, config_payload)
+
+
+func _handle_configuration_confirmed(value: Dictionary) -> void:
+	_active_play_payload = value.duplicate(true)
+	_show_track_selector(value)
+
+
+func _ghost_available() -> bool:
+	return _track_selector != null and _track_selector.has_method("is_ghost_available") and _track_selector.is_ghost_available()
 
 
 func _handle_local_participants_confirmed(values: Array) -> void:
@@ -1108,6 +1176,20 @@ func _add_volume_control(parent: VBoxContainer, label_text: String, initial: flo
 	return slider
 
 func _confirm_restore_defaults() -> void:
+	if _settings_panel is SettingsScreen:
+		restore_defaults_requested.emit()
+		var current := GameSettings.new()
+		current.graphics_profile = "medium"
+		current.vibration_enabled = true
+		current.master_volume = 0.8
+		current.music_volume = 1.0
+		current.effects_volume = 1.0
+		current.camera_motion = "reduced"
+		current.speed_lines_enabled = true
+		current.threat_indicators_enabled = true
+		current.vibration_intensity = 1.0
+		(_settings_panel as SettingsScreen).apply_snapshot(current)
+		return
 	var modal := ConfirmationModal.new()
 	modal.configure("RESTAURAR VALORES", "¿Restaurar los ajustes de presentación y audio? El progreso y los récords se conservarán.")
 	modal.set_anchors_preset(Control.PRESET_CENTER)
@@ -1153,7 +1235,7 @@ func _style_setting_toggle(toggle: CheckButton) -> void:
 func _toggle_settings() -> void:
 	if _router.current_route != MenuRoute.Id.SETTINGS:
 		_router.navigate(MenuRoute.Id.SETTINGS)
-		_first_settings_button.grab_focus()
+		(_settings_panel as SettingsScreen).focus_first_control.call_deferred()
 	else:
 		_router.back()
 		_play_button.grab_focus()

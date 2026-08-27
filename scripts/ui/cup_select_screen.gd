@@ -22,6 +22,8 @@ var _content: VBoxContainer
 var _active_banner: Label
 var _warning_banner: Label
 var _hero_status: Label
+var _difficulty_buttons: Dictionary = {}
+var _selected_difficulty_id: StringName = &"competitive"
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -44,6 +46,7 @@ func configure(value_catalog: Variant, value_progress: PlayerProgress, value_pay
 	catalog = progression_catalog.cups if progression_catalog != null else value_catalog as CupCatalog
 	progress = value_progress; payload = value_payload.duplicate(true)
 	selected_cup_id = StringName(payload.get("cup_id", &"")); _build_cups()
+	_selected_difficulty_id = StringName(payload.get("difficulty_id", &"competitive"))
 	var cups := catalog.get_valid_cups() if catalog != null else []
 	if selected_cup_id.is_empty() and not cups.is_empty(): selected_cup_id = cups[0].id
 	select_cup(selected_cup_id)
@@ -125,9 +128,30 @@ func _add_section(title: String, body: String) -> void:
 
 func _add_difficulties(cup: CupDefinition) -> void:
 	var row := HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER; _content.add_child(row)
+	_difficulty_buttons.clear()
+	var active := progress != null and StringName(progress.active_cup.get("cup_id", "")) == cup.id
+	if active:
+		_selected_difficulty_id = StringName(progress.active_cup.get("difficulty_id", _selected_difficulty_id))
 	for difficulty in cup.difficulties:
 		var medal := progress.get_medal(cup.id, difficulty.id) if progress != null else 0
-		var chip := Button.new(); chip.disabled = true; chip.custom_minimum_size = Vector2(190, 48); chip.text = "%s ×%d · %s" % [difficulty.display_name.to_upper(), difficulty.progress_multiplier, ["—", "BRONCE", "PLATA", "ORO"][medal]]; row.add_child(chip)
+		var chip := Button.new(); chip.custom_minimum_size = Vector2(190, UiTokens.TOUCH_TARGET); chip.toggle_mode = true; chip.text = "%s ×%d · %s" % [difficulty.display_name.to_upper(), difficulty.progress_multiplier, ["—", "BRONCE", "PLATA", "ORO"][medal]]; chip.pressed.connect(_select_difficulty.bind(difficulty.id)); row.add_child(chip); _difficulty_buttons[difficulty.id] = chip
+		chip.disabled = active
+		chip.set_pressed_no_signal(difficulty.id == _selected_difficulty_id)
+		_style_difficulty(chip, difficulty.id == _selected_difficulty_id)
+	if active:
+		for id in _difficulty_buttons: (_difficulty_buttons[id] as Button).set_pressed_no_signal(id == _selected_difficulty_id)
+
+
+func _select_difficulty(id: StringName) -> void:
+	_selected_difficulty_id = id
+	payload["difficulty_id"] = id
+	for key in _difficulty_buttons: _style_difficulty(_difficulty_buttons[key] as Button, key == id)
+	_active_banner.text = "DIFICULTAD · %s" % str(id).to_upper()
+
+
+func _style_difficulty(button: Button, selected: bool) -> void:
+	button.add_theme_stylebox_override("normal", UiTokens.panel(UiTokens.ELECTRIC_YELLOW if selected else UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, UiTokens.ELECTRIC_YELLOW if selected else Color.TRANSPARENT))
+	button.add_theme_color_override("font_color", UiTokens.GRAPHITE if selected else UiTokens.WARM_WHITE)
 
 func _add_rewards(cup: CupDefinition) -> void:
 	var grid := GridContainer.new(); grid.columns = 3; grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; _content.add_child(grid)
@@ -170,7 +194,7 @@ func _choose() -> void:
 	var cup := catalog.get_cup(selected_cup_id) if catalog != null else null
 	var active_id := StringName(progress.active_cup.get("cup_id", "")) if progress != null else &""
 	if cup == null or (not _is_cup_unlocked(cup) and active_id != selected_cup_id): return
-	var result := payload.duplicate(true); result["cup_id"] = selected_cup_id
+	var result := payload.duplicate(true); result["cup_id"] = selected_cup_id; result["difficulty_id"] = _selected_difficulty_id
 	result["continue_active"] = active_id == selected_cup_id
 	if bool(result["continue_active"]):
 		result["cc_id"] = StringName(progress.active_cup.get("cc_id", result.get("cc_id", &"150")))

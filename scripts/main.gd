@@ -168,7 +168,8 @@ func _open_race_settings() -> void:
 	if race_world == null: return
 	var screen := SettingsScreen.new(); race_world.open_pause_subscreen(screen); screen.apply_snapshot(settings)
 	screen.graphics_profile_changed.connect(_set_graphics_profile); screen.vibration_changed.connect(_set_vibration_enabled); screen.volume_changed.connect(_set_master_volume); screen.music_volume_changed.connect(_set_music_volume); screen.effects_volume_changed.connect(_set_effects_volume); screen.camera_motion_changed.connect(_set_camera_motion); screen.speed_lines_changed.connect(_set_speed_lines_enabled); screen.threat_indicators_changed.connect(_set_threat_indicators_enabled); screen.vibration_intensity_changed.connect(_set_vibration_intensity)
-	screen.reduced_motion_changed.connect(func(value: bool): settings.ui_reduced_motion = value; settings.save_to_disk())
+	screen.gamepad_family_changed.connect(_set_gamepad_family); screen.ghost_enabled_changed.connect(_set_ghost_enabled)
+	screen.controls_requested.connect(_open_race_controls)
 	screen.restore_defaults_requested.connect(_restore_presentation_defaults)
 	screen.back_requested.connect(race_world.close_pause_subscreen)
 	screen.call_deferred("focus_first_control")
@@ -206,7 +207,6 @@ func _show_main_menu() -> void:
 	main_menu.abandon_cup_requested.connect(func(): cup_manager.abandon())
 	main_menu.equip_variant_requested.connect(_equip_variant)
 	main_menu.gamepad_family_changed.connect(_set_gamepad_family)
-	main_menu.reduced_motion_changed.connect(_set_reduced_motion)
 	main_menu.lan_race_requested.connect(_handle_lan_race_requested)
 	add_child(main_menu)
 	main_menu.apply_settings(

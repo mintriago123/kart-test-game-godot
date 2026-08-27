@@ -35,6 +35,7 @@ var _back_button: Button
 var _difficulty_label: Label
 var _difficulty_row: HBoxContainer
 var _mode_label: Label
+var _context_payload: Dictionary = {}
 
 
 func _ready() -> void:
@@ -65,6 +66,26 @@ func update_best_times(best_times: Dictionary) -> void:
 func set_ghost_available(available: bool) -> void:
 	_ghost_available = available
 	_update_details()
+
+
+func is_ghost_available() -> bool:
+	return _ghost_available
+
+
+func set_context_payload(value: Dictionary) -> void:
+	_context_payload = value.duplicate(true)
+	if _mode_label == null: return
+	var mode := int(value.get("mode", _selected_game_mode))
+	var mode_name: String = {
+		GameModeDefinition.RACE: "CARRERA RÁPIDA",
+		GameModeDefinition.TIME_TRIAL: "CONTRARRELOJ",
+		GameModeDefinition.CUP: "COPA",
+		GameModeDefinition.LOCAL_MULTIPLAYER: "LOCAL",
+		GameModeDefinition.LAN_MULTIPLAYER: "RED LOCAL",
+	}.get(mode, "EVENTO")
+	var cc := StringName(value.get("cc_id", _selected_cc_id))
+	var players := String(value.get("player_summary", "INDIVIDUAL"))
+	_mode_label.text = "%s  ·  %s  ·  %s" % [mode_name, RaceClassDefinition.get_by_id(cc).display_name, players]
 
 
 func show_screen() -> void:

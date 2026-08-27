@@ -1,7 +1,7 @@
 class_name VehicleViewport
 extends SubViewportContainer
 
-enum Framing { COVER, MENU, GARAGE, REWARD }
+enum Framing { COVER, MENU, GARAGE, REWARD, PREPARATION }
 
 const COLORMAP: Texture2D = preload("res://assets/vendor/kenney/car-kit/Textures/colormap.png")
 
@@ -94,7 +94,7 @@ func _apply_driver_color(character: MeshInstance3D) -> void:
 func set_framing(value: Framing) -> void:
 	framing = value
 	if camera == null: return
-	var distance: float = [6.2, 5.2, 4.3, 4.7][framing]
+	var distance: float = [6.2, 5.2, 4.3, 4.7, 4.4][framing]
 	camera.position = Vector3(0, 2.2, distance); camera.look_at(Vector3(0, 0.6, 0))
 
 func set_quality(profile: String) -> void:
@@ -128,15 +128,17 @@ func _frame_model() -> void:
 	# Garage/preparation viewports can become short at 720p and on mobile.
 	# Leave a real breathing margin so the lower body never sits behind the
 	# container edge or the fixed action bar.
-	var target_size: float = [2.7, 3.1, 2.9, 3.0][framing]
+	var target_size: float = [2.7, 3.1, 2.9, 3.0, 2.55][framing]
 	model.scale = Vector3.ONE * (target_size / extent)
 	var center := bounds.get_center() * model.scale.x
-	var vertical_margin := target_size * 0.14 if framing == Framing.GARAGE else target_size * 0.08
+	var vertical_margin := -0.06 if framing == Framing.PREPARATION else (0.0 if framing == Framing.GARAGE else target_size * 0.08)
 	model.position = Vector3(
 		-center.x,
 		-bounds.position.y * model.scale.y + vertical_margin,
 		-center.z
 	)
-	var distance := target_size * (2.1 if framing == Framing.GARAGE else 2.0)
-	var look_height := target_size * (0.16 if framing == Framing.GARAGE else 0.27)
+	# The garage is a showcase, so the vehicle should own the left side of the
+	# screen instead of reading as a tiny object inside an empty viewport.
+	var distance := target_size * (1.72 if framing == Framing.GARAGE else 2.0)
+	var look_height := target_size * (0.04 if framing == Framing.PREPARATION else (0.16 if framing == Framing.GARAGE else 0.27))
 	camera.position = Vector3(0, target_size * 0.58, distance); camera.look_at(Vector3(0, look_height, 0))
