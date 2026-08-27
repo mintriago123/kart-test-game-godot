@@ -166,15 +166,17 @@ func _start_session(session: RaceSessionConfig, should_play_intro: bool) -> void
 
 func _open_race_settings() -> void:
 	if race_world == null: return
-	var screen := SettingsScreen.new(); race_world.add_child(screen); screen.apply_snapshot(settings)
+	var screen := SettingsScreen.new(); race_world.open_pause_subscreen(screen); screen.apply_snapshot(settings)
 	screen.graphics_profile_changed.connect(_set_graphics_profile); screen.vibration_changed.connect(_set_vibration_enabled); screen.volume_changed.connect(_set_master_volume); screen.music_volume_changed.connect(_set_music_volume); screen.effects_volume_changed.connect(_set_effects_volume); screen.camera_motion_changed.connect(_set_camera_motion); screen.speed_lines_changed.connect(_set_speed_lines_enabled); screen.threat_indicators_changed.connect(_set_threat_indicators_enabled); screen.vibration_intensity_changed.connect(_set_vibration_intensity)
 	screen.reduced_motion_changed.connect(func(value: bool): settings.ui_reduced_motion = value; settings.save_to_disk())
 	screen.restore_defaults_requested.connect(_restore_presentation_defaults)
-	screen.back_requested.connect(screen.queue_free)
+	screen.back_requested.connect(race_world.close_pause_subscreen)
+	screen.call_deferred("focus_first_control")
 
 func _open_race_controls() -> void:
 	if race_world == null: return
-	var screen := ControlsScreen.new(); race_world.add_child(screen); screen.back_requested.connect(screen.queue_free)
+	var screen := ControlsScreen.new(); race_world.open_pause_subscreen(screen); screen.back_requested.connect(race_world.close_pause_subscreen)
+	screen.call_deferred("focus_first_control")
 
 
 func _show_main_menu() -> void:

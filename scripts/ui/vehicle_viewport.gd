@@ -125,9 +125,18 @@ func _frame_model() -> void:
 	var bounds: AABB = result.aabb
 	var extent := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
 	if extent <= 0.001: return
-	var target_size: float = [2.7, 3.1, 3.4, 3.0][framing]
+	# Garage/preparation viewports can become short at 720p and on mobile.
+	# Leave a real breathing margin so the lower body never sits behind the
+	# container edge or the fixed action bar.
+	var target_size: float = [2.7, 3.1, 2.9, 3.0][framing]
 	model.scale = Vector3.ONE * (target_size / extent)
 	var center := bounds.get_center() * model.scale.x
-	model.position = Vector3(-center.x, -bounds.position.y * model.scale.y, -center.z)
-	var distance := target_size * (1.8 if framing == Framing.GARAGE else 2.0)
-	camera.position = Vector3(0, target_size * 0.62, distance); camera.look_at(Vector3(0, target_size * 0.32, 0))
+	var vertical_margin := target_size * 0.14 if framing == Framing.GARAGE else target_size * 0.08
+	model.position = Vector3(
+		-center.x,
+		-bounds.position.y * model.scale.y + vertical_margin,
+		-center.z
+	)
+	var distance := target_size * (2.1 if framing == Framing.GARAGE else 2.0)
+	var look_height := target_size * (0.16 if framing == Framing.GARAGE else 0.27)
+	camera.position = Vector3(0, target_size * 0.58, distance); camera.look_at(Vector3(0, look_height, 0))

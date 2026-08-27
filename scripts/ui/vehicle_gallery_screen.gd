@@ -36,7 +36,7 @@ func _ready() -> void:
 	var panel := details_panel
 	title_label = Label.new(); title_label.add_theme_font_size_override("font_size", 32); panel.add_child(title_label)
 	status_badge = UiBadge.new(); panel.add_child(status_badge)
-	status_label = Label.new(); status_label.add_theme_font_size_override("font_size", 18); panel.add_child(status_label)
+	status_label = Label.new(); status_label.add_theme_font_size_override("font_size", 18); status_label.visible = false; panel.add_child(status_label)
 	requirement_label = Label.new(); requirement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; panel.add_child(requirement_label)
 	stats = VBoxContainer.new(); stats.size_flags_vertical = Control.SIZE_EXPAND_FILL; panel.add_child(stats)
 	primary = ActionButton.new(); primary.kind = ActionButton.Kind.PRIMARY; primary.pressed.connect(_activate); panel.add_child(primary)

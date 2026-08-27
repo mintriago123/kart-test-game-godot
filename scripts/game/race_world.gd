@@ -75,6 +75,7 @@ var _split_viewports: Array[SubViewport] = []
 var _hud_by_kart: Dictionary = {}
 var _camera_by_kart: Dictionary = {}
 var _lan_synchronizer: LanRaceSynchronizer
+var _pause_submenu_layer: CanvasLayer
 
 
 func _ready() -> void:
@@ -121,8 +122,11 @@ func _build_environment() -> void:
 	)
 	environment.ambient_light_energy = 0.72
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	environment.glow_enabled = int(quality.glow) > 0
-	environment.glow_intensity = [0.0, 0.55, 0.85, 1.15][clampi(int(quality.glow), 0, 3)]
+	# Do not bloom the world environment: additive driving particles can bleed
+	# into the sky as a full-screen white flash on medium+ profiles. The quality
+	# budget still controls particle count and the screen-space speed feedback.
+	environment.glow_enabled = false
+	environment.glow_intensity = 0.0
 	world_environment.environment = environment
 	add_child(world_environment)
 
@@ -334,6 +338,17 @@ func _prepare_split_screen(player_count: int) -> void:
 	rows.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	rows.add_theme_constant_override("separation", 2)
 	_split_screen_layer.add_child(rows)
+	var divider := ColorRect.new()
+	divider.name = "SplitDivider"
+	divider.color = Color(0.96, 0.94, 0.88, 0.28)
+	divider.anchor_left = 0.0
+	divider.anchor_right = 1.0
+	divider.anchor_top = 0.5
+	divider.anchor_bottom = 0.5
+	divider.offset_top = -1.0
+	divider.offset_bottom = 1.0
+	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_split_screen_layer.add_child(divider)
 	for index in player_count:
 		var container := SubViewportContainer.new()
 		container.name = "Player%dView" % (index + 1)
@@ -391,6 +406,8 @@ func _build_local_huds(kart_count: int) -> void:
 		hud.configure_minimap(_track, race_manager.racers)
 		hud.set_game_mode(game_mode)
 		hud.set_compact_mode(local_player_karts.size() > 1, local_index == 0)
+		if local_player_karts.size() > 1:
+			hud.set_player_label(local_index + 1)
 		hud.update_race_info(1, race_manager.total_laps, race_manager.get_race_position(kart), kart_count, 0.0)
 		_bind_hud_actions(hud)
 		local_huds.append(hud)
@@ -438,7 +455,36 @@ func request_pause(event: InputEvent) -> void:
 
 
 func handle_pause_input(event: InputEvent) -> bool:
+	if _pause_submenu_layer != null:
+		if event.is_action_pressed(&"ui_cancel"):
+			close_pause_subscreen()
+		return true
 	return get_tree().paused and _pause_owner_hud != null and _pause_owner_hud.handle_pause_input(event)
+
+
+func open_pause_subscreen(screen: Control) -> void:
+	if screen == null:
+		return
+	close_pause_subscreen()
+	_pause_submenu_layer = CanvasLayer.new()
+	_pause_submenu_layer.name = "PauseSubscreenLayer"
+	_pause_submenu_layer.layer = 30
+	_pause_submenu_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_pause_submenu_layer)
+	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	screen.process_mode = Node.PROCESS_MODE_ALWAYS
+	_pause_submenu_layer.add_child(screen)
+	if _pause_owner_hud != null:
+		_pause_owner_hud.set_pause_overlay_visible(false)
+
+
+func close_pause_subscreen() -> void:
+	if _pause_submenu_layer == null:
+		return
+	_pause_submenu_layer.queue_free()
+	_pause_submenu_layer = null
+	if _pause_owner_hud != null and get_tree().paused:
+		_pause_owner_hud.set_pause_overlay_visible(true)
 
 
 func _find_pause_hud(event: InputEvent) -> RaceHud:

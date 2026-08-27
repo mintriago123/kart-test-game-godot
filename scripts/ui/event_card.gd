@@ -13,7 +13,10 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(280, 180)
 	text = ""
 	focus_mode = Control.FOCUS_ALL
-	_build_layout()
+	# configure() may have built and populated the layout before this node was
+	# added to the tree. Rebuilding here would replace its labels with blanks.
+	if _title_label == null or _description_label == null:
+		_build_layout()
 	_apply_states()
 	button_down.connect(_press_in)
 	button_up.connect(_press_out)

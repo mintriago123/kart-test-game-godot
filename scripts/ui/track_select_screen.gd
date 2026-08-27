@@ -1,6 +1,8 @@
 class_name TrackSelectScreen
 extends Control
 
+const TouchScrollContainer = preload("res://scripts/ui/touch_scroll_container.gd")
+
 signal race_requested(track_id: StringName, cc_id: StringName, game_mode: int, difficulty_id: StringName)
 signal back_requested
 signal track_selected(track_id: StringName)
@@ -210,10 +212,14 @@ func _build_interface() -> void:
 	list_margin.add_theme_constant_override("margin_top", 18)
 	list_margin.add_theme_constant_override("margin_bottom", 18)
 	list_panel.add_child(list_margin)
-	var scroll := ScrollContainer.new()
+	var scroll := TouchScrollContainer.new()
 	scroll.name = "TrackScroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.custom_minimum_size.y = 180.0
+	scroll.get_v_scroll_bar().custom_minimum_size.x = 18.0
+	scroll.get_v_scroll_bar().add_theme_stylebox_override("grabber", _style(UiTokens.MUTED, 9))
+	scroll.get_v_scroll_bar().add_theme_stylebox_override("grabber_highlighted", _style(UiTokens.WARM_WHITE, 9))
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	list_margin.add_child(scroll)
 	var track_list := VBoxContainer.new()
@@ -455,9 +461,9 @@ func _update_details() -> void:
 	)
 	_ghost_available_label.visible = _selected_game_mode == GameModeDefinition.TIME_TRIAL and _ghost_available
 	var cover := definition.preview_texture
-	var generated_cover_path := "res://assets/track/previews/%s.webp" % definition.id
-	if cover == null and ResourceLoader.exists(generated_cover_path):
-		cover = load(generated_cover_path) as Texture2D
+	# Generated preview files may be stale/debug captures (for example, a flat
+	# striped frame with no camera render). Only an explicitly assigned cover is
+	# trusted; otherwise the track minimap is the reliable visual fallback.
 	_preview_texture.texture = cover
 	_preview_texture.visible = cover != null
 	_minimap_view.visible = cover == null
@@ -558,7 +564,10 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 	button.custom_minimum_size = minimum_size
 	button.focus_mode = Control.FOCUS_ALL
 	button.add_theme_font_size_override("font_size", 19)
-	button.add_theme_color_override("font_color", UiTokens.GRAPHITE)
+	var text_color := _contrast_text_color(color)
+	button.add_theme_color_override("font_color", text_color)
+	button.add_theme_color_override("font_hover_color", text_color)
+	button.add_theme_color_override("font_pressed_color", text_color)
 	button.add_theme_color_override("font_focus_color", UiTokens.GRAPHITE)
 	button.add_theme_stylebox_override("normal", _style(color, 16))
 	button.add_theme_stylebox_override("hover", _style(color.lightened(0.1), 16))
@@ -568,7 +577,16 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 		"disabled",
 		_style(UiTokens.BUTTON_DISABLED_BG, 16)
 	)
+	button.add_theme_color_override("font_disabled_color", _contrast_text_color(UiTokens.BUTTON_DISABLED_BG))
 	return button
+
+
+func _contrast_text_color(background: Color) -> Color:
+	# Track preview colors are authored per circuit, so text cannot be fixed to
+	# the global dark ink token. Use a WCAG-style luminance threshold to keep
+	# every track label readable, including future dark palettes.
+	var luminance := background.r * 0.2126 + background.g * 0.7152 + background.b * 0.0722
+	return UiTokens.GRAPHITE if luminance >= 0.48 else UiTokens.WARM_WHITE
 
 
 func _style(

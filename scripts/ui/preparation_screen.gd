@@ -9,6 +9,7 @@ var payload: Dictionary = {}
 var start_button: ActionButton
 var summary: Label
 var _card: Control
+var _scroll: ScrollContainer
 var _grid: GridContainer
 var _event_column: VBoxContainer
 var _options_column: VBoxContainer
@@ -24,8 +25,8 @@ var _track: TrackDefinition
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var background := ColorRect.new(); background.color = UiTokens.GRAPHITE; background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); add_child(background)
-	var scroll := ScrollContainer.new(); scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); scroll.offset_left = 20; scroll.offset_top = 16; scroll.offset_right = -20; scroll.offset_bottom = -88; scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; add_child(scroll)
-	_grid = GridContainer.new(); _card = _grid; _grid.columns = 3; _grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL; _grid.add_theme_constant_override("h_separation", 20); scroll.add_child(_grid)
+	_scroll = ScrollContainer.new(); _scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); _scroll.offset_left = 20; _scroll.offset_top = 16; _scroll.offset_right = -20; _scroll.offset_bottom = -88; _scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; add_child(_scroll)
+	_grid = GridContainer.new(); _card = _grid; _grid.columns = 3; _grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL; _grid.add_theme_constant_override("h_separation", 20); _scroll.add_child(_grid)
 	_event_column = VBoxContainer.new(); _event_column.custom_minimum_size.x = 300; _grid.add_child(_event_column)
 	var title := Label.new(); title.text = "TODO LISTO"; title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; title.add_theme_font_size_override("font_size", 40); _event_column.add_child(title)
 	summary = Label.new(); summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; summary.add_theme_font_size_override("font_size", 20); _event_column.add_child(summary)
@@ -110,10 +111,17 @@ func _update_layout() -> void:
 		layout_size = get_viewport_rect().size
 	var compact := layout_size.x < 1050.0 or layout_size.y < 600.0
 	_grid.columns = 1 if compact else 3
+	# The desktop preparation layout is designed to fit beside the fixed
+	# actions. Scrolling it lets the showroom move independently of the buttons
+	# and can leave the vehicle clipped at the top. Compact/mobile layouts keep
+	# vertical scrolling because their stacked columns genuinely need it.
+	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO if compact else ScrollContainer.SCROLL_MODE_DISABLED
+	if not compact:
+		_scroll.scroll_vertical = 0
 	if compact:
 		_showroom.custom_minimum_size = Vector2(maxf(320.0, layout_size.x - 56.0), clampf(layout_size.y * 0.42, 250.0, 340.0))
 	else:
 		# 720p needs a shorter showroom so the preparation content and actions
 		# share the viewport without leaving the vehicle cropped at the bottom.
-		var showroom_height := 300.0 if layout_size.y < 800.0 else 380.0
+		var showroom_height := 250.0 if layout_size.y < 800.0 else 380.0
 		_showroom.custom_minimum_size = Vector2(440.0, showroom_height)

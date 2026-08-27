@@ -16,6 +16,7 @@ var _start: ActionButton
 var _gamepad_ids: Array[int] = []
 var _mock_gamepads := false
 var _page: Control
+var _actions: HBoxContainer
 
 
 func _ready() -> void:
@@ -54,8 +55,14 @@ func _ready() -> void:
 	_status.add_theme_color_override("font_color", UiTokens.MUTED)
 	page.add_child(_status)
 	var actions := HBoxContainer.new()
+	_actions = actions
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
-	page.add_child(actions)
+	actions.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	actions.offset_left = 20.0
+	actions.offset_right = -20.0
+	actions.offset_top = -78.0
+	actions.offset_bottom = -14.0
+	add_child(actions)
 	var back := ActionButton.new()
 	back.text = "VOLVER"
 	back.pressed.connect(func() -> void: back_requested.emit())
@@ -286,3 +293,6 @@ func _update_layout() -> void:
 		(size.y - 32.0) / 600.0
 	))
 	_page.scale = Vector2.ONE * maxf(factor, 0.5)
+	if _actions != null:
+		_actions.offset_top = -78.0 if size.y >= 600.0 else -70.0
+		_actions.offset_bottom = -14.0

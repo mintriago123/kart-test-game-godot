@@ -39,6 +39,14 @@ func apply_snapshot(settings: GameSettings) -> void:
 	(_controls.reduced_motion as CheckButton).set_pressed_no_signal(settings.ui_reduced_motion)
 
 
+func focus_first_control() -> void:
+	for key in [&"profile", &"camera", &"master", &"music", &"effects", &"vibration"]:
+		var control := _controls.get(key) as Control
+		if control != null and control.is_visible_in_tree() and control.focus_mode != Control.FOCUS_NONE:
+			control.grab_focus()
+			return
+
+
 func _build() -> void:
 	var scrim := ColorRect.new()
 	scrim.color = UiTokens.SCRIM

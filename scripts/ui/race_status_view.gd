@@ -8,6 +8,10 @@ var lap_label: Label
 var position_label: Label
 var time_label: Label
 var speed_label: Label
+var speed_value_label: Label
+var speed_unit_label: Label
+var speed_panel: PanelContainer
+var speed_state_label: Label
 var item_label: Label
 var item_chip: PanelContainer
 var item_icon: TextureRect
@@ -25,6 +29,9 @@ var _split_generation := 0
 var _game_mode := GameModeDefinition.RACE
 var _has_item := false
 var _track_accent := UiTokens.ELECTRIC_YELLOW
+var _speed_state := &"normal"
+var _density := &"full"
+var _player_number := 0
 
 
 func build_interface() -> void:
@@ -37,37 +44,32 @@ func build_interface() -> void:
 	top_bar.offset_left = 24.0
 	top_bar.offset_top = 18.0
 	top_bar.offset_right = -24.0
-	top_bar.offset_bottom = 92.0
+	top_bar.offset_bottom = 76.0
 	top_bar.add_theme_constant_override("separation", 12)
 	add_child(top_bar)
 	race_elements.append(top_bar)
 
-	position_label = RaceHudStyle.create_chip("1º / 4", 28)
+	position_label = RaceHudStyle.create_chip("1º / 4", 30)
+	position_label.name = "Position"
+	position_label.custom_minimum_size = Vector2(150.0, 58.0)
 	top_bar.add_child(position_label)
-	lap_label = RaceHudStyle.create_chip("VUELTA 1/3", 22)
+	lap_label = RaceHudStyle.create_chip("VUELTA 1/3", 18)
 	top_bar.add_child(lap_label)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_bar.add_child(spacer)
-	time_label = RaceHudStyle.create_chip("00:00.000", 22)
+	time_label = RaceHudStyle.create_chip("00:00.000", 18)
 	top_bar.add_child(time_label)
 	delta_label = RaceHudStyle.create_chip("FANTASMA  SIN REFERENCIA", 18)
 	delta_label.visible = false
 	top_bar.add_child(delta_label)
-	speed_label = RaceHudStyle.create_chip("000 km/h", 20)
-	speed_label.name = "SpeedAndMiniTurbo"
-	speed_label.custom_minimum_size = Vector2(190.0, 64.0)
-	speed_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	speed_label.position = Vector2(-95.0, -126.0)
-	speed_label.size = Vector2(190.0, 64.0)
-	add_child(speed_label)
-	race_elements.append(speed_label)
+	_build_speed_instrument()
 
 	item_chip = PanelContainer.new()
 	item_chip.name = "ItemChip"
-	item_chip.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	item_chip.position = Vector2(-150.0, 102.0)
-	item_chip.size = Vector2(300.0, 58.0)
+	item_chip.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	item_chip.position = Vector2(24.0, -92.0)
+	item_chip.size = Vector2(210.0, 58.0)
 	item_chip.add_theme_stylebox_override(
 		"panel",
 		RaceHudStyle.style(UiTokens.surface_alpha(UiTokens.INK, 3), 14)
@@ -89,7 +91,7 @@ func build_interface() -> void:
 
 	item_label = Label.new()
 	item_label.text = "SIN OBJETO"
-	item_label.custom_minimum_size = Vector2(212.0, 48.0)
+	item_label.custom_minimum_size = Vector2(154.0, 48.0)
 	item_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	item_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	item_label.add_theme_font_size_override("font_size", 16)
@@ -105,9 +107,11 @@ func build_interface() -> void:
 	drift_bar.max_value = 1.0
 	drift_bar.value = 0.0
 	drift_bar.show_percentage = false
-	drift_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	drift_bar.position = Vector2(-90.0, -54.0)
-	drift_bar.size = Vector2(180.0, 13.0)
+	drift_bar.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	drift_bar.offset_left = -244.0
+	drift_bar.offset_right = -24.0
+	drift_bar.offset_top = -28.0
+	drift_bar.offset_bottom = -18.0
 	drift_bar.add_theme_stylebox_override(
 		"background",
 		RaceHudStyle.style(UiTokens.surface_alpha(UiTokens.GRAPHITE, 1), 8)
@@ -149,7 +153,7 @@ func update_race_info(
 	race_time: float
 ) -> void:
 	lap_label.text = "VUELTA %d/%d" % [lap, total_laps]
-	position_label.text = "%dº / %d" % [position, racers]
+	position_label.text = "%s%dº / %d" % ["J%d  ·  " % _player_number if _player_number > 0 else "", position, racers]
 	time_label.text = RaceHudStyle.format_time(race_time)
 
 
@@ -161,7 +165,73 @@ func show_countdown(text: String, is_intro_visible: bool) -> void:
 
 
 func update_speed(speed_kph: float) -> void:
-	speed_label.text = "%03d km/h" % speed_kph
+	var value := clampi(floori(speed_kph), 0, 999)
+	speed_value_label.text = "%03d" % value
+	# Legacy surface kept for callers and existing telemetry tests.
+	speed_label.text = "%03d km/h" % value
+	_update_speed_state(value)
+
+
+func _build_speed_instrument() -> void:
+	speed_panel = PanelContainer.new()
+	speed_panel.name = "SpeedInstrument"
+	speed_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	speed_panel.offset_left = -244.0
+	speed_panel.offset_right = -24.0
+	speed_panel.offset_top = -116.0
+	speed_panel.offset_bottom = -30.0
+	speed_panel.add_theme_stylebox_override("panel", RaceHudStyle.style(UiTokens.HUD_GRAPHITE, 12, 1))
+	add_child(speed_panel)
+	race_elements.append(speed_panel)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 0)
+	speed_panel.add_child(column)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.add_theme_constant_override("separation", 6)
+	column.add_child(row)
+	speed_value_label = RaceHudStyle.create_hud_label("000", 64)
+	speed_value_label.name = "SpeedValue"
+	speed_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	speed_value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(speed_value_label)
+	speed_unit_label = RaceHudStyle.create_hud_label("KM/H", 15, UiTokens.TEXT_SECONDARY)
+	speed_unit_label.name = "SpeedUnit"
+	speed_unit_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	speed_unit_label.custom_minimum_size = Vector2(42.0, 34.0)
+	row.add_child(speed_unit_label)
+	speed_state_label = RaceHudStyle.create_hud_label("VELOCIDAD", 11, UiTokens.TEXT_TERTIARY)
+	speed_state_label.name = "SpeedState"
+	speed_state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	column.add_child(speed_state_label)
+	# Compatibility label remains part of the public view but is not drawn.
+	speed_label = Label.new()
+	speed_label.name = "SpeedLegacy"
+	speed_label.visible = false
+	add_child(speed_label)
+
+
+func _update_speed_state(value: int) -> void:
+	var state := &"normal"
+	var color := UiTokens.SPEED_NORMAL
+	if value == 0:
+		state = &"stopped"
+		color = UiTokens.TEXT_TERTIARY
+	elif speed_panel != null and speed_panel.has_meta("turbo") and speed_panel.get_meta("turbo"):
+		state = &"turbo"
+		color = UiTokens.SPEED_TURBO
+	elif value >= 95:
+		state = &"max"
+		color = UiTokens.SPEED_MAX
+	_speed_state = state
+	speed_value_label.add_theme_color_override("font_color", color)
+	speed_state_label.text = {
+		&"stopped": "DETENIDO",
+		&"turbo": "TURBO ACTIVO",
+		&"max": "VELOCIDAD MÁXIMA",
+		&"normal": "VELOCIDAD",
+	}.get(state, "VELOCIDAD")
+	speed_state_label.add_theme_color_override("font_color", color if state != &"normal" else UiTokens.TEXT_TERTIARY)
 
 
 func set_track_accent(accent: Color) -> void:
@@ -169,7 +239,7 @@ func set_track_accent(accent: Color) -> void:
 	drift_bar.add_theme_stylebox_override(
 		"fill", RaceHudStyle.style(accent, 8)
 	)
-	speed_label.add_theme_color_override("font_color", UiColorUtils.readable_foreground(accent))
+	speed_value_label.add_theme_color_override("font_color", UiColorUtils.readable_foreground(accent))
 
 
 func show_item(item: ItemDefinition) -> void:
@@ -207,6 +277,52 @@ func show_shield(
 
 func show_boost(charge_ratio: float) -> void:
 	drift_bar.value = charge_ratio
+	if speed_panel != null:
+		speed_panel.set_meta("turbo", charge_ratio >= 1.0)
+		if charge_ratio >= 1.0:
+			speed_state_label.text = "TURBO LISTO"
+			speed_state_label.add_theme_color_override("font_color", UiTokens.SPEED_MAX)
+		elif _speed_state == &"normal":
+			speed_state_label.text = "DERRAPE %.0f%%" % (charge_ratio * 100.0)
+
+
+func set_boost_active(active: bool) -> void:
+	if speed_panel == null:
+		return
+	speed_panel.set_meta("turbo", active)
+	if active:
+		speed_value_label.add_theme_color_override("font_color", UiTokens.SPEED_TURBO)
+		speed_state_label.text = "TURBO ACTIVO"
+		speed_state_label.add_theme_color_override("font_color", UiTokens.SPEED_TURBO)
+
+
+func set_speed_state(state: StringName) -> void:
+	if speed_panel == null:
+		return
+	_speed_state = state
+	var color := UiTokens.SPEED_NORMAL
+	var caption := "VELOCIDAD"
+	match state:
+		&"max": color = UiTokens.SPEED_MAX; caption = "VELOCIDAD MÁXIMA"
+		&"turbo": color = UiTokens.SPEED_TURBO; caption = "TURBO ACTIVO"
+		&"hit": color = UiTokens.SPEED_HIT; caption = "GOLPE"
+		&"danger": color = UiTokens.SPEED_DANGER; caption = "FUERA DE PISTA"
+		&"stopped": color = UiTokens.TEXT_TERTIARY; caption = "DETENIDO"
+	speed_value_label.add_theme_color_override("font_color", color)
+	speed_state_label.text = caption
+	speed_state_label.add_theme_color_override("font_color", color)
+
+
+func show_hit_feedback() -> void:
+	if speed_panel == null:
+		return
+	speed_value_label.add_theme_color_override("font_color", UiTokens.SPEED_HIT)
+	speed_state_label.text = "GOLPE"
+	speed_state_label.add_theme_color_override("font_color", UiTokens.SPEED_HIT)
+	get_tree().create_timer(0.45).timeout.connect(func() -> void:
+		if is_instance_valid(self):
+			_update_speed_state(int(speed_value_label.text))
+	)
 
 
 func set_game_mode(game_mode: int) -> void:
@@ -215,6 +331,29 @@ func set_game_mode(game_mode: int) -> void:
 	position_label.visible = not is_time_trial
 	item_chip.visible = _has_item and not is_time_trial
 	delta_label.visible = is_time_trial
+
+
+func set_density(density: StringName) -> void:
+	_density = density
+	var scale := 1.0
+	match density:
+		&"split": scale = 0.82
+		&"touch": scale = 0.92
+	scale = maxf(scale, 0.7)
+	speed_panel.scale = Vector2.ONE * scale
+	item_chip.scale = Vector2.ONE * scale
+	shield_panel.scale = Vector2.ONE * scale
+	drift_bar.scale = Vector2.ONE * scale
+	if density == &"touch":
+		speed_panel.offset_top = -190.0
+		speed_panel.offset_bottom = -104.0
+	else:
+		speed_panel.offset_top = -116.0
+		speed_panel.offset_bottom = -30.0
+
+
+func set_player_label(player_number: int) -> void:
+	_player_number = maxi(player_number, 0)
 
 
 func update_ghost_delta(delta: float) -> void:
@@ -271,9 +410,9 @@ func set_race_elements_visible(
 func _build_shield_status() -> void:
 	shield_panel = PanelContainer.new()
 	shield_panel.name = "ShieldStatus"
-	shield_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	shield_panel.position = Vector2(-136.0, 166.0)
-	shield_panel.size = Vector2(272.0, 50.0)
+	shield_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	shield_panel.position = Vector2(242.0, -92.0)
+	shield_panel.size = Vector2(182.0, 58.0)
 	shield_panel.visible = false
 	shield_panel.add_theme_stylebox_override(
 		"panel",
@@ -287,7 +426,7 @@ func _build_shield_status() -> void:
 	shield_panel.add_child(row)
 
 	shield_icon = TextureRect.new()
-	shield_icon.custom_minimum_size = Vector2(34.0, 34.0)
+	shield_icon.custom_minimum_size = Vector2(30.0, 30.0)
 	shield_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	shield_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	row.add_child(shield_icon)
@@ -307,7 +446,7 @@ func _build_shield_status() -> void:
 	details.add_child(shield_label)
 
 	shield_bar = ProgressBar.new()
-	shield_bar.custom_minimum_size = Vector2(176.0, 9.0)
+	shield_bar.custom_minimum_size = Vector2(112.0, 8.0)
 	shield_bar.show_percentage = false
 	shield_bar.add_theme_stylebox_override(
 		"background",

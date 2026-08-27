@@ -33,6 +33,7 @@ var reduced_motion := false
 var _primary_result_action: StringName = &"menu"
 var _resume_progress: ProgressBar
 var _pause_focus_index := 0
+var _pause_submenu_open := false
 var _cup_result: RaceResult
 var _cup_stage := -1
 var _cup_transitioning := false
@@ -331,7 +332,16 @@ func _add_label_to(container: VBoxContainer, text: String, size: int, color: Col
 
 
 func update_pause_visibility(is_paused: bool) -> void:
-	pause_overlay.visible = is_paused and not results_panel.visible
+	pause_overlay.visible = is_paused and not results_panel.visible and not _pause_submenu_open
+
+
+func set_pause_menu_visible(is_visible: bool) -> void:
+	_pause_submenu_open = not is_visible
+	pause_overlay.visible = is_visible and get_tree().paused and not results_panel.visible
+	if pause_overlay.visible:
+		var resume := pause_overlay.find_child("Resume", true, false) as Button
+		if resume != null:
+			resume.grab_focus.call_deferred()
 
 
 func handle_input(event: InputEvent) -> bool:
@@ -506,9 +516,20 @@ func _show_confirmation(title: String, confirmed_signal: Signal) -> void:
 		confirmed_signal.emit()
 		modal.queue_free()
 	)
-	modal.cancelled.connect(modal.queue_free)
+	modal.cancelled.connect(func() -> void:
+		modal.queue_free()
+		_restore_pause_focus.call_deferred()
+	)
 	add_child(modal)
 	modal.confirm_button.grab_focus.call_deferred()
+
+
+func _restore_pause_focus() -> void:
+	if not pause_overlay.visible:
+		return
+	var resume := pause_overlay.find_child("Resume", true, false) as Button
+	if resume != null:
+		resume.grab_focus()
 
 
 func _build_results_panel() -> Control:

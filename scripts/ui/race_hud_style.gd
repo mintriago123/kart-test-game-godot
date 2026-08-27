@@ -19,6 +19,18 @@ static func create_chip(text: String, font_size: int) -> Label:
 	return label
 
 
+static func create_hud_label(text: String, font_size: int, color: Color = UiTokens.WARM_WHITE) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_override("font", UiTokens.DISPLAY_FONT)
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_constant_override("outline_size", 3)
+	label.add_theme_color_override("font_outline_color", UiTokens.GRAPHITE)
+	label.add_theme_constant_override("line_spacing", -2)
+	return label
+
+
 static func apply_button_style(button: Button, color: Color) -> void:
 	button.add_theme_font_size_override("font_size", 18)
 	button.add_theme_color_override("font_color", UiTokens.GRAPHITE)

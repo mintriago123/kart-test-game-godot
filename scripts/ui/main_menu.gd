@@ -29,6 +29,7 @@ var graphics_profile := "medium"
 var track_catalog: TrackCatalog
 var _settings_panel: Control
 var _play_button: Button
+var _main_actions: Control
 var _first_settings_button: Button
 var _profile_value: Label
 var _vibration_toggle: CheckButton
@@ -61,6 +62,16 @@ var _garage_panel: Control
 var _vehicle_gallery: VehicleGalleryScreen
 var _cup_selector: CupSelectScreen
 var _profile_panel: Control
+var _profile_card: VBoxContainer
+var _profile_main_grid: GridContainer
+var _profile_cup_list: VBoxContainer
+var _profile_filter_buttons: Dictionary = {}
+var _profile_cup_filter := &"all"
+var _profile_content_host: VBoxContainer
+var _profile_sidebar: PanelContainer
+var _profile_nav_buttons: Dictionary = {}
+var _profile_mobile_nav: HBoxContainer
+var _profile_active_section := &"summary"
 var _controls_panel: ControlsScreen
 var _reduced_motion_toggle: CheckButton
 var _quality_buttons: Dictionary = {}
@@ -198,6 +209,7 @@ func _build_interface() -> void:
 	content.add_child(_wordmark(500.0, 116.0))
 
 	var actions := MenuList.new()
+	_main_actions = actions
 	actions.custom_minimum_size.x = 310.0
 	actions.add_theme_constant_override("separation", 14)
 	content.add_child(actions)
@@ -306,6 +318,7 @@ func _build_interface() -> void:
 	_router.register_screen(MenuRoute.Id.SETTINGS, _settings_panel)
 	_router.register_screen(MenuRoute.Id.CONTROLS, _controls_panel)
 	_select_track(_selected_track_id, false)
+	_router.set_fallback_focus(MenuRoute.Id.MAIN, _play_button, _main_actions)
 	_play_button.grab_focus.call_deferred()
 	_update_menu_layout(root, content, sun, stripe)
 
@@ -399,53 +412,173 @@ func _build_profile_panel() -> Control:
 	overlay.color = UiTokens.SCRIM
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.visible = false
-	var scroll := ScrollContainer.new(); scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); scroll.offset_left = 24; scroll.offset_top = 18; scroll.offset_right = -24; scroll.offset_bottom = -18; scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; overlay.add_child(scroll)
-	var card := VBoxContainer.new(); card.name = "ProfileCard"; card.custom_minimum_size.x = 860; card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; card.add_theme_constant_override("separation", 16); scroll.add_child(card)
-	var title := Label.new()
-	title.text = "PERFIL Y PROGRESO"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 38)
-	card.add_child(title)
-	var progress := Label.new(); progress.name = "GlobalProgress"
-	var unlocked := player_progress.get_unlocked_variant_count(progression_catalog.unlocks) if player_progress != null and progression_catalog != null else 0
-	var total := progression_catalog.unlocks.variants.size() if progression_catalog != null else 0
+	var margin := MarginContainer.new(); margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); margin.add_theme_constant_override("margin_left", 24); margin.add_theme_constant_override("margin_top", 20); margin.add_theme_constant_override("margin_right", 24); margin.add_theme_constant_override("margin_bottom", 20); overlay.add_child(margin)
+	var shell := HBoxContainer.new(); shell.name = "ProfileShell"; shell.add_theme_constant_override("separation", UiTokens.SPACE_4); margin.add_child(shell)
+	var sidebar := PanelContainer.new(); _profile_sidebar = sidebar; sidebar.name = "ProfileNavigation"; sidebar.custom_minimum_size.x = 210; sidebar.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK, UiTokens.RADIUS_LARGE)); shell.add_child(sidebar)
+	var nav := VBoxContainer.new(); nav.add_theme_constant_override("separation", UiTokens.SPACE_2); sidebar.add_child(nav)
+	var eyebrow := _profile_value_label("PILOTO", UiTokens.CYAN, UiTokens.FONT_CAPTION); nav.add_child(eyebrow)
+	var nav_title := _profile_value_label("PASAPORTE\nCOMPETICIÓN", UiTokens.WARM_WHITE, UiTokens.FONT_H3); nav.add_child(nav_title)
+	for section_data in [["RESUMEN", &"summary"], ["COPAS", &"cups"], ["RÉCORDS", &"records"], ["MULTIJUGADOR", &"multiplayer"], ["COLECCIÓN", &"collection"]]:
+		var nav_button := _create_button(section_data[0], UiTokens.INK_RAISED, Vector2(0, UiTokens.TOUCH_TARGET)); nav_button.name = "ProfileNav_%s" % section_data[1]; nav_button.alignment = HORIZONTAL_ALIGNMENT_LEFT; nav_button.pressed.connect(_show_profile_section.bind(section_data[1])); nav.add_child(nav_button); _profile_nav_buttons[section_data[1]] = nav_button
+	var spacer := Control.new(); spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL; nav.add_child(spacer)
+	var close := _create_button("VOLVER", UiTokens.CORAL, Vector2(0, UiTokens.BUTTON_HEIGHT)); close.pressed.connect(func() -> void: _router.back()); nav.add_child(close)
+	_profile_mobile_nav = HBoxContainer.new(); _profile_mobile_nav.add_theme_constant_override("separation", UiTokens.SPACE_2); _profile_mobile_nav.visible = false; nav.add_child(_profile_mobile_nav)
+
+	var content_panel := PanelContainer.new(); content_panel.name = "ProfileContent"; content_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL; content_panel.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.GRAPHITE, UiTokens.RADIUS_LARGE)); shell.add_child(content_panel)
+	var content_scroll := ScrollContainer.new(); content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; content_panel.add_child(content_scroll)
+	_profile_content_host = VBoxContainer.new(); _profile_content_host.name = "ProfileContentHost"; _profile_content_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL; _profile_content_host.add_theme_constant_override("separation", UiTokens.SPACE_4); content_scroll.add_child(_profile_content_host)
+	overlay.resized.connect(_update_profile_layout)
+	_update_profile_layout()
+	_show_profile_section(_profile_active_section)
+	return overlay
+
+
+func _profile_section(title: String) -> PanelContainer:
+	var panel := PanelContainer.new(); panel.custom_minimum_size.y = 116; panel.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK, UiTokens.RADIUS_MEDIUM))
+	var section := VBoxContainer.new(); section.add_theme_constant_override("separation", UiTokens.SPACE_2); panel.add_child(section)
+	var heading := Label.new(); heading.text = title; heading.add_theme_font_size_override("font_size", UiTokens.FONT_CAPTION); heading.add_theme_color_override("font_color", UiTokens.MUTED); section.add_child(heading)
+	return panel
+
+
+func _profile_section_content(panel: PanelContainer) -> VBoxContainer:
+	return panel.get_child(0) as VBoxContainer
+
+
+func _show_profile_section(section_id: StringName) -> void:
+	if _profile_content_host == null: return
+	_profile_active_section = section_id
+	for child in _profile_content_host.get_children(): child.queue_free()
+	for id in _profile_nav_buttons:
+		var button := _profile_nav_buttons[id] as Button
+		var active: bool = id == section_id
+		button.add_theme_stylebox_override("normal", _style(UiTokens.ELECTRIC_YELLOW if active else UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL))
+		button.add_theme_color_override("font_color", UiTokens.GRAPHITE if active else UiTokens.TEXT_PRIMARY)
+	var heading := _profile_value_label(_profile_section_title(section_id), UiTokens.WARM_WHITE, UiTokens.FONT_H1)
+	heading.name = "ProfileSectionTitle"; _profile_content_host.add_child(heading)
+	var intro := _profile_value_label(_profile_section_intro(section_id), UiTokens.TEXT_TERTIARY, UiTokens.FONT_BODY); _profile_content_host.add_child(intro)
+	match section_id:
+		&"summary": _build_profile_summary()
+		&"cups": _build_profile_cups()
+		&"records": _build_profile_records()
+		&"multiplayer": _build_profile_multiplayer()
+		&"collection": _build_profile_collection()
+	_profile_nav_buttons[section_id].grab_focus.call_deferred()
+
+
+func _profile_section_title(section_id: StringName) -> String:
+	return {&"summary": "RESUMEN", &"cups": "PALMARÉS", &"records": "RÉCORDS DE PISTA", &"multiplayer": "MULTIJUGADOR", &"collection": "COLECCIÓN"}.get(section_id, "PERFIL")
+
+
+func _profile_section_intro(section_id: StringName) -> String:
+	return {&"summary": "Tu rendimiento en una sola mirada.", &"cups": "Medallas conseguidas por dificultad.", &"records": "Las marcas que definen tu vuelta más rápida.", &"multiplayer": "Resultados separados por tipo de partida.", &"collection": "Tus vehículos, recompensas y progreso de garaje."}.get(section_id, "")
+
+
+func _build_profile_summary() -> void:
+	var grid := GridContainer.new(); grid.columns = 2; grid.add_theme_constant_override("h_separation", UiTokens.SPACE_3); grid.add_theme_constant_override("v_separation", UiTokens.SPACE_3); grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL; _profile_content_host.add_child(grid)
+	_profile_add_metric(grid, str(player_progress.victories if player_progress else 0), "VICTORIAS", UiTokens.ELECTRIC_YELLOW)
+	_profile_add_metric(grid, str(player_progress.podiums if player_progress else 0), "PODIOS", UiTokens.CYAN)
+	_profile_add_metric(grid, str(player_progress.races_played if player_progress else 0), "CARRERAS", UiTokens.WARM_WHITE)
+	_profile_add_metric(grid, str(player_progress.best_finish_position if player_progress and player_progress.best_finish_position > 0 else "—"), "MEJOR POSICIÓN", UiTokens.SUCCESS)
 	var career_points := player_progress.get_career_points(progression_catalog) if player_progress != null and progression_catalog != null else 0
 	var career_max := player_progress.get_max_career_points(progression_catalog) if player_progress != null and progression_catalog != null else 0
 	var next_reward: UnlockDefinition = player_progress.get_next_career_reward(progression_catalog) if player_progress != null and progression_catalog != null else null
-	progress.text = "PUNTOS DE CARRERA  %d / %d\nSIGUIENTE HITO  %s" % [career_points, career_max, "%d PTOS · %s" % [next_reward.required_points, next_reward.display_name.to_upper()] if next_reward != null else "TODOS LOS HITOS CONSEGUIDOS"]
-	progress.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	progress.add_theme_font_size_override("font_size", 28); progress.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW)
-	card.add_child(progress)
-	var career_bar := ProgressBar.new(); career_bar.name = "CareerProgressBar"; career_bar.max_value = maxf(1.0, career_max); career_bar.value = career_points; career_bar.show_percentage = false; career_bar.custom_minimum_size.y = 14; card.add_child(career_bar)
-	career_bar.add_theme_stylebox_override("background", UiTokens.panel(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL)); career_bar.add_theme_stylebox_override("fill", UiTokens.panel(UiTokens.ELECTRIC_YELLOW, UiTokens.RADIUS_SMALL))
-	var metrics := Label.new(); metrics.text = "CARRERAS  %d   ·   VICTORIAS  %d   ·   PODIOS  %d   ·   MEJOR POSICIÓN  %s\nTIEMPO  %s   ·   RÉCORDS  %d   ·   ATAJOS  %d   ·   RECUPERACIONES  %d" % [player_progress.races_played if player_progress else 0, player_progress.victories if player_progress else 0, player_progress.podiums if player_progress else 0, str(player_progress.best_finish_position) if player_progress and player_progress.best_finish_position > 0 else "—", _format_duration(player_progress.driving_time_seconds if player_progress else 0.0), _best_times.size(), player_progress.shortcuts_used if player_progress else 0, player_progress.recoveries if player_progress else 0]; metrics.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; metrics.add_theme_color_override("font_color", UiTokens.TEXT_SECONDARY); card.add_child(metrics)
-	if player_progress != null:
-		var multiplayer := Label.new()
-		multiplayer.text = "LOCAL  %d CARRERAS · %d VICTORIAS · %d PODIOS     LAN  %d CARRERAS · %d VICTORIAS · %d PODIOS" % [player_progress.local_multiplayer.races_played, player_progress.local_multiplayer.victories, player_progress.local_multiplayer.podiums, player_progress.lan_multiplayer.races_played, player_progress.lan_multiplayer.victories, player_progress.lan_multiplayer.podiums]
-		multiplayer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		multiplayer.add_theme_font_size_override("font_size", 18)
-		multiplayer.add_theme_color_override("font_color", UiTokens.CYAN)
-		card.add_child(multiplayer)
-	var cup_heading := Label.new(); cup_heading.text = "COPAS"; cup_heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; cup_heading.add_theme_font_size_override("font_size", 26); card.add_child(cup_heading)
-	if progression_catalog != null and progression_catalog.cups != null:
-		for cup in progression_catalog.cups.get_valid_cups():
-			var cup_card := PanelContainer.new(); cup_card.custom_minimum_size.y = 64; cup_card.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_MEDIUM)); card.add_child(cup_card)
-			var cup_info := Label.new(); cup_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			var medals := PackedStringArray()
-			for difficulty in cup.difficulties:
-				medals.append("%s · %s" % [difficulty.display_name.to_upper(), ["—", "BRONCE", "PLATA", "ORO"][player_progress.get_medal(cup.id, difficulty.id) if player_progress else 0]])
-			cup_info.text = "%s\n%s" % [cup.display_name.to_upper(), "     ".join(medals)]; cup_card.add_child(cup_info)
-	var collection := Label.new(); collection.name = "GarageLink"; collection.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; collection.add_theme_font_size_override("font_size", 22)
+	var progression := _profile_section("PROGRESIÓN"); var progression_content := _profile_section_content(progression); _profile_content_host.add_child(progression)
+	progression_content.add_child(_profile_value_label("%d / %d PUNTOS DE CARRERA\n%s" % [career_points, career_max, "%d PTOS · %s" % [next_reward.required_points, next_reward.display_name.to_upper()] if next_reward != null else "TODOS LOS HITOS CONSEGUIDOS"], UiTokens.ELECTRIC_YELLOW, UiTokens.FONT_LABEL))
+	var bar := ProgressBar.new(); bar.max_value = maxf(1.0, career_max); bar.value = career_points; bar.show_percentage = false; bar.custom_minimum_size.y = UiTokens.SPACE_3; bar.add_theme_stylebox_override("background", UiTokens.panel(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL)); bar.add_theme_stylebox_override("fill", UiTokens.panel(UiTokens.ELECTRIC_YELLOW, UiTokens.RADIUS_SMALL)); progression_content.add_child(bar)
+
+
+func _build_profile_cups() -> void:
+	var header := HBoxContainer.new(); header.add_theme_constant_override("separation", UiTokens.SPACE_2); _profile_content_host.add_child(header)
+	var label := _profile_value_label("FILTRAR POR MEDALLA", UiTokens.MUTED, UiTokens.FONT_CAPTION); label.size_flags_horizontal = Control.SIZE_EXPAND_FILL; header.add_child(label)
+	_profile_filter_buttons.clear()
+	for filter_data in [["TODAS", &"all"], ["BRONCE", &"bronze"], ["PLATA", &"silver"], ["ORO", &"gold"]]:
+		var filter := _create_button(filter_data[0], UiTokens.INK_RAISED, Vector2(88, UiTokens.TOUCH_TARGET)); filter.name = "CupFilter_%s" % filter_data[1]; filter.add_theme_font_size_override("font_size", UiTokens.FONT_CAPTION); filter.pressed.connect(_set_profile_cup_filter.bind(filter_data[1])); header.add_child(filter); _profile_filter_buttons[filter_data[1]] = filter
+	_profile_cup_list = VBoxContainer.new(); _profile_cup_list.add_theme_constant_override("separation", UiTokens.SPACE_2); _profile_content_host.add_child(_profile_cup_list); _refresh_profile_cups()
+
+
+func _build_profile_records() -> void:
+	var panel := _profile_section("RÉCORDS GLOBALES"); var content := _profile_section_content(panel); _profile_content_host.add_child(panel)
+	var best_time: float = float(_best_times.values().min()) if not _best_times.is_empty() else 0.0
+	content.add_child(_profile_value_label("MEJOR TIEMPO   %s\nTIEMPO CONDUCIDO   %s\nATAJOS   %d\nRECUPERACIONES   %d" % [_format_duration(best_time), _format_duration(player_progress.driving_time_seconds if player_progress else 0.0), player_progress.shortcuts_used if player_progress else 0, player_progress.recoveries if player_progress else 0], UiTokens.TEXT_PRIMARY, UiTokens.FONT_LABEL))
+	var tracks := _profile_section("MEJORES TIEMPOS POR PISTA"); var track_content := _profile_section_content(tracks); _profile_content_host.add_child(tracks)
+	if _best_times.is_empty(): track_content.add_child(_profile_value_label("AÚN NO HAY TIEMPOS REGISTRADOS", UiTokens.TEXT_TERTIARY, UiTokens.FONT_BODY))
+	else:
+		for track_id in _best_times:
+			track_content.add_child(_profile_value_label("%s    %s" % [str(track_id).to_upper(), _format_duration(_best_times[track_id])], UiTokens.TEXT_SECONDARY, UiTokens.FONT_BODY))
+
+
+func _build_profile_multiplayer() -> void:
+	for data in [["LOCAL", player_progress.local_multiplayer if player_progress else MultiplayerStatistics.new()], ["LAN", player_progress.lan_multiplayer if player_progress else MultiplayerStatistics.new()]]:
+		var panel := _profile_section(data[0]); var content := _profile_section_content(panel); _profile_content_host.add_child(panel); var stats: MultiplayerStatistics = data[1]
+		content.add_child(_profile_value_label("%d CARRERAS\n%d VICTORIAS   ·   %d PODIOS\nMEJOR POSICIÓN   %s" % [stats.races_played, stats.victories, stats.podiums, str(stats.best_finish_position) if stats.best_finish_position > 0 else "—"], UiTokens.CYAN, UiTokens.FONT_LABEL))
+
+
+func _build_profile_collection() -> void:
+	var unlocked := player_progress.get_unlocked_variant_count(progression_catalog.unlocks) if player_progress != null and progression_catalog != null else 0
+	var total := progression_catalog.unlocks.variants.size() if progression_catalog != null else 0
 	var equipped_name := "—"
 	if progression_catalog != null and player_progress != null:
 		var equipped := progression_catalog.unlocks.get_variant(player_progress.equipped_kart_variant_id)
 		if equipped != null: equipped_name = equipped.display_name
-	collection.text = "COLECCIÓN %d/%d · EQUIPADO %s · NUEVOS %d" % [unlocked, total, equipped_name.to_upper(), player_progress.get_new_reward_count() if player_progress else 0]; card.add_child(collection)
-	var garage := _create_button("ABRIR GARAJE", UiTokens.ELECTRIC_YELLOW, Vector2(240, 58)); garage.pressed.connect(func() -> void: _open_standalone_garage()); card.add_child(garage)
-	var close := _create_button("VOLVER", UiTokens.CORAL, Vector2(180, 58))
-	close.pressed.connect(func() -> void: _router.back())
-	card.add_child(close)
-	return overlay
+	var panel := _profile_section("ESTADO DEL GARAJE"); var content := _profile_section_content(panel); _profile_content_host.add_child(panel)
+	content.add_child(_profile_value_label("COLECCIÓN   %d / %d\nEQUIPADO   %s\nNUEVOS   %d" % [unlocked, total, equipped_name.to_upper(), player_progress.get_new_reward_count() if player_progress else 0], UiTokens.TEXT_PRIMARY, UiTokens.FONT_LABEL))
+	var garage := _create_button("ABRIR GARAJE", UiTokens.ELECTRIC_YELLOW, Vector2(240, UiTokens.BUTTON_HEIGHT)); garage.pressed.connect(_open_standalone_garage); garage.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; _profile_content_host.add_child(garage)
+
+
+func _profile_value_label(text: String, color: Color, font_size: int) -> Label:
+	var label := Label.new(); label.text = text; label.add_theme_font_size_override("font_size", font_size); label.add_theme_color_override("font_color", color); label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return label
+
+
+func _profile_add_metric(parent: GridContainer, value: String, label_text: String, color: Color) -> void:
+	var metric := VBoxContainer.new(); metric.custom_minimum_size.x = 132.0; metric.size_flags_horizontal = Control.SIZE_EXPAND_FILL; metric.add_theme_constant_override("separation", 0)
+	var value_label := _profile_value_label(value, color, UiTokens.FONT_DISPLAY); value_label.add_theme_color_override("font_color", color); metric.add_child(value_label)
+	var caption := _profile_value_label(label_text, UiTokens.MUTED, UiTokens.FONT_CAPTION); caption.autowrap_mode = TextServer.AUTOWRAP_OFF; caption.clip_text = true; metric.add_child(caption); parent.add_child(metric)
+
+
+func _set_profile_cup_filter(filter_id: StringName) -> void:
+	_profile_cup_filter = filter_id
+	_refresh_profile_cups()
+
+
+func _refresh_profile_cups() -> void:
+	if _profile_cup_list == null: return
+	for child in _profile_cup_list.get_children(): child.queue_free()
+	for filter_id in _profile_filter_buttons:
+		var button := _profile_filter_buttons[filter_id] as Button
+		var selected: bool = filter_id == _profile_cup_filter
+		button.add_theme_stylebox_override("normal", _style(UiTokens.ELECTRIC_YELLOW if selected else UiTokens.INK_RAISED, 12))
+		button.add_theme_color_override("font_color", UiTokens.GRAPHITE if selected else UiTokens.TEXT_PRIMARY)
+	if progression_catalog == null or progression_catalog.cups == null: return
+	var medal_names := ["—", "BRONCE", "PLATA", "ORO"]
+	var wanted := -1
+	match _profile_cup_filter:
+		&"bronze": wanted = UnlockDefinition.BRONZE
+		&"silver": wanted = UnlockDefinition.SILVER
+		&"gold": wanted = UnlockDefinition.GOLD
+	var visible_cups := 0
+	for cup in progression_catalog.cups.get_valid_cups():
+		var best := player_progress.get_best_cup_medal(cup.id) if player_progress else UnlockDefinition.Medal.NONE
+		var difficulty_medals := PackedStringArray()
+		var matches_filter := wanted <= 0
+		for difficulty in cup.difficulties:
+			var medal := player_progress.get_medal(cup.id, difficulty.id) if player_progress else UnlockDefinition.Medal.NONE
+			difficulty_medals.append("%s %s" % [difficulty.display_name.to_upper(), medal_names[medal]])
+			if medal == wanted: matches_filter = true
+		if not matches_filter: continue
+		visible_cups += 1
+		var cup_card := PanelContainer.new(); cup_card.custom_minimum_size.y = 58; cup_card.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL)); _profile_cup_list.add_child(cup_card)
+		var cup_info := Label.new(); cup_info.text = "%s\n%s" % [cup.display_name.to_upper(), "   ".join(difficulty_medals)]; cup_info.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW if best == UnlockDefinition.GOLD else (UiTokens.TEXT_PRIMARY if best > 0 else UiTokens.TEXT_TERTIARY)); cup_card.add_child(cup_info)
+	if visible_cups == 0:
+		_profile_cup_list.add_child(_profile_value_label("NO HAY MEDALLAS EN ESTE FILTRO", UiTokens.TEXT_TERTIARY, UiTokens.FONT_BODY))
+
+
+func _update_profile_layout() -> void:
+	if _profile_panel == null or _profile_sidebar == null: return
+	var compact := _profile_panel.size.x < 900.0
+	_profile_sidebar.custom_minimum_size.x = 168.0 if compact else 210.0
+	if _profile_content_host != null:
+		_profile_content_host.custom_minimum_size.x = maxf(300.0, _profile_panel.size.x - (260.0 if compact else 300.0))
 
 
 func _update_menu_layout(
@@ -646,10 +779,23 @@ func _open_standalone_garage() -> void:
 	_router.navigate(MenuRoute.Id.GARAGE, _vehicle_gallery.payload)
 
 func _handle_route_changed(route: int, _payload: Dictionary) -> void:
+	# MAIN is a persistent layer rather than a routed screen. Disable its
+	# buttons whenever another screen is over it so controller navigation can
+	# never reach controls that are not currently visible.
+	_set_main_menu_focus_enabled(route == MenuRoute.Id.MAIN)
 	# The menu showroom is not part of routed overlays. Hide it explicitly so
 	# only the shared gallery showroom renders on vehicle-selection routes.
 	if _showroom != null:
 		_showroom.visible = route == MenuRoute.Id.MAIN
+
+
+func _set_main_menu_focus_enabled(enabled: bool) -> void:
+	if _main_actions == null:
+		return
+	for node in _main_actions.find_children("*", "Control", true, false):
+		var control := node as Control
+		if control is Button:
+			control.focus_mode = Control.FOCUS_ALL if enabled else Control.FOCUS_NONE
 
 func _handle_vehicle_action(value: Dictionary) -> void:
 	var variant_id := StringName(value.get("variant_id", &""))
