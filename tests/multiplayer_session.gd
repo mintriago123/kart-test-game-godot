@@ -16,6 +16,7 @@ func _run() -> void:
 			InputMap.add_action(action)
 	_test_catalog_and_modes()
 	_test_session_validation()
+	_test_lan_bot_policy()
 	_test_input_isolation()
 	_test_protocol_and_snapshots()
 	_test_multiplayer_telemetry()
@@ -75,6 +76,35 @@ func _test_session_validation() -> void:
 	cup_session.ensure_participants()
 	_expect(cup_session.participants.size() == 4 and cup_session.validate().is_empty(), "Cup sessions remain exactly four participants.")
 	DirAccess.remove_absolute(progress.save_path)
+
+
+func _test_lan_bot_policy() -> void:
+	var lan := LanSession.new()
+	root.add_child(lan)
+	lan.configure(PROGRESSION, TRACKS)
+	lan.is_host = true
+	lan.room_settings = {"bots_enabled": true}
+	lan.slots[0] = _test_lan_slot(0, 1, &"marea", true, true)
+	_expect(lan.build_participants().size() == LanProtocol.GRID_SIZE, "LAN rooms keep an eight-racer grid with bots enabled.")
+	lan.room_settings = {"bots_enabled": false}
+	_expect(lan.build_participants().size() == 1 and not lan.can_host_start(), "LAN rooms without bots require a second human before starting.")
+	lan.slots[1] = _test_lan_slot(1, 2, &"lima", true, true)
+	_expect(lan.build_participants().size() == 2 and lan.can_host_start(), "LAN rooms without bots build only connected humans and start with two ready players.")
+	lan.free()
+
+
+func _test_lan_slot(slot_id: int, peer_id: int, racer_id: StringName, connected: bool, ready: bool) -> Dictionary:
+	return {
+		"slot_id": slot_id,
+		"peer_id": peer_id,
+		"token": "test-token-%d" % slot_id,
+		"name": "Test %d" % slot_id,
+		"racer_id": racer_id,
+		"vehicle_id": &"sedan",
+		"ready": ready,
+		"connected": connected,
+		"last_input_sequence": -1,
+	}
 
 
 func _test_input_isolation() -> void:

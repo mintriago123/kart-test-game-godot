@@ -8,6 +8,7 @@ var _role := "client"
 var _client_index := 1
 var _port := 17777
 var _expected_humans := 4
+var _bots_enabled := true
 var _session: LanSession
 var _deadline_ms := 0
 var _finishing := false
@@ -30,6 +31,8 @@ func _initialize() -> void:
 			_client_index = int(argument.trim_prefix("--client-index="))
 		elif argument.begins_with("--port="):
 			_port = int(argument.trim_prefix("--port="))
+		elif argument == "--no-bots":
+			_bots_enabled = false
 	call_deferred("_run")
 
 
@@ -67,6 +70,7 @@ func _run() -> void:
 			"track_id": &"coastal",
 			"cc_id": &"150",
 			"items_enabled": false,
+			"bots_enabled": _bots_enabled,
 			"port": _port,
 			"room_name": "Loopback",
 		}, _port)
@@ -122,7 +126,8 @@ func _on_race_start(payload: Dictionary) -> void:
 	var local_count := 0
 	for participant in participants:
 		local_count += int(participant.is_local())
-	if participants.size() != LanProtocol.GRID_SIZE or local_count != 1:
+	var expected_grid := LanProtocol.GRID_SIZE if _bots_enabled else _expected_humans
+	if participants.size() != expected_grid or local_count != 1:
 		_fail("La parrilla sincronizada no contiene ocho corredores y un jugador local.")
 		return
 	if bool((payload.get("settings", {}) as Dictionary).get("items_enabled", true)):
@@ -230,7 +235,7 @@ func _report_pass() -> void:
 	print("LAN_LOOPBACK_PASS role=%s humans=%d grid=%d snapshot=%s reliable=%s discovery=%s reconnect=%s" % [
 		_role,
 		_session.get_slots().size(),
-		LanProtocol.GRID_SIZE,
+		_session.build_participants().size(),
 		str(_network_probe_sent if _role == "host" else _received_snapshot),
 		str(_network_probe_sent if _role == "host" else _received_event),
 		str(true if _role == "host" or _client_index != 1 else _room_discovered),

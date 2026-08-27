@@ -179,6 +179,7 @@ func get_active_gamepad_id() -> int:
 
 func _build_interface() -> void:
 	var root := Control.new()
+	root.name = "MenuRoot"
 	root.theme = UiTokens.create_theme()
 	_router.add_child(root)
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -321,6 +322,7 @@ func _build_interface() -> void:
 	_local_lobby.participants_confirmed.connect(_handle_local_participants_confirmed)
 	_local_lobby.back_requested.connect(func() -> void: _router.back())
 	_lan_lobby = LanMultiplayerLobby.new()
+	_lan_lobby.name = "LanLobby"
 	_lan_lobby.visible = false
 	root.add_child(_lan_lobby)
 	_lan_lobby.configure(progression_catalog, track_catalog, player_progress)
@@ -837,6 +839,12 @@ func show_notice(message: String) -> void:
 	toast.size = Vector2(560, 64)
 	add_child(toast)
 	toast.show_message(message, 5.0)
+
+
+func restore_main_route() -> void:
+	_router.clear_history()
+	_router.replace(MenuRoute.Id.MAIN)
+	_play_button.grab_focus.call_deferred()
 
 func _show_play_vehicle(value: Dictionary) -> void:
 	_vehicle_gallery.configure(progression_catalog, player_progress, value)

@@ -91,6 +91,31 @@ static func panel(color := INK, radius := RADIUS_MEDIUM, border_color := Color.T
 	return box
 
 
+static func room_row() -> StyleBoxFlat:
+	return panel(INK, RADIUS_SMALL, Color(1, 1, 1, 0.07))
+
+
+static func participant_row() -> StyleBoxFlat:
+	return panel(GRAPHITE, RADIUS_SMALL, Color(1, 1, 1, 0.06))
+
+
+static func status_badge(color: Color) -> StyleBoxFlat:
+	var box := panel(color.darkened(0.58), RADIUS_SMALL)
+	box.content_margin_left = SPACE_2
+	box.content_margin_right = SPACE_2
+	box.content_margin_top = SPACE_1
+	box.content_margin_bottom = SPACE_1
+	return box
+
+
+static func kicker(color := CYAN) -> LabelSettings:
+	var settings := LabelSettings.new()
+	settings.font = DISPLAY_FONT
+	settings.font_size = FONT_CAPTION
+	settings.font_color = color
+	return settings
+
+
 static func create_theme() -> Theme:
 	var result := Theme.new()
 	result.default_font = BODY_FONT

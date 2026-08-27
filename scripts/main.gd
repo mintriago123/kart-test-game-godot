@@ -129,13 +129,19 @@ func _start_session(session: RaceSessionConfig, should_play_intro: bool) -> void
 	if session == null:
 		push_error("Cannot start an empty race session.")
 		return
+	var is_lan_session := session.game_mode == GameModeDefinition.LAN_MULTIPLAYER
 	if race_world != null:
 		race_world.shutdown()
 		race_world.queue_free()
 		race_world = null
 	if main_menu != null:
-		main_menu.queue_free()
-		main_menu = null
+		if is_lan_session:
+			# Keep the LAN session in its original scene-tree path while the race
+			# is active. RPCs already in flight still address that path.
+			main_menu.hide()
+		else:
+			main_menu.queue_free()
+			main_menu = null
 	get_tree().paused = false
 	race_world = RaceWorld.new()
 	race_world.graphics_profile = settings.graphics_profile
@@ -184,6 +190,7 @@ func _show_main_menu() -> void:
 	if main_menu != null:
 		return
 	main_menu = MainMenu.new()
+	main_menu.name = "MainMenu"
 	main_menu.track_catalog = TRACK_CATALOG
 	main_menu.has_active_cup = not player_progress.active_cup.is_empty()
 	main_menu.progression_catalog = PROGRESSION_CATALOG
@@ -240,8 +247,8 @@ func _handle_lan_race_requested(value_session: LanSession, payload: Dictionary) 
 	if detached == null:
 		return
 	lan_session = detached
-	if lan_session.get_parent() != self:
-		add_child(lan_session)
+	# LanSession stays under the lobby so its NodePath remains stable for RPC
+	# packets already queued when the race starts.
 	if not lan_session.host_lost.is_connected(_handle_lan_host_lost):
 		lan_session.host_lost.connect(_handle_lan_host_lost)
 	var room: Dictionary = payload.get("settings", {})
@@ -256,7 +263,9 @@ func _handle_lan_race_requested(value_session: LanSession, payload: Dictionary) 
 	race_session.game_mode = GameModeDefinition.LAN_MULTIPLAYER
 	race_session.grid_size = LanProtocol.GRID_SIZE
 	race_session.items_enabled = bool(room.get("items_enabled", true))
-	race_session.set_participants(lan_session.build_participants())
+	var participants := lan_session.build_participants()
+	race_session.set_participants(participants)
+	race_session.grid_size = participants.size()
 	race_session.race_seed = int(payload.get("race_seed", randi()))
 	race_session.run_id = StringName("lan-%s-%s" % [lan_session.local_token.left(12), race_session.race_seed])
 	race_session.lan_session = lan_session
@@ -309,10 +318,14 @@ func _return_to_menu() -> void:
 		race_world = null
 	get_tree().paused = false
 	if lan_session != null:
-		lan_session.close()
-		lan_session.queue_free()
+		if is_instance_valid(lan_session):
+			lan_session.close()
 		lan_session = null
-	_show_main_menu()
+	if main_menu != null:
+		main_menu.show()
+		main_menu.restore_main_route()
+	else:
+		_show_main_menu()
 
 
 func _set_graphics_profile(profile: String) -> void:

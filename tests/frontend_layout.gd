@@ -46,6 +46,17 @@ func _check_size(viewport_size: Vector2i) -> void:
 			var lan := screen as LanMultiplayerLobby
 			valid = valid and _check_action_bar(lan._actions, bounds, "LAN", viewport_size)
 			valid = valid and lan._columns_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED
+			valid = valid and lan._stage == lan.STAGE_NETWORK and lan._host_mode_button.visible and lan._join_mode_button.visible
+			lan._choose_role(true)
+			lan._advance_stage()
+			valid = valid and lan._stage == lan.STAGE_RACE and lan._room_panel.visible and not lan._slots_scroll.visible
+			lan._back()
+			lan._back()
+			lan._choose_role(false)
+			lan._advance_stage()
+			valid = valid and lan._stage == lan.STAGE_CONNECTION and lan._connection_panel.visible
+			lan._back()
+			lan._back()
 		_check(valid, "%s fits %dx%d with accessible actions." % [MenuRoute.route_name(route), viewport_size.x, viewport_size.y])
 	_check((menu._cup_selector.cup_buttons[&"horizontes"] as Button).text.begins_with("🔒"), "The cup selector exposes locked campaign events at %dx%d." % [viewport_size.x, viewport_size.y])
 	menu.queue_free()
