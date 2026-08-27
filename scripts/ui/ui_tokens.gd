@@ -116,6 +116,23 @@ static func kicker(color := CYAN) -> LabelSettings:
 	return settings
 
 
+static func wordmark(width: float, height: float, font_size := FONT_HERO) -> Control:
+	# Keep the title and landing mark on the same glyph-based implementation.
+	var result := HBoxContainer.new()
+	result.custom_minimum_size = Vector2(width, height)
+	result.alignment = BoxContainer.ALIGNMENT_CENTER
+	result.add_theme_constant_override("separation", 0)
+	for part in [["MICH", ELECTRIC_YELLOW], ["I", CORAL], ["KART", WARM_WHITE], [" XD", ELECTRIC_YELLOW]]:
+		var label := Label.new()
+		label.text = part[0]
+		label.add_theme_font_override("font", DISPLAY_FONT)
+		label.add_theme_font_size_override("font_size", font_size)
+		label.add_theme_color_override("font_color", part[1])
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		result.add_child(label)
+	return result
+
+
 static func create_theme() -> Theme:
 	var result := Theme.new()
 	result.default_font = BODY_FONT

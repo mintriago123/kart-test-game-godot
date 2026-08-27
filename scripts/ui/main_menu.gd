@@ -2,6 +2,7 @@ class_name MainMenu
 extends CanvasLayer
 
 const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
+const MainMenuLanding = preload("res://scripts/ui/main_menu_landing.gd")
 
 signal play_requested(track_id: StringName, cc_id: StringName, game_mode: int, difficulty_id: StringName)
 signal track_selected(track_id: StringName)
@@ -82,6 +83,7 @@ var _local_lobby: LocalMultiplayerLobby
 var _pending_multiplayer_participants: Array[RaceParticipantConfig] = []
 var _lan_lobby: LanMultiplayerLobby
 var _active_play_payload: Dictionary = {}
+var _landing: MainMenuLanding
 
 
 func _ready() -> void:
@@ -169,6 +171,7 @@ func apply_settings(
 		snapshot.ghost_enabled = ghost_enabled
 		(_settings_panel as SettingsScreen).apply_snapshot(snapshot)
 	_update_best_time_label()
+	_update_landing_context()
 
 
 func get_active_gamepad_id() -> int:
@@ -183,63 +186,18 @@ func _build_interface() -> void:
 	root.theme = UiTokens.create_theme()
 	_router.add_child(root)
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var background := ColorRect.new()
-	background.color = UiTokens.GRAPHITE
-	root.add_child(background)
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var sun := ColorRect.new()
-	sun.color = UiTokens.ELECTRIC_YELLOW
-	sun.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	sun.offset_left = -330.0
-	sun.offset_right = 0.0
-	sun.offset_top = 0.0
-	sun.offset_bottom = 0.0
-	sun.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(sun)
-
-	var stripe := ColorRect.new()
-	stripe.color = UiTokens.CORAL
-	stripe.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	stripe.offset_left = -365.0
-	stripe.offset_right = -329.0
-	stripe.offset_top = 0.0
-	stripe.offset_bottom = 0.0
-	stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(stripe)
-
-	var content := VBoxContainer.new()
-	content.name = "MainContent"
-	content.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-	content.position = Vector2(72.0, -210.0)
-	content.size = Vector2(610.0, 420.0)
-	content.add_theme_constant_override("separation", 15)
-	root.add_child(content)
-	root.resized.connect(func() -> void: _update_menu_layout(root, content, sun, stripe))
-
-	var eyebrow := Label.new()
-	eyebrow.text = "CAMPEONATO ARCADE"
-	eyebrow.add_theme_font_size_override("font_size", 18)
-	eyebrow.add_theme_color_override("font_color", UiTokens.CYAN)
-	content.add_child(eyebrow)
-
-	content.add_child(_wordmark(500.0, 116.0))
-
-	var actions := MenuList.new()
-	_main_actions = actions
-	actions.custom_minimum_size.x = 310.0
-	actions.add_theme_constant_override("separation", 14)
-	content.add_child(actions)
-
-	if has_active_cup:
-		var continue_cup := actions.add_action("CONTINUAR COPA", _open_active_cup_flow, true)
-		continue_cup.custom_minimum_size.y = UiTokens.BUTTON_HEIGHT
-	_play_button = actions.add_action("JUGAR", _show_mode_selector, true)
-	_play_button.custom_minimum_size.y = UiTokens.BUTTON_HEIGHT
-	var garage := actions.add_action("GARAJE", func() -> void: pass)
-	var profile := actions.add_action("PERFIL", func() -> void: pass)
-	var settings := actions.add_action("AJUSTES", _toggle_settings)
+	_landing = MainMenuLanding.new()
+	_landing.name = "MainLanding"
+	_landing.has_active_cup = has_active_cup
+	_landing.play_requested.connect(_show_mode_selector)
+	_landing.continue_requested.connect(_open_active_cup_flow)
+	_landing.garage_requested.connect(_open_standalone_garage)
+	_landing.profile_requested.connect(func() -> void: _router.navigate(MenuRoute.Id.PROFILE))
+	_landing.settings_requested.connect(_toggle_settings)
+	root.add_child(_landing)
+	_main_actions = _landing.main_actions
+	_play_button = _landing.play_button
+	_showroom = _landing.showroom
 	_vehicle_gallery = VehicleGalleryScreen.new()
 	_vehicle_gallery.visible = false
 	_vehicle_gallery.configure(progression_catalog, player_progress, {"source": "standalone", "variant_id": player_progress.equipped_kart_variant_id if player_progress else &""})
@@ -247,18 +205,8 @@ func _build_interface() -> void:
 	_vehicle_gallery.back_requested.connect(func() -> void: _router.back())
 	_garage_panel = _vehicle_gallery
 	root.add_child(_garage_panel)
-	garage.pressed.connect(_open_standalone_garage)
 	_profile_panel = _build_profile_panel()
 	root.add_child(_profile_panel)
-	profile.pressed.connect(func() -> void: _router.navigate(MenuRoute.Id.PROFILE))
-	_showroom = VehicleViewport.new()
-	_showroom.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	_showroom.offset_left = -520.0
-	_showroom.offset_right = -30.0
-	_showroom.offset_top = 70.0
-	_showroom.offset_bottom = -70.0
-	_showroom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(_showroom)
 	_showroom.show_variant(_get_equipped_variant())
 
 	_track_selector = TrackSelectScreen.new()
@@ -368,7 +316,7 @@ func _build_interface() -> void:
 	_select_track(_selected_track_id, false)
 	_router.set_fallback_focus(MenuRoute.Id.MAIN, _play_button, _main_actions)
 	_play_button.grab_focus.call_deferred()
-	_update_menu_layout(root, content, sun, stripe)
+	_update_landing_context()
 
 
 func _build_title_screen() -> Control:
@@ -397,21 +345,7 @@ func _build_title_screen() -> Control:
 
 
 func _wordmark(width: float, height: float) -> Control:
-	# Compose the brand from real font glyphs instead of relying on SVG text
-	# support, which varies between Godot importers and mobile drivers.
-	var wordmark := HBoxContainer.new()
-	wordmark.custom_minimum_size = Vector2(width, height)
-	wordmark.alignment = BoxContainer.ALIGNMENT_CENTER
-	wordmark.add_theme_constant_override("separation", 0)
-	for part in [["MICH", UiTokens.ELECTRIC_YELLOW], ["I", UiTokens.CORAL], ["KART", UiTokens.WARM_WHITE], [" XD", UiTokens.ELECTRIC_YELLOW]]:
-		var label := Label.new()
-		label.text = part[0]
-		label.add_theme_font_override("font", UiTokens.DISPLAY_FONT)
-		label.add_theme_font_size_override("font_size", 76)
-		label.add_theme_color_override("font_color", part[1])
-		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		wordmark.add_child(label)
-	return wordmark
+	return UiTokens.wordmark(width, height, 76)
 
 
 func _input(event: InputEvent) -> void:
@@ -629,35 +563,6 @@ func _update_profile_layout() -> void:
 		_profile_content_host.custom_minimum_size.x = maxf(300.0, _profile_panel.size.x - (260.0 if compact else 300.0))
 
 
-func _update_menu_layout(
-	root: Control,
-	content: Control,
-	sun: Control,
-	stripe: Control
-) -> void:
-	var compact := root.size.x < 900.0 or root.size.y < 560.0
-	if compact:
-		var scale_factor := minf(0.78, (root.size.x - 40.0) / 760.0)
-		content.scale = Vector2.ONE * scale_factor
-		var desired_y := maxf(18.0, (root.size.y - content.size.y * scale_factor) * 0.5)
-		content.offset_left = 24.0
-		content.offset_right = 24.0 + content.size.x
-		content.offset_top = desired_y - root.size.y * 0.5
-		content.offset_bottom = content.offset_top + content.size.y
-		sun.offset_left = -220.0
-		stripe.offset_left = -244.0
-		stripe.offset_right = -219.0
-	else:
-		content.scale = Vector2.ONE
-		content.offset_left = 72.0
-		content.offset_right = 682.0
-		content.offset_top = -210.0
-		content.offset_bottom = 210.0
-		sun.offset_left = -330.0
-		stripe.offset_left = -365.0
-		stripe.offset_right = -329.0
-
-
 func _build_garage_panel() -> Control:
 	var overlay := ColorRect.new()
 	overlay.color = UiTokens.SCRIM
@@ -861,8 +766,8 @@ func _handle_route_changed(route: int, _payload: Dictionary) -> void:
 	_set_main_menu_focus_enabled(route == MenuRoute.Id.MAIN)
 	# The menu showroom is not part of routed overlays. Hide it explicitly so
 	# only the shared gallery showroom renders on vehicle-selection routes.
-	if _showroom != null:
-		_showroom.visible = route == MenuRoute.Id.MAIN
+	if _landing != null:
+		_landing.set_route_visible(route == MenuRoute.Id.MAIN)
 
 
 func _set_main_menu_focus_enabled(enabled: bool) -> void:
@@ -922,16 +827,19 @@ func _hide_track_selector() -> void:
 
 func _handle_track_selected(track_id: StringName) -> void:
 	_selected_track_id = track_id
+	_update_landing_context()
 	track_selected.emit(track_id)
 
 
 func _handle_race_class_selected(cc_id: StringName) -> void:
 	_selected_cc_id = cc_id
+	_update_landing_context()
 	race_class_selected.emit(cc_id)
 
 
 func _handle_game_mode_selected(game_mode: int) -> void:
 	_selected_game_mode = game_mode
+	_update_landing_context()
 	game_mode_selected.emit(game_mode)
 
 func _get_equipped_variant() -> KartVariantDefinition:
@@ -941,6 +849,37 @@ func _get_equipped_variant() -> KartVariantDefinition:
 	if equipped != null:
 		return equipped
 	return progression_catalog.unlocks.initial_variant
+
+
+func _update_landing_context() -> void:
+	if _landing == null:
+		return
+	var variant := _get_equipped_variant()
+	var track := track_catalog.get_track(_selected_track_id) if track_catalog != null else null
+	var variant_name := variant.display_name.to_upper() if variant != null else "VEHÍCULO BASE"
+	var track_name := track.display_name.to_upper() if track != null else "COSTA TURBO"
+	var race_class := RaceClassDefinition.get_by_id(_selected_cc_id)
+	var detail := "%s · %s" % [_game_mode_label(_selected_game_mode), race_class.display_name]
+	var title := "%s · %s" % [variant_name, track_name]
+	var badge := "CONFIGURACIÓN ACTUAL"
+	if has_active_cup:
+		badge = "COPA ACTIVA · CONTINUAR"
+		var active_cup := player_progress.active_cup if player_progress != null else {}
+		var cup_id := StringName(active_cup.get("cup_id", &""))
+		var cup := progression_catalog.cups.get_cup(cup_id) if progression_catalog != null and progression_catalog.cups != null else null
+		if cup != null:
+			title = "COPA · %s" % cup.display_name.to_upper()
+			detail = "%s · %s · %s" % [variant_name, track_name, race_class.display_name]
+	_landing.set_context(title, detail, badge)
+
+
+func _game_mode_label(game_mode: int) -> String:
+	match game_mode:
+		GameModeDefinition.TIME_TRIAL: return "CONTRARRELOJ"
+		GameModeDefinition.CUP: return "COPA"
+		GameModeDefinition.LOCAL_MULTIPLAYER: return "MULTIJUGADOR LOCAL"
+		GameModeDefinition.LAN_MULTIPLAYER: return "RED LOCAL"
+		_: return "CARRERA"
 
 func _format_duration(seconds: float) -> String:
 	var total := maxi(roundi(seconds), 0)
@@ -1255,6 +1194,7 @@ func refresh_equipped_variant() -> void:
 		_garage_showroom.show_variant(_get_equipped_variant())
 	if _vehicle_gallery != null and _vehicle_gallery.visible:
 		_vehicle_gallery.configure(progression_catalog, player_progress, _vehicle_gallery.payload)
+	_update_landing_context()
 
 func _bind_ui_feedback() -> void:
 	for candidate in find_children("*", "Button", true, false):

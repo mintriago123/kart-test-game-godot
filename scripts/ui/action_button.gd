@@ -7,6 +7,8 @@ enum Kind { PRIMARY, SECONDARY, DANGER }
 		kind = value
 		_refresh()
 
+var _press_tween: Tween
+
 func _ready() -> void:
 	custom_minimum_size.y = maxf(custom_minimum_size.y, UiTokens.TOUCH_TARGET)
 	_refresh()
@@ -27,9 +29,15 @@ func _refresh() -> void:
 	add_theme_stylebox_override("disabled", UiTokens.panel(UiTokens.BUTTON_DISABLED_BG, UiTokens.RADIUS_MEDIUM))
 
 func _press_in() -> void:
-	var tween := create_tween()
-	tween.tween_property(self, "scale", Vector2(0.97, 0.97), 0.06)
+	_kill_press_tween()
+	_press_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_press_tween.tween_property(self, "scale", Vector2(0.97, 0.97), UiTokens.PRESS_DURATION * 0.5)
 
 func _press_out() -> void:
-	var tween := create_tween()
-	tween.tween_property(self, "scale", Vector2.ONE, 0.06)
+	_kill_press_tween()
+	_press_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_press_tween.tween_property(self, "scale", Vector2.ONE, UiTokens.PRESS_DURATION * 0.5)
+
+func _kill_press_tween() -> void:
+	if _press_tween != null and _press_tween.is_valid():
+		_press_tween.kill()

@@ -22,6 +22,14 @@ func _check_size(viewport_size: Vector2i) -> void:
 	await process_frame
 	menu._title_screen.hide()
 	menu._router.replace(MenuRoute.Id.MAIN)
+	var main_valid := true
+	for candidate in menu._main_actions.find_children("*", "Button", true, false):
+		var button := candidate as Button
+		var rect := button.get_global_rect()
+		main_valid = main_valid and button.is_visible_in_tree() and rect.position.x >= 0.0 and rect.end.x <= viewport_size.x and button.custom_minimum_size.y >= 48.0
+	_check(main_valid, "main landing actions fit %dx%d with accessible targets." % [viewport_size.x, viewport_size.y])
+	_check(menu._landing._context_title.text != "" and menu._landing._context_detail.text != "", "main landing exposes current race context at %dx%d." % [viewport_size.x, viewport_size.y])
+	_check(menu._landing.showroom.visible == (viewport_size.x >= 900 and viewport_size.y >= 560), "main landing prioritizes content in compact layout at %dx%d." % [viewport_size.x, viewport_size.y])
 	menu._cup_selector.configure(menu.progression_catalog, menu.player_progress, {"source": "play", "mode": GameModeDefinition.CUP})
 	for route in [MenuRoute.Id.PLAY_MODE, MenuRoute.Id.PLAY_CUP, MenuRoute.Id.PLAY_READY, MenuRoute.Id.PLAY_LOCAL_LOBBY, MenuRoute.Id.PLAY_LAN_LOBBY, MenuRoute.Id.GARAGE, MenuRoute.Id.PROFILE, MenuRoute.Id.SETTINGS, MenuRoute.Id.CONTROLS]:
 		menu._router.navigate(route)
