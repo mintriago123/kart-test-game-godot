@@ -339,7 +339,7 @@ func _test_ai_item_rules() -> void:
 	kart.add_child(ai)
 	ai.setup(kart, manager, 0.0)
 	var forward := Vector3.FORWARD
-	ai.set("_item_cooldown", 0.0)
+	ai._item_cooldown = 0.0
 	var all_rules_match := true
 	for item in [
 		ItemDefinition.boost(),
@@ -350,8 +350,9 @@ func _test_ai_item_rules() -> void:
 		ItemDefinition.tropical_wave(),
 	]:
 		kart.held_item = item
-		ai.set("_observed_item", item)
-		ai.set("_held_item_time", 0.0)
+		ai._items.observed_item = item
+		ai._items.held_item_time = 0.0
+		ai._items.update(0.0)
 		all_rules_match = all_rules_match and ai._should_use_item(forward)
 	_check(all_rules_match, "AI recognizes tactical use conditions for all six items.")
 	ahead.position = Vector3(0.0, 0.0, -60.0)
@@ -362,13 +363,11 @@ func _test_ai_item_rules() -> void:
 		ItemDefinition.tropical_wave(),
 	]:
 		kart.held_item = timeout_item
-		ai.set("_observed_item", timeout_item)
-		ai.set(
-			"_held_item_time",
-			4.0
-			if timeout_item.type == ItemDefinition.ItemType.SLIPPERY_PEEL
+		ai._items.observed_item = timeout_item
+		ai._items.held_item_time = 4.0 \
+			if timeout_item.type == ItemDefinition.ItemType.SLIPPERY_PEEL \
 			else 6.0
-		)
+		ai._items.update(0.0)
 		all_rules_match = all_rules_match and ai._should_use_item(forward)
 	_check(all_rules_match, "AI clears every retained item by its configured timeout.")
 	fixture.queue_free()
