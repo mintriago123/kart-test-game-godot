@@ -58,12 +58,17 @@ extends Resource
 @export_group("Drift decision")
 @export var drift_curvature_threshold := 0.018
 @export var drift_curvature_release := 0.007
+@export var drift_curvature_commit := 0.025
+@export var drift_curvature_cancel := 0.005
 @export var drift_steer_threshold := 0.32
 @export var drift_steer_release := 0.12
+@export var drift_steer_commit := 0.40
+@export var drift_steer_cancel := 0.08
 @export var drift_speed_ratio_threshold := 0.34
 @export var drift_lateral_error_ratio := 0.55
 @export var drift_sensor_front_min := 0.24
 @export var drift_sensor_side_min := 0.14
+@export var drift_lock_frames := 12
 
 @export_group("Racer avoidance")
 @export var racer_avoidance_distance := 10.0

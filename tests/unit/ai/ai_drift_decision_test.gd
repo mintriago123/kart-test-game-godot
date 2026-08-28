@@ -20,25 +20,22 @@ func _run() -> void:
 
 	_check(decision.update(sample, 0.05, 20.0, 25.0, sensors, 0.0,
 			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true) == false,
-		"releases drift when steer drops below release threshold")
+		"releases drift when steer drops below cancel threshold")
 
 	var gentle_sample := _make_sample(0.005)
-	decision.committed = false
-	decision.current_section_id = -1
+	_reset(decision)
 	_check(decision.update(gentle_sample, 0.5, 20.0, 25.0, sensors, 0.0,
 			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true) == false,
 		"does not commit on gentle curve below threshold")
 
 	var obstacle_sensors := {"front": 0.1, "left": 0.5, "right": 0.5}
-	decision.committed = false
-	decision.current_section_id = -1
+	_reset(decision)
 	_check(decision.update(sample, 0.5, 20.0, 25.0, obstacle_sensors, 0.0,
 			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true) == false,
 		"does not commit when front sensor detects wall")
 
 	var wall_sensors := {"front": 0.5, "left": 0.05, "right": 0.5}
-	decision.committed = false
-	decision.current_section_id = -1
+	_reset(decision)
 	_check(decision.update(sample, 0.5, 20.0, 25.0, wall_sensors, 0.0,
 			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true) == false,
 		"does not commit when left sensor detects wall")
@@ -47,12 +44,37 @@ func _run() -> void:
 			AiRecoveryState.DriveState.WALL_RECOVERY, 30.0, 0.8, true) == false,
 		"does not commit during wall recovery state")
 
+	_reset(decision)
+	decision.update(sample, 0.5, 20.0, 25.0, sensors, 0.0,
+		AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true)
+	var oscillating_curvature_sample := _make_sample(0.020)
+	_check(decision.update(oscillating_curvature_sample, 0.5, 20.0, 25.0, sensors, 0.0,
+			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true) == true,
+		"hysteresis keeps drift committed when curvature sits in dead zone between cancel and commit")
+
+	_reset(decision)
+	decision.update(sample, 0.5, 20.0, 25.0, sensors, 0.0,
+		AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true)
+	var cancel_sample := _make_sample(0.001)
+	decision.update(cancel_sample, 0.05, 20.0, 25.0, sensors, 0.0,
+		AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true)
+	var rec_commit_sample := _make_sample(0.05)
+	_check(decision.update(rec_commit_sample, 0.5, 20.0, 25.0, sensors, 0.0,
+			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true) == false,
+		"lock timer prevents re-commit immediately after cancel")
+
 	if _failures == 0:
 		print("AiDriftDecision tests passed.")
 		quit(0)
 	else:
 		push_error("%d AiDriftDecision tests failed." % _failures)
 		quit(1)
+
+
+func _reset(decision: AiDriftDecision) -> void:
+	decision.committed = false
+	decision.current_section_id = -1
+	decision._lock_timer = 0
 
 
 func _make_sample(curvature: float) -> RacingLineSample:

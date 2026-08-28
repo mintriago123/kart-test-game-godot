@@ -128,7 +128,7 @@ func setup(
 			race_manager.race_completed.connect(_close_telemetry)
 
 
-func _close_telemetry() -> void:
+func _close_telemetry(_result: Variant = null) -> void:
 	if _telemetry != null:
 		_telemetry.close()
 		_telemetry = null
