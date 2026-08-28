@@ -85,14 +85,83 @@ func configure(value: Dictionary, track: TrackDefinition, variant: KartVariantDe
 
 func _select_cc(id: StringName, update_payload := true) -> void:
 	if update_payload: payload["cc_id"] = id
-	for chip in _cc_chips.get_children(): _style_chip(chip as Button, chip.name == str(id))
+	var focus_target: Button = null
+	for chip in _cc_chips.get_children():
+		var button := chip as Button
+		var is_selected := button.name == str(id)
+		_style_chip(button, is_selected)
+		if is_selected:
+			focus_target = button
+	if focus_target != null and is_instance_valid(focus_target):
+		focus_target.grab_focus.call_deferred()
 
 func _select_difficulty(id: StringName, update_payload := true) -> void:
 	if update_payload: payload["difficulty_id"] = id
-	for chip in _difficulty_chips.get_children(): _style_chip(chip as Button, chip.name == str(id))
+	var focus_target: Button = null
+	for chip in _difficulty_chips.get_children():
+		var button := chip as Button
+		var is_selected := button.name == str(id)
+		_style_chip(button, is_selected)
+		if is_selected:
+			focus_target = button
+	if focus_target != null and is_instance_valid(focus_target):
+		focus_target.grab_focus.call_deferred()
 
 func _style_chip(button: Button, selected: bool) -> void:
-	button.set_pressed_no_signal(selected); button.add_theme_stylebox_override("normal", UiTokens.panel(UiTokens.ELECTRIC_YELLOW if selected else UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, UiTokens.ELECTRIC_YELLOW if selected else Color.TRANSPARENT)); button.add_theme_stylebox_override("hover", UiTokens.panel(UiTokens.ELECTRIC_YELLOW.lightened(0.08), UiTokens.RADIUS_SMALL, UiTokens.CYAN)); button.add_theme_color_override("font_color", UiTokens.GRAPHITE if selected else UiTokens.WARM_WHITE); button.add_theme_color_override("font_hover_color", UiTokens.GRAPHITE)
+	button.set_pressed_no_signal(selected)
+	var bg_selected := UiTokens.ELECTRIC_YELLOW
+	var bg_unselected := UiTokens.INK_RAISED
+	var bg_hover_unselected := UiTokens.INK_RAISED.lightened(0.08)
+	var border_selected := UiTokens.ELECTRIC_YELLOW
+	var border_focus := UiTokens.WARM_WHITE
+	var border_width := 4 if selected else 0
+	button.add_theme_stylebox_override(
+		"normal",
+		_chip_style(bg_selected if selected else bg_unselected, border_selected, border_width)
+	)
+	button.add_theme_stylebox_override(
+		"hover",
+		_chip_style(
+			bg_selected.lightened(0.05) if selected else bg_hover_unselected,
+			border_selected if selected else UiTokens.CYAN,
+			border_width if selected else 2
+		)
+	)
+	button.add_theme_stylebox_override(
+		"pressed",
+		_chip_style(
+			bg_selected.darkened(0.14) if selected else bg_unselected.darkened(0.14),
+			border_selected,
+			border_width if selected else 2
+		)
+	)
+	button.add_theme_stylebox_override(
+		"focus",
+		_chip_style(
+			bg_selected if selected else bg_unselected,
+			border_focus,
+			4
+		)
+	)
+	button.add_theme_color_override("font_color", UiTokens.GRAPHITE if selected else UiTokens.WARM_WHITE)
+	button.add_theme_color_override("font_hover_color", UiTokens.GRAPHITE if selected else UiTokens.WARM_WHITE)
+
+
+func _chip_style(bg: Color, border: Color, border_width: int) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = bg
+	box.corner_radius_top_left = UiTokens.RADIUS_SMALL
+	box.corner_radius_top_right = UiTokens.RADIUS_SMALL
+	box.corner_radius_bottom_left = UiTokens.RADIUS_SMALL
+	box.corner_radius_bottom_right = UiTokens.RADIUS_SMALL
+	box.content_margin_left = UiTokens.SPACE_4
+	box.content_margin_right = UiTokens.SPACE_4
+	box.content_margin_top = UiTokens.SPACE_3
+	box.content_margin_bottom = UiTokens.SPACE_3
+	if border.a > 0.0 and border_width > 0:
+		box.set_border_width_all(border_width)
+		box.border_color = border
+	return box
 
 func _toggle_mode_option(enabled: bool) -> void:
 	if int(payload.get("mode", 0)) == GameModeDefinition.TIME_TRIAL: payload["ghost_enabled"] = enabled
@@ -115,7 +184,15 @@ func _update_focus_order() -> void:
 
 func _focus_first_available() -> void:
 	for control in _focus_order:
-		if control.is_visible_in_tree() and control.focus_mode != Control.FOCUS_NONE and not (control is BaseButton and (control as BaseButton).disabled): control.grab_focus.call_deferred(); return
+		if control is Button and (control as Button).button_pressed \
+				and control.is_visible_in_tree() and not (control as BaseButton).disabled:
+			control.grab_focus.call_deferred()
+			return
+	for control in _focus_order:
+		if control.is_visible_in_tree() and control.focus_mode != Control.FOCUS_NONE \
+				and not (control is BaseButton and (control as BaseButton).disabled):
+			control.grab_focus.call_deferred()
+			return
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"ui_cancel") and _back_button != null: _back_button.grab_focus()
