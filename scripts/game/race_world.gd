@@ -252,6 +252,10 @@ func _build_race() -> void:
 				effective_stats.grip *= handling_multiplier
 				effective_stats.boost_power *= handling_multiplier
 				effective_stats.mini_turbo_duration_multiplier *= handling_multiplier
+			effective_stats.overdrive_multiplier = maxf(
+				effective_stats.overdrive_multiplier,
+				session.difficulty.top_speed_bias
+			)
 		kart.configure_for_race(effective_stats, race_class, session.driving_tuning)
 		kart.item_catalog = item_catalog if _items_enabled() else null
 		kart.item_rng = _item_rng
