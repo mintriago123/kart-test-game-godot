@@ -17,6 +17,8 @@ extends Resource
 @export var lookahead_max := 19.0
 @export var throttle_speed_ratio := 0.16
 @export var brake_speed_ratio := 0.13
+@export var throttle_deadband := 0.4
+@export var brake_deadband := 0.4
 @export var throttle_smooth_rate := 2.8
 @export var brake_smooth_rate := 3.8
 @export var item_cooldown_min := 2.4

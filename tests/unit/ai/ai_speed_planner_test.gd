@@ -25,10 +25,16 @@ func _run() -> void:
 		"positive speed_error produces positive throttle")
 	_check(planner.wanted_throttle(-20.0, 25.0) == 0.0,
 		"negative speed_error clamps throttle to 0")
+	_check(planner.wanted_throttle(0.1, 25.0) == 0.0,
+		"throttle deadband returns 0 when speed_error below threshold")
+	_check(planner.wanted_throttle(0.5, 25.0) > 0.0,
+		"throttle wakes up above deadband")
 	_check(planner.wanted_brake(-20.0, 25.0) > 0.0,
 		"negative speed_error produces brake")
 	_check(planner.wanted_brake(20.0, 25.0) == 0.0,
 		"positive speed_error clamps brake to 0")
+	_check(planner.wanted_brake(-0.1, 25.0) == 0.0,
+		"brake deadband returns 0 when speed_error above -threshold")
 
 	_check(planner.clamp_throttle_when_braking(1.0, 0.5) < 1.0,
 		"throttle is clamped when brake is high")

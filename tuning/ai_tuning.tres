@@ -6,3 +6,5 @@
 script = ExtResource("1")
 enable_telemetry_recording = true
 telemetry_flush_interval = 30
+throttle_deadband = 0.4
+brake_deadband = 0.4

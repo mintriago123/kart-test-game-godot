@@ -63,11 +63,24 @@ func compute_target_speed(
 
 
 func wanted_throttle(speed_error: float, max_speed: float) -> float:
-	return clampf(speed_error / maxf(max_speed * tuning.throttle_speed_ratio, 1.0), 0.0, 1.0)
+	var wanted := speed_error / maxf(max_speed * tuning.throttle_speed_ratio, 1.0)
+	# Deadband: when the kart is essentially at target speed the safe_speed
+	# jitters ±0.5 m/s frame-to-frame from curvature/section variation. If we
+	# translated that straight into throttle, the kart would oscillate between
+	# 0 and 0.1 every few frames (the "brinquito"). Below the deadband we
+	# coast; above it we ask for full throttle again.
+	if absf(speed_error) < tuning.throttle_deadband:
+		return 0.0
+	return clampf(wanted, 0.0, 1.0)
 
 
 func wanted_brake(speed_error: float, max_speed: float) -> float:
-	return clampf(-speed_error / maxf(max_speed * tuning.brake_speed_ratio, 1.0), 0.0, 1.0)
+	var wanted := -speed_error / maxf(max_speed * tuning.brake_speed_ratio, 1.0)
+	# Same deadband idea on the brake side so coasting just below target
+	# doesn't pulse brake every frame.
+	if speed_error > -tuning.brake_deadband:
+		return 0.0
+	return clampf(wanted, 0.0, 1.0)
 
 
 func clamp_throttle_under_threat(throttle: float, sensors: Dictionary) -> float:
