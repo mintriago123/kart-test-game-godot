@@ -300,7 +300,12 @@ func _build_race() -> void:
 			launch_rng.seed = ("%d|%s|launch" % [race_seed, racer.id]).hash()
 			var precision := racer.ai_profile.precision
 			var reaction := racer.ai_profile.reaction_time
-			var launch_time := -0.32 - reaction * 0.35 + launch_rng.randf_range(-0.28, 0.22) * (1.15 - precision * 0.55)
+			var launch_time := (
+				-0.32
+				- reaction * 0.35
+				+ launch_rng.randf_range(-0.28, 0.22) * (1.15 - precision * 0.55)
+				+ racer.ai_profile.buff.launch_aggression_bias
+			)
 			kart.register_launch_crossing(launch_time)
 			ai.set_physics_process(false)
 			_ai_drivers.append(ai)
