@@ -240,6 +240,18 @@ func _build_race() -> void:
 			effective_stats.grip *= kart.visual_variant.handling
 			effective_stats.weight = kart.visual_variant.weight
 			effective_stats.mini_turbo_duration_multiplier = kart.visual_variant.mini_turbo_duration_multiplier
+		if not kart.is_player and session != null and session.difficulty != null:
+			var stat_multiplier := session.difficulty.kart_stat_multiplier
+			if stat_multiplier > 1.0:
+				effective_stats.max_speed *= stat_multiplier
+				effective_stats.acceleration *= stat_multiplier
+				effective_stats.braking *= stat_multiplier
+			var handling_multiplier := session.difficulty.kart_handling_multiplier
+			if handling_multiplier > 1.0:
+				effective_stats.steering_speed *= handling_multiplier
+				effective_stats.grip *= handling_multiplier
+				effective_stats.boost_power *= handling_multiplier
+				effective_stats.mini_turbo_duration_multiplier *= handling_multiplier
 		kart.configure_for_race(effective_stats, race_class, session.driving_tuning)
 		kart.item_catalog = item_catalog if _items_enabled() else null
 		kart.item_rng = _item_rng
