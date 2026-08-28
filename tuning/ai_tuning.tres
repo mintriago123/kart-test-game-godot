@@ -4,3 +4,5 @@
 
 [resource]
 script = ExtResource("1")
+enable_telemetry_recording = true
+telemetry_flush_interval = 30

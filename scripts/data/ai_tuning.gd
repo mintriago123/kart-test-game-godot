@@ -122,6 +122,8 @@ extends Resource
 @export_group("Debug")
 @export var enable_debug_logging := false
 @export var debug_log_interval := 1.0
+@export var enable_telemetry_recording := false
+@export var telemetry_flush_interval := 30
 
 
 static func defaults() -> AiTuning:

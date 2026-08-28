@@ -34,7 +34,9 @@ var _smoothed_brake := 0.0
 var _smoothed_steer := 0.0
 var _strategy_timer := 0.0
 var _debug_log_timer := 0.0
+var _telemetry_frame := 0
 var _last_target_speed := 0.0
+var _telemetry: AiTelemetryRecorder
 
 var telemetry := {
 	"lateral_error": 0.0,
@@ -118,6 +120,18 @@ func setup(
 		kart.recovered.connect(_handle_recovery)
 		kart.hit_received.connect(_handle_impact)
 		kart.barrier_contact.connect(_handle_barrier_contact)
+
+	if _tuning != null and _tuning.enable_telemetry_recording:
+		_telemetry = AiTelemetryRecorder.new()
+		_telemetry.open_for_race(race_seed, racer.id, _tuning.telemetry_flush_interval)
+		if race_manager != null and not race_manager.race_completed.is_connected(_close_telemetry):
+			race_manager.race_completed.connect(_close_telemetry)
+
+
+func _close_telemetry() -> void:
+	if _telemetry != null:
+		_telemetry.close()
+		_telemetry = null
 
 
 func _physics_process(delta: float) -> void:
@@ -305,6 +319,34 @@ func _record_telemetry(frame: PerceivedFrame, decision: AiDecision, delta: float
 	telemetry.drift_time += delta if decision.drift else 0.0
 	telemetry.avoidance_time += 0.0 if _recovery.state == AiRecoveryState.DriveState.DRIVING else delta
 	telemetry.barrier_contact_time = _recovery.barrier_contact_time
+
+	if _telemetry != null:
+		_telemetry_frame += 1
+		var sens_front := 1.0
+		var sens_left := 1.0
+		var sens_right := 1.0
+		if frame.sensors != null:
+			sens_front = float(frame.sensors.get("front", 1.0))
+			sens_left = float(frame.sensors.get("left", 1.0))
+			sens_right = float(frame.sensors.get("right", 1.0))
+		_telemetry.record(
+			_telemetry_frame,
+			Time.get_ticks_msec() / 1000.0,
+			racer.id,
+			frame.speed,
+			_last_target_speed,
+			_last_target_speed - frame.speed,
+			_smoothed_throttle,
+			_smoothed_brake,
+			_smoothed_steer,
+			_recovery.state,
+			_drift.committed,
+			sens_front,
+			sens_left,
+			sens_right,
+			_current_section_id,
+			_recovery.recovery_time
+		)
 
 
 func _update_progress_recovery(checkpoint_distance: float) -> bool:
