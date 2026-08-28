@@ -73,6 +73,8 @@ func start_game(
 	session.race_class = RaceClassDefinition.get_by_id(settings.selected_cc_id)
 	session.game_mode = game_mode
 	session.grid_size = 8
+	if game_mode == GameModeDefinition.RACE:
+		session.difficulty = PROGRESSION_CATALOG.difficulties.get_difficulty(selected_cup_difficulty_id)
 	if game_mode == GameModeDefinition.LOCAL_MULTIPLAYER:
 		var local_participants: Array = main_menu.get_multiplayer_participants() if main_menu != null else []
 		session.set_participants(_complete_multiplayer_grid(local_participants))

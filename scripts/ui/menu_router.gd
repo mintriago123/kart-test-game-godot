@@ -117,10 +117,15 @@ func _restore_focus(route: int, screen: Control) -> void:
 	if is_instance_valid(remembered) and remembered.is_visible_in_tree() and (remembered_button == null or not remembered_button.disabled) and remembered.focus_mode != Control.FOCUS_NONE:
 		remembered.grab_focus()
 		return
-	var candidates := screen.find_children("*", "Button", true, false)
-	for candidate in candidates:
-		if (candidate as Button).is_visible_in_tree() and not (candidate as Button).disabled and (candidate as Button).focus_mode != Control.FOCUS_NONE:
-			(candidate as Button).grab_focus()
+	for candidate in screen.find_children("*", "Button", true, false):
+		var button := candidate as Button
+		if button.is_visible_in_tree() and not button.disabled and button.focus_mode != Control.FOCUS_NONE and button.button_pressed:
+			button.grab_focus()
+			return
+	for candidate in screen.find_children("*", "Button", true, false):
+		var button := candidate as Button
+		if button.is_visible_in_tree() and not button.disabled and button.focus_mode != Control.FOCUS_NONE:
+			button.grab_focus()
 			return
 
 func _unhandled_input(event: InputEvent) -> void:

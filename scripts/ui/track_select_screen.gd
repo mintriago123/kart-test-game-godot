@@ -147,10 +147,13 @@ func select_game_mode(game_mode: int, should_emit := true) -> void:
 		}.get(_selected_game_mode, "CARRERA RÁPIDA")
 	for button_mode in game_mode_buttons:
 		(game_mode_buttons[button_mode] as Button).set_pressed_no_signal(button_mode == _selected_game_mode)
+	var difficulty_visible := _selected_game_mode == GameModeDefinition.CUP \
+		or _selected_game_mode == GameModeDefinition.RACE
 	if _difficulty_label != null:
-		_difficulty_label.visible = _selected_game_mode == GameModeDefinition.CUP
+		_difficulty_label.visible = difficulty_visible
+		_difficulty_label.text = "DIFICULTAD DE RIVALES" if _selected_game_mode == GameModeDefinition.RACE else "DIFICULTAD DE COPA"
 	if _difficulty_row != null:
-		_difficulty_row.visible = _selected_game_mode == GameModeDefinition.CUP
+		_difficulty_row.visible = difficulty_visible
 	_update_details()
 	if should_emit:
 		game_mode_selected.emit(_selected_game_mode)
@@ -325,6 +328,7 @@ func _build_interface() -> void:
 	_difficulty_row.add_theme_constant_override("separation", 8)
 	detail_panel.add_child(_difficulty_row)
 	var difficulty_group := ButtonGroup.new()
+	difficulty_group.allow_unpress = false
 	for difficulty_data in [[&"relaxed", "RELAJADA"], [&"competitive", "COMPETITIVA"], [&"expert", "EXPERTA"]]:
 		var difficulty_button := _create_button(difficulty_data[1], UiTokens.CORAL, Vector2(130.0, 42.0))
 		difficulty_button.toggle_mode = true
@@ -332,9 +336,15 @@ func _build_interface() -> void:
 		difficulty_button.pressed.connect(func() -> void:
 			_selected_difficulty_id = difficulty_data[0]
 		)
+		difficulty_button.toggled.connect(func(pressed: bool) -> void:
+			_refresh_difficulty_style(difficulty_button, pressed)
+		)
 		_difficulty_row.add_child(difficulty_button)
 		difficulty_buttons[difficulty_data[0]] = difficulty_button
 	(difficulty_buttons[_selected_difficulty_id] as Button).set_pressed_no_signal(true)
+	for id in difficulty_buttons:
+		var btn := difficulty_buttons[id] as Button
+		_refresh_difficulty_style(btn, btn.button_pressed)
 
 	var race_class_label := Label.new()
 	race_class_label.visible = false
@@ -600,6 +610,19 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 	)
 	button.add_theme_color_override("font_disabled_color", _contrast_text_color(UiTokens.BUTTON_DISABLED_BG))
 	return button
+
+
+func _refresh_difficulty_style(button: Button, active: bool) -> void:
+	var border_width := 4 if active else 0
+	button.add_theme_stylebox_override("normal", _style(UiTokens.CORAL, 16, border_width, UiTokens.WARM_WHITE))
+	button.add_theme_stylebox_override(
+		"hover",
+		_style(UiTokens.CORAL.lightened(0.1), 16, border_width, UiTokens.WARM_WHITE)
+	)
+	button.add_theme_stylebox_override(
+		"pressed",
+		_style(UiTokens.CORAL.darkened(0.14), 16, 4, UiTokens.WARM_WHITE)
+	)
 
 
 func _contrast_text_color(background: Color) -> Color:
