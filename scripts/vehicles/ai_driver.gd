@@ -72,7 +72,7 @@ func setup(
 	racer = racer_definition
 	race_seed = seed
 
-	_tuning = tuning if tuning != null else AiTuning.defaults()
+	_tuning = tuning if tuning != null else _load_default_tuning()
 
 	if racer == null:
 		racer = RacerDefinition.create(
@@ -459,6 +459,14 @@ func _apply_barrier_steering(line_steer: float, sensors: Dictionary, line_forwar
 		line_steer, sensors, line_forward, Vector3.ZERO,
 		AiRecoveryState.DriveState.DRIVING
 	)
+
+
+func _load_default_tuning() -> AiTuning:
+	if ResourceLoader.exists("res://tuning/ai_tuning.tres"):
+		var loaded := load("res://tuning/ai_tuning.tres") as AiTuning
+		if loaded != null:
+			return loaded
+	return AiTuning.defaults()
 
 
 func _ensure_subsystems() -> void:
