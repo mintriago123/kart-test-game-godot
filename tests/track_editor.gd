@@ -3,6 +3,21 @@ extends SceneTree
 const TestDiagnostics := preload(
 	"res://addons/track_editor/track_test_diagnostics.gd"
 )
+const PreviewController := preload(
+	"res://addons/track_editor/track_editor_preview_controller.gd"
+)
+const ConflictController := preload(
+	"res://addons/track_editor/track_editor_conflict_controller.gd"
+)
+const PlaytestController := preload(
+	"res://addons/track_editor/track_editor_playtest_controller.gd"
+)
+const ValidationController := preload(
+	"res://addons/track_editor/track_editor_validation_controller.gd"
+)
+const EditController := preload(
+	"res://addons/track_editor/track_editor_edit_controller.gd"
+)
 
 var _has_failed := false
 
@@ -14,11 +29,16 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_validation_contract()
 	_test_all_validation_contracts()
+	_test_route_geometry_warnings()
 	await _test_template_size_differences()
+	await _test_surface_authoring()
+	await _test_preview_versioning()
+	_test_controller_state_contracts()
 	await _test_asset_scale_contracts()
 	await _test_junction_warning_contract()
 	await _test_guided_screen()
 	await _test_template_and_history()
+	await _test_editor_data_safety()
 	await _test_migration_and_partial_preview()
 	_test_playtest_diagnostics()
 	await _test_track_runner()
@@ -54,6 +74,12 @@ func _test_validation_contract() -> void:
 			"Falta el nodo ItemSpawns.",
 		]),
 		"Legacy validation preserves the structured issue messages and order."
+	)
+	_check(
+		track.inspect_track()[0].workflow_step == 0
+		and track.inspect_track()[2].workflow_step == 1
+		and track.inspect_track()[2].focus_kind == &"route",
+		"Validation issues expose their workflow step and focus kind."
 	)
 	track.free()
 
@@ -202,6 +228,48 @@ func _test_all_validation_contracts() -> void:
 		observed_codes.size() == 20,
 		"Parameterized validation covers all 20 issue codes."
 	)
+
+
+func _test_route_geometry_warnings() -> void:
+	var session := TrackEditorSession.new()
+	session.create_track(&"medium", "Geometría de prueba")
+	var track := session.track
+	var curve := track.get_main_route().curve
+	var raised_point := curve.get_point_position(0)
+	raised_point.y += 24.0
+	curve.set_point_position(0, raised_point)
+	var issues := track.inspect_track()
+	var issue_codes: Dictionary = {}
+	for issue in issues:
+		issue_codes[issue.code] = true
+	_check(
+		issue_codes.has(&"route_slope_sharp")
+		and issue_codes.has(&"route_height_discontinuity"),
+		"Route inspection flags steep and discontinuous elevation changes."
+	)
+	_check(
+		not track.validate_track().has("MainRoute tiene una pendiente brusca")
+		and not track.validate_track().has("MainRoute cambia"),
+		"Geometry warnings remain non-blocking for existing draft workflows."
+	)
+	var tight_turn_issues: Array[TrackValidationIssue] = []
+	TrackLevelValidator._append_route_geometry_warnings(
+		tight_turn_issues,
+		[
+			Vector3(-5.0, 0.0, 0.0),
+			Vector3(0.0, 0.0, 0.0),
+			Vector3(0.0, 0.0, 1.0),
+		]
+	)
+	var tight_turn_detected := false
+	for issue in tight_turn_issues:
+		if issue.code == &"route_turn_too_tight":
+			tight_turn_detected = true
+	_check(
+		tight_turn_detected,
+		"Route inspection flags turns whose calculated radius is too small."
+	)
+	track.free()
 
 
 func _create_validation_case_track(code: StringName) -> TrackLevel:
@@ -501,6 +569,236 @@ func _test_template_size_differences() -> void:
 		)
 		map_view.free()
 		track.free()
+
+
+func _test_surface_authoring() -> void:
+	var session := TrackEditorSession.new()
+	session.create_track(&"medium", "Editor de superficies")
+	var track := session.track
+	root.add_child(track)
+	await process_frame
+	var zone := session.create_surface_zone({
+		"surface_id": &"sand",
+		"path_kind": TrackSurfaceZone.PathKind.MAIN,
+		"start_progress": 0.10,
+		"end_progress": 0.22,
+		"lateral_offset": 2.0,
+		"width": 3.0,
+		"surface_priority": 4,
+	})
+	_check(
+		zone != null
+		and track.get_surface_zones().size() == 1
+		and zone.surface != null
+		and zone.surface_priority == 4
+		and track.inspect_track().is_empty(),
+		"Surface zones can be created with an assigned surface and valid bounds."
+	)
+	var selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.SURFACE,
+		track.get_path_to(zone)
+	)
+	session.snapshot_track_for_undo()
+	_check(
+		session.update_surface_zone(selection, {
+			"surface_id": &"dirt",
+			"path_kind": TrackSurfaceZone.PathKind.MAIN,
+			"start_progress": 0.24,
+			"end_progress": 0.38,
+			"lateral_offset": -1.0,
+			"width": 4.0,
+			"surface_priority": 7,
+		})
+		and zone.surface.id == &"dirt"
+		and zone.surface_priority == 7
+		and is_equal_approx(zone.start_progress, 0.24),
+		"Surface zones expose an atomic edit operation."
+	)
+	session.undo_route()
+	_check(
+		zone.surface.id == &"sand"
+		and is_equal_approx(zone.start_progress, 0.10)
+		and is_equal_approx(zone.end_progress, 0.22),
+		"Undo restores the previous surface assignment and progress."
+	)
+	session.redo_route()
+	_check(
+		zone.surface.id == &"dirt"
+		and is_equal_approx(zone.start_progress, 0.24),
+		"Redo restores the edited surface zone."
+	)
+	var overlapping := session.create_surface_zone({
+		"surface_id": &"grass",
+		"path_kind": TrackSurfaceZone.PathKind.MAIN,
+		"start_progress": 0.35,
+		"end_progress": 0.50,
+		"width": 0.25,
+	})
+	var surface_issues := track.inspect_track()
+	var has_overlap := false
+	var has_minimum_width := false
+	for issue in surface_issues:
+		has_overlap = has_overlap or issue.code == &"surface_overlap"
+		has_minimum_width = has_minimum_width or issue.code == &"surface_width_too_small"
+	_check(
+		overlapping != null and has_overlap and has_minimum_width,
+		"Overlapping and undersized surfaces are blocking review issues."
+	)
+	overlapping.path_kind = 99
+	var invalid_path_detected := false
+	for issue in track.inspect_track():
+		invalid_path_detected = invalid_path_detected or issue.code == &"surface_path_invalid"
+	_check(
+		invalid_path_detected,
+		"Surface validation reports an invalid path without crashing review."
+	)
+	overlapping.path_kind = TrackSurfaceZone.PathKind.MAIN
+	session.snapshot_track_for_undo()
+	_check(session.delete_surface_zone(
+		TrackEditorSelection.node(
+			TrackEditorSelection.Kind.SURFACE,
+			track.get_path_to(overlapping)
+		)
+	), "Surface zones can be deleted from the session.")
+	session.undo_route()
+	_check(
+		track.get_surface_zones().size() == 2,
+		"Undo restores a deleted surface zone."
+	)
+	session.redo_route()
+	_check(
+		track.get_surface_zones().size() == 1,
+		"Redo removes the deleted surface zone again."
+	)
+	var legacy_zone := TrackSurfaceZone.new()
+	legacy_zone.priority = 12.0
+	_check(
+		legacy_zone.migrate_legacy_surface_priority()
+		and legacy_zone.surface_priority == 12
+		and is_zero_approx(legacy_zone.priority),
+		"Legacy Area3D priority migrates to the dedicated surface priority."
+	)
+	legacy_zone.free()
+	var surface_panel := TrackSurfacePanel.new()
+	surface_panel.configure(track, _make_test_button)
+	var surface_picker := surface_panel.find_child("SurfacePicker", true, false) as OptionButton
+	_check(
+		surface_picker != null and surface_picker.item_count >= 4,
+		"The surface editor discovers all SurfaceDefinition resources from disk."
+	)
+	surface_panel.free()
+	var map_view := TrackMapView.new()
+	root.add_child(map_view)
+	map_view.size = Vector2(800.0, 500.0)
+	map_view.set_track(track)
+	await process_frame
+	var focus_position := track.get_main_route().curve.get_point_position(3)
+	map_view.focus_world_position(focus_position)
+	_check(
+		map_view._world_to_screen(focus_position).distance_to(map_view.size * 0.5) < 0.1,
+		"The map can focus the exact world position of a geometry issue."
+	)
+	map_view.free()
+	track.free()
+	await process_frame
+
+
+func _test_preview_versioning() -> void:
+	var session := TrackEditorSession.new()
+	session.create_track(&"small", "Preview versionado")
+	var track := session.track
+	var parent := Control.new()
+	root.add_child(parent)
+	var map_view := TrackMapView.new()
+	parent.add_child(map_view)
+	map_view.size = Vector2(800.0, 500.0)
+	map_view.set_track(track)
+	var controller := PreviewController.new()
+	controller.build(parent)
+	controller.set_track(track)
+	controller.request_rebuild(track, map_view)
+	controller.flush_pending(track, map_view)
+	_check(
+		controller.rebuild_count == 0
+		and controller.preview_state == &"diferido",
+		"Hidden 3D previews defer their pending rebuild."
+	)
+	var toggle := Button.new()
+	parent.add_child(toggle)
+	controller.toggle_view(map_view, toggle, track)
+	_check(
+		controller.rebuild_count == 1
+		and controller.applied_version == controller.request_version,
+		"Showing the 3D view applies the latest preview version."
+	)
+	controller.request_rebuild(track, map_view)
+	controller.flush_pending(track, map_view)
+	_check(
+		controller.rebuild_count == 1,
+		"Repeated preview requests for unchanged geometry do not rebuild."
+	)
+	track.get_main_route().curve.set_point_position(
+		0,
+		track.get_main_route().curve.get_point_position(0) + Vector3.RIGHT * 2.0
+	)
+	controller.request_rebuild(track, map_view)
+	controller.toggle_view(map_view, toggle, track)
+	controller.flush_pending(track, map_view)
+	_check(
+		controller.rebuild_count == 1
+		and controller.preview_state == &"diferido",
+		"A changed preview remains pending while the 3D view is hidden."
+	)
+	controller.toggle_view(map_view, toggle, track)
+	_check(
+		controller.rebuild_count == 2
+		and not controller.is_preview_pending(),
+		"The next visible frame rebuilds the changed preview exactly once."
+	)
+	_check(
+		controller.get_preview_status().requested_signature
+		== controller.get_preview_status().applied_signature,
+		"The applied preview signature matches the latest requested geometry."
+	)
+	track.track_theme = track.track_theme.duplicate(true) as TrackTheme
+	track.track_theme.road_color = Color("#112233")
+	controller.request_rebuild(track, map_view)
+	_check(
+		controller.is_preview_pending(),
+		"Changing a referenced theme invalidates the preview signature."
+	)
+	controller.flush_pending(track, map_view)
+	_check(
+		controller.rebuild_count == 3
+		and not controller.is_preview_pending(),
+		"Referenced resource changes rebuild the visible preview."
+	)
+	var preview_surface := session.create_surface_zone({
+		"surface_id": &"dirt",
+		"start_progress": 0.2,
+		"end_progress": 0.3,
+		"width": 3.0,
+	})
+	var surface_definition := preview_surface.surface.duplicate(true) as SurfaceDefinition
+	surface_definition.effect_scene = load(
+		"res://assets/items/visuals/boost_effect.tscn"
+	) as PackedScene
+	preview_surface.surface = surface_definition
+	controller.request_rebuild(track, map_view)
+	_check(
+		controller.is_preview_pending(),
+		"Changes to referenced surface effects invalidate the preview signature."
+	)
+	controller.flush_pending(track, map_view)
+	_check(
+		controller.rebuild_count == 4
+		and not controller.is_preview_pending(),
+		"Referenced surface resource changes rebuild the visible preview."
+	)
+	controller.dispose()
+	map_view.free()
+	parent.free()
+	await process_frame
 
 
 func _test_asset_scale_contracts() -> void:
@@ -886,6 +1184,47 @@ func _test_guided_screen() -> void:
 		map_view.selected_point == 0,
 		"A route point can be selected directly from its visible map handle."
 	)
+	var route_panel := screen.find_child(
+		"TrackRoutePanel",
+		true,
+		false
+	) as TrackRoutePanel
+	var apply_position_button: Button
+	if route_panel != null:
+		for candidate in route_panel.find_children("*", "Button", true, false):
+			var button := candidate as Button
+			if button != null and button.text == "APLICAR POSICIÓN":
+				apply_position_button = button
+				break
+	var route_inputs := (
+		route_panel.find_children("*", "SpinBox", true, false)
+		if route_panel != null
+		else []
+	)
+	var route_panel_controls_ready := (
+		route_panel != null
+		and apply_position_button != null
+		and not route_inputs.is_empty()
+	)
+	var route_point_before_panel_apply := route_curve.get_point_position(0)
+	if not route_inputs.is_empty():
+		var x_input := route_inputs[0] as SpinBox
+		x_input.value = x_input.value + 0.25
+	if apply_position_button != null:
+		apply_position_button.pressed.emit()
+	await process_frame
+	var route_point_changed_by_panel := not route_curve.get_point_position(0).is_equal_approx(
+		route_point_before_panel_apply
+	)
+	_check(
+		route_panel_controls_ready
+		and route_point_changed_by_panel
+		and screen.find_child("TrackRoutePanel", true, false) != null,
+		"Route inspector refreshes safely while its apply button is emitting."
+	)
+	screen.session.undo_route()
+	await process_frame
+	route_curve = screen.session.track.get_main_route().curve
 	var release := InputEventMouseButton.new()
 	release.button_index = MOUSE_BUTTON_LEFT
 	release.pressed = false
@@ -918,6 +1257,54 @@ func _test_guided_screen() -> void:
 		]),
 		"Guided editor preserves the six workflow steps and their order."
 	)
+	screen._show_step(4)
+	await process_frame
+	var surface_panel := screen.find_child("TrackSurfacePanel", true, false) as TrackSurfacePanel
+	var surface_start := screen.find_child("SurfaceStartProgress", true, false) as SpinBox
+	var surface_end := screen.find_child("SurfaceEndProgress", true, false) as SpinBox
+	var surface_submit := screen.find_child("SurfaceSubmit", true, false) as Button
+	var surface_validation := screen.find_child("SurfaceValidation", true, false) as Label
+	_check(
+		surface_panel != null
+		and surface_start != null
+		and surface_end != null
+		and surface_submit != null
+		and not surface_submit.disabled,
+		"Surface editor exposes labelled controls and accepts a valid empty form."
+	)
+	surface_start.value = 0.7
+	surface_end.value = 0.3
+	_check(
+		surface_submit.disabled
+		and surface_validation != null
+		and surface_validation.visible
+		and surface_validation.text.contains("inicio"),
+		"Surface editor blocks reversed progress with inline feedback."
+	)
+	surface_start.value = 0.1
+	surface_end.value = 0.2
+	_check(
+		not surface_submit.disabled,
+		"Surface editor re-enables the transaction after the form is corrected."
+	)
+	surface_start.grab_focus()
+	screen._show_step(4)
+	await process_frame
+	var restored_focus := screen.get_viewport().gui_get_focus_owner()
+	var restored_surface_start := screen.find_child(
+		"SurfaceStartProgress",
+		true,
+		false
+	) as SpinBox
+	_check(
+		restored_surface_start != null
+		and restored_focus != null
+		and (
+			restored_focus == restored_surface_start
+			or restored_surface_start.is_ancestor_of(restored_focus)
+		),
+		"Rebuilding the inspector preserves the focused surface control."
+	)
 	_check(
 		screen._preview_viewport.own_world_3d
 		and screen._preview_viewport.find_child("*", true, false) != null
@@ -942,9 +1329,39 @@ func _test_guided_screen() -> void:
 	_check(
 		screen._new_dialog.ok_button_text == "Crear pista"
 		and screen._open_dialog.file_mode == FileDialog.FILE_MODE_OPEN_FILE
+		and screen._user_open_dialog.access == FileDialog.ACCESS_USERDATA
+		and screen.find_child("OpenUserDraftButton", true, false) != null
 		and screen._unsaved_dialog.ok_button_text == "Guardar"
 		and screen._guide_dialog.dialog_text.begins_with("1. CONFIGURACIÓN"),
-		"Editor dialogs preserve their actions and purposes."
+		"Editor dialogs preserve their actions and expose user:// drafts."
+	)
+	_check(
+		screen.find_child("ExternalChangeDialog", true, false) != null
+		and screen.find_child("CatalogChangeDialog", true, false) != null
+		and screen.find_child("ConflictComparisonDialog", true, false) != null,
+		"Conflict dialogs are owned by the extracted dialog controller."
+	)
+	var external_reload_path := "user://coastal_karts_external_reload_test.tscn"
+	screen.session.scene_path = external_reload_path
+	_check(
+		screen.session.save() == OK,
+		"A guided editor draft can establish an external file observation."
+	)
+	var external_reload_file := FileAccess.open(
+		external_reload_path,
+		FileAccess.READ_WRITE
+	)
+	if external_reload_file != null:
+		external_reload_file.seek_end()
+		external_reload_file.store_string("\n; external reload test")
+		external_reload_file.close()
+	screen._poll_external_changes()
+	await process_frame
+	_check(
+		not screen._scene_conflict_pending
+		and not screen._conflict_controller.scene_pending
+		and screen.session.scene_path == external_reload_path,
+		"Automatic clean-scene reload clears the stale scene conflict state."
 	)
 	screen._new_size.select(0)
 	screen._update_new_template_details()
@@ -1018,18 +1435,18 @@ func _test_guided_screen() -> void:
 				or (node as Button).focus_mode != Control.FOCUS_ALL
 			):
 				inaccessible_buttons.append(str(node.name))
-	_check(button_count >= 14, "Guided editor exposes the complete five-step workflow.")
+	_check(button_count >= 14, "Guided editor exposes the complete six-step workflow.")
 	_check(
 		interactive_controls_are_accessible,
 		"Guided editor buttons are touch-friendly and keyboard focusable: %s"
 		% ", ".join(inaccessible_buttons)
 	)
-	for step_index in 5:
+	for step_index in 6:
 		screen._show_step(step_index)
 		await process_frame
 	_check(
 		screen.session.track != null and is_instance_valid(screen.session.track),
-		"All five guided steps render without losing the edited track."
+		"All six guided steps render without losing the edited track."
 	)
 	var screen_route := screen.session.track.get_main_route()
 	var screen_original := screen_route.curve.get_point_position(0)
@@ -1318,6 +1735,8 @@ func _test_guided_screen() -> void:
 	var result_path := "user://coastal_karts_editor_result_test.cfg"
 	var test_result := ConfigFile.new()
 	test_result.set_value("result", "token", "editor-result")
+	test_result.set_value("result", "track_id", screen.session.track.track_id)
+	test_result.set_value("result", "configuration", "vueltas=3")
 	test_result.set_value("result", "elapsed_time", 75.25)
 	test_result.set_value("result", "recovery_count", 2)
 	test_result.set_value("result", "off_route_count", 1)
@@ -1329,8 +1748,38 @@ func _test_guided_screen() -> void:
 	_check(
 		screen._status_label.text.contains("01:15.250")
 		and screen._status_label.text.contains("2 recuperaciones")
+		and screen.get_playtest_state() == &"completado"
+		and screen.playtest_summaries.has(
+			"%s|vueltas=3" % screen.session.track.track_id
+		)
 		and not FileAccess.file_exists(result_path),
 		"The editor consumes the matching playtest result and shows its summary."
+	)
+	var failed_result_path := "user://coastal_karts_editor_failed_result_test.cfg"
+	var failed_result := ConfigFile.new()
+	failed_result.set_value("result", "token", "editor-failed")
+	failed_result.set_value("result", "failure_reason", "kart no inicializado")
+	failed_result.save(failed_result_path)
+	screen.track_test_started("editor-failed", failed_result_path)
+	await process_frame
+	_check(
+		screen.get_playtest_state() == &"fallido"
+		and screen._status_label.text.contains("kart no inicializado")
+		and not FileAccess.file_exists(failed_result_path),
+		"The editor exposes the exact reason when a playtest fails."
+	)
+	var stale_status_path := "user://coastal_karts_editor_stale_status_test.cfg"
+	var stale_status := ConfigFile.new()
+	stale_status.set_value("test", "token", "editor-stale")
+	stale_status.set_value("test", "state", "running")
+	stale_status.set_value("test", "heartbeat", Time.get_unix_time_from_system() - 20.0)
+	stale_status.save(stale_status_path)
+	screen.track_test_started("editor-stale", "", stale_status_path)
+	screen._poll_test_status(0.1)
+	_check(
+		screen.get_playtest_state() == &"fallido"
+		and not FileAccess.file_exists(stale_status_path),
+		"A stale playtest heartbeat transitions the editor to failed."
 	)
 	var garden_loaded := screen.session.load_track(
 		"res://levels/garden_track.tscn"
@@ -1375,7 +1824,9 @@ func _test_guided_screen() -> void:
 	)
 	screen.queue_free()
 	await process_frame
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_scene_path))
+	for path in [test_scene_path, external_reload_path]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 func _test_editor_visual_contract(screen: TrackEditorScreen) -> void:
@@ -1638,19 +2089,240 @@ func _test_template_and_history() -> void:
 	await process_frame
 
 
+func _test_editor_data_safety() -> void:
+	var draft_path := "user://coastal_karts_editor_metadata_test.tscn"
+	var session := TrackEditorSession.new()
+	session.create_track(&"small", "Pista metadata")
+	var track := session.track
+	root.add_child(track)
+	await process_frame
+	session.scene_path = draft_path
+	session.set_editor_metadata(5, "Una descripción persistente")
+	session.mark_dirty()
+	_check(
+		session.is_dirty,
+		"Changing editor metadata marks the draft as unsaved."
+	)
+	_check(
+		session.save() == OK,
+		"Editor metadata can be saved atomically with a draft scene."
+	)
+	var reloaded := TrackEditorSession.new()
+	_check(
+		reloaded.load_track(draft_path) == OK
+		and reloaded.laps == 5
+		and reloaded.description == "Una descripción persistente",
+		"Draft scenes preserve laps and description after reopening."
+	)
+	reloaded.snapshot_track_for_undo()
+	reloaded.set_editor_metadata(7, "Descripción nueva")
+	reloaded.set_display_name("Nombre nuevo")
+	reloaded.track.difficulty = "Difícil"
+	reloaded.mark_dirty()
+	reloaded.undo_route()
+	_check(
+		reloaded.laps == 5
+		and reloaded.description == "Una descripción persistente"
+		and reloaded.track.display_name == "Pista metadata"
+		and reloaded.track.difficulty == "Media",
+		"Undo restores metadata changed as one editor operation."
+	)
+	reloaded.redo_route()
+	_check(
+		reloaded.laps == 7
+		and reloaded.description == "Descripción nueva"
+		and reloaded.track.display_name == "Nombre nuevo"
+		and reloaded.track.difficulty == "Difícil",
+		"Redo restores all edited track metadata."
+	)
+	var external_scene := FileAccess.open(draft_path, FileAccess.READ_WRITE)
+	if external_scene != null:
+		external_scene.seek_end()
+		external_scene.store_string("\n; external editor change")
+		external_scene.close()
+	_check(
+		bool(session.get_external_changes().get("scene", false)),
+		"The session detects an external scene modification."
+	)
+	var scene_summary := session.get_external_change_summary()
+	_check(
+		bool(scene_summary.scene.changed)
+		and scene_summary.scene.path == draft_path
+		and scene_summary.scene.current.hash != scene_summary.scene.observed.hash,
+		"Scene conflicts expose observed and current content signatures."
+	)
+	session.acknowledge_external_changes(true, false)
+	_check(
+		not bool(session.get_external_changes().get("scene", false)),
+		"Acknowledging an external scene change clears its conflict state."
+	)
+	var external_catalog_path := "user://coastal_karts_external_catalog.tres"
+	ResourceSaver.save(TrackCatalog.new(), external_catalog_path)
+	session.catalog_path = external_catalog_path
+	session.acknowledge_external_changes(false, true)
+	var external_catalog := FileAccess.open(
+		external_catalog_path,
+		FileAccess.READ_WRITE
+	)
+	if external_catalog != null:
+		external_catalog.seek_end()
+		external_catalog.store_string("\n; external catalog change")
+		external_catalog.close()
+	_check(
+		bool(session.get_external_changes().get("catalog", false)),
+		"The session detects an external catalog modification."
+	)
+	var catalog_summary := session.get_external_change_summary()
+	_check(
+		bool(catalog_summary.catalog.changed)
+		and catalog_summary.catalog.path == external_catalog_path
+		and catalog_summary.catalog.current.hash != catalog_summary.catalog.observed.hash,
+		"Catalog conflicts expose observed and current content signatures."
+	)
+
+	session.clear_recovery()
+	session.set_editor_metadata(6, "Recuperar esta descripción")
+	session.mark_dirty()
+	OS.delay_msec(800)
+	session.mark_dirty()
+	var recovery_info := session.get_recovery_info()
+	_check(
+		session.has_recovery()
+		and recovery_info.track_id == str(track.track_id)
+		and recovery_info.laps == 6
+		and recovery_info.description == "Recuperar esta descripción",
+		"Automatic recovery stores the track identity and metadata."
+	)
+	var recovered := TrackEditorSession.new()
+	_check(
+		recovered.load_recovery() == OK
+		and recovered.is_dirty
+		and recovered.scene_path == draft_path
+		and recovered.laps == 6
+		and recovered.description == "Recuperar esta descripción",
+		"A pending recovery can be restored as an unsaved session."
+	)
+
+	var failed_publish := TrackEditorSession.new()
+	failed_publish.create_track(&"small", "Publicación atómica")
+	root.add_child(failed_publish.track)
+	await process_frame
+	var failed_scene_path := "user://coastal_karts_failed_publish.tscn"
+	failed_publish.scene_path = failed_scene_path
+	failed_publish.catalog_path = "user://directory-that-does-not-exist/catalog.tres"
+	var publish_error := failed_publish.publish(3, "")
+	_check(
+		publish_error != OK
+		and not FileAccess.file_exists(failed_scene_path)
+		and failed_publish.is_dirty
+		and failed_publish.last_persistence_error.contains("catálogo"),
+		"A failed catalog publish rolls back the newly written scene."
+	)
+	_check(
+		not _has_atomic_artifacts(failed_scene_path),
+		"A failed catalog publish leaves no scene temporary or backup artifacts."
+	)
+	var blocked_publish := TrackEditorSession.new()
+	blocked_publish.create_track(&"small", "Publicación bloqueada")
+	blocked_publish.track.track_id = &""
+	var blocked_publish_error := blocked_publish.publish(3, "")
+	_check(
+		blocked_publish_error == ERR_INVALID_DATA
+		and blocked_publish.has_blocking_validation_issues()
+		and blocked_publish.last_persistence_error.contains("validación"),
+		"Direct publishing rejects structured blocking validation issues."
+	)
+	if blocked_publish.track != null:
+		blocked_publish.track.free()
+	var warning_publish := TrackEditorSession.new()
+	warning_publish.create_track(&"small", "Publicación con avisos")
+	root.add_child(warning_publish.track)
+	var warning_point := warning_publish.track.get_main_route().curve.get_point_position(0)
+	warning_point.y += 24.0
+	warning_publish.track.get_main_route().curve.set_point_position(0, warning_point)
+	var warning_catalog_path := "user://coastal_karts_warning_publish_catalog.tres"
+	var warning_scene_path := "user://coastal_karts_warning_publish.tscn"
+	ResourceSaver.save(TrackCatalog.new(), warning_catalog_path)
+	warning_publish.catalog_path = warning_catalog_path
+	warning_publish.scene_path = warning_scene_path
+	var warning_issues := warning_publish.inspect_track()
+	var warning_only := not warning_issues.is_empty()
+	for issue in warning_issues:
+		warning_only = warning_only and not issue.is_blocking()
+	var warning_publish_error := warning_publish.publish(3, "")
+	_check(
+		warning_only
+		and warning_publish_error == OK
+		and not warning_publish.has_blocking_validation_issues(),
+		"Direct publishing keeps non-blocking geometry warnings publishable."
+	)
+	if warning_publish.track != null:
+		warning_publish.track.free()
+
+	if recovered.track != null:
+		recovered.track.free()
+	if reloaded.track != null:
+		reloaded.track.free()
+	failed_publish.track.free()
+	track.free()
+	session.clear_recovery()
+	for path in [
+		draft_path,
+		failed_scene_path,
+		external_catalog_path,
+		warning_scene_path,
+		warning_catalog_path,
+	]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
 func _test_migration_and_partial_preview() -> void:
-	var legacy_path := "res://levels/tracks/bahia_relampago.tscn"
-	if not FileAccess.file_exists(legacy_path):
-		print("SKIP: Legacy migration fixture is not distributed with this project.")
-		return
+	var legacy_path := "user://coastal_karts_legacy_migration_test.tscn"
+	if FileAccess.file_exists(legacy_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(legacy_path))
+	var source_scene := load("res://levels/tracks/nen_medianoche.tscn") as PackedScene
+	var fixture_track := source_scene.instantiate() as TrackLevel
+	fixture_track.track_id = &"legacy_surface_priority"
+	fixture_track.display_name = "Pista legacy"
+	var fixture_surfaces := fixture_track.get_node("Surfaces") as Node3D
+	var fixture_zone := TrackSurfaceZone.new()
+	fixture_zone.name = "LegacySurfaceZone"
+	fixture_zone.id = &"legacy_surface"
+	fixture_zone.surface = load("res://levels/surfaces/grass.tres") as SurfaceDefinition
+	fixture_zone.start_progress = 0.15
+	fixture_zone.end_progress = 0.30
+	fixture_zone.priority = 12.0
+	fixture_surfaces.add_child(fixture_zone)
+	fixture_zone.owner = fixture_track
+	var fixture_scene := PackedScene.new()
+	var fixture_pack_error := fixture_scene.pack(fixture_track)
+	var fixture_save_error := (
+		ResourceSaver.save(fixture_scene, legacy_path)
+		if fixture_pack_error == OK
+		else fixture_pack_error
+	)
+	_check(
+		fixture_pack_error == OK and fixture_save_error == OK,
+		"Legacy migration builds a deterministic serialized Area3D fixture."
+	)
+	fixture_track.free()
 	var scene_before := FileAccess.get_file_as_string(legacy_path)
 	var session := TrackEditorSession.new()
 	_check(session.load_track(legacy_path) == OK, "Legacy drafts open through the editor session.")
 	_check(
-		session.last_repair_summary == "2 atajos y 4 cajas reparados"
+		session.last_repair_summary == "1 prioridad de superficie migrada reparada"
 		and session.is_dirty
 		and session.can_undo(),
-		"Opening Bahía Relámpago repairs two shortcuts and four boxes as an undoable edit."
+		"Opening a legacy scene migrates surface priority as an undoable edit."
+	)
+	var loaded_legacy_zone := session.track.get_node(
+		"Surfaces/LegacySurfaceZone"
+	) as TrackSurfaceZone
+	_check(
+		loaded_legacy_zone.surface_priority == 12
+		and is_zero_approx(loaded_legacy_zone.priority),
+		"Loading a legacy scene moves Area3D.priority to surface_priority in memory."
 	)
 	var all_anchors_were_created := true
 	for shortcut in session.track.get_shortcuts():
@@ -1669,14 +2341,21 @@ func _test_migration_and_partial_preview() -> void:
 	)
 	session.undo_route()
 	_check(
-		not session.track.get_shortcuts()[0].route_anchor_enabled
+		loaded_legacy_zone.surface_priority == 0
+		and is_equal_approx(loaded_legacy_zone.priority, 12.0)
 		and not session.is_dirty,
 		"Undo removes the in-memory migration and restores the clean draft state."
 	)
 	session.redo_route()
 	_check(
-		session.track.get_shortcuts()[0].route_anchor_enabled and session.is_dirty,
+		loaded_legacy_zone.surface_priority == 12
+		and is_zero_approx(loaded_legacy_zone.priority)
+		and session.is_dirty,
 		"Redo reapplies the legacy migration."
+	)
+	_check(
+		FileAccess.get_file_as_string(legacy_path) == scene_before,
+		"Automatic legacy migration never overwrites its source scene."
 	)
 
 	root.add_child(session.track)
@@ -1713,17 +2392,21 @@ func _test_migration_and_partial_preview() -> void:
 		"Official tracks already contain anchors and open without migration edits."
 	)
 	official_session.track.free()
+	if FileAccess.file_exists(legacy_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(legacy_path))
 
 
 func _test_track_runner() -> void:
 	var config_path := "user://coastal_karts_track_test.cfg"
 	var result_path := "user://coastal_karts_track_test_result.cfg"
+	var status_path := "user://coastal_karts_track_test_status.cfg"
 	var config := ConfigFile.new()
 	config.set_value("track", "scene_path", "res://levels/coastal_track.tscn")
 	config.set_value("track", "id", &"coastal")
 	config.set_value("track", "laps", 3)
 	config.set_value("test", "token", "runner-contract")
 	config.set_value("test", "result_path", result_path)
+	config.set_value("test", "status_path", status_path)
 	config.save(config_path)
 	var runner_scene := load(
 		"res://addons/track_editor/track_test_runner.tscn"
@@ -1737,10 +2420,41 @@ func _test_track_runner() -> void:
 		test_world != null and test_world.player_kart != null,
 		"The Test button runner starts the selected draft with the real player kart."
 	)
+	var status := ConfigFile.new()
+	_check(
+		status.load(status_path) == OK
+		and status.get_value("test", "token", "") == "runner-contract"
+		and status.get_value("test", "state", "") == "ready"
+		and float(status.get_value("test", "heartbeat", 0.0)) > 0.0,
+		"The track runner publishes a tokenized ready heartbeat."
+	)
 	_check(
 		runner.find_child("ReturnToTrackEditor", true, false) != null
 		and runner.find_child("TrackTestMetrics", true, false) != null,
 		"The track runner exposes an accessible return action and live metrics."
+	)
+	var input_action_counts: Dictionary = {}
+	for action in [
+		&"steer_left",
+		&"steer_right",
+		&"accelerate",
+		&"brake",
+		&"drift",
+		&"use_item",
+		&"pause",
+		&"reset_kart",
+	]:
+		input_action_counts[action] = InputMap.action_get_events(action).size()
+	runner.call("_configure_input")
+	var input_bindings_are_idempotent := true
+	for action in input_action_counts:
+		input_bindings_are_idempotent = (
+			input_bindings_are_idempotent
+			and InputMap.action_get_events(action).size() == input_action_counts[action]
+		)
+	_check(
+		input_bindings_are_idempotent,
+		"Repeated track tests do not duplicate their keyboard bindings."
 	)
 	runner.queue_free()
 	await process_frame
@@ -1751,8 +2465,9 @@ func _test_track_runner() -> void:
 		and result.get_value("result", "token", "") == "runner-contract",
 		"Leaving a track test persists only its tokenized diagnostic result."
 	)
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(config_path))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(result_path))
+	for path in [config_path, result_path, status_path]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 func _test_playtest_diagnostics() -> void:
@@ -1785,11 +2500,117 @@ func _test_playtest_diagnostics() -> void:
 	_check(
 		result.recovery_count == 2
 		and result.recovery_reasons.fell == 2
+		and result.last_recovery_reason == "fell"
 		and result.shortcut_count == 1
 		and result.token == "token-1",
 		"Playtest diagnostics preserve recoveries, reasons, shortcuts, and token."
 	)
 	track.free()
+
+
+func _test_controller_state_contracts() -> void:
+	var conflicts := ConflictController.new()
+	conflicts.absorb({"scene": true, "catalog": true})
+	_check(
+		conflicts.has_pending()
+		and conflicts.scene_pending
+		and conflicts.catalog_pending
+		and conflicts.affected_scope() == "la escena y el catálogo",
+		"Simultaneous scene and catalog conflicts retain both affected sources."
+	)
+	conflicts.clear_scene()
+	_check(
+		not conflicts.scene_pending and conflicts.catalog_pending
+		and conflicts.affected_scope() == "el catálogo",
+		"Conflict actions can clear the scene without acknowledging the catalog."
+	)
+	var comparison := conflicts.comparison_text({
+		"scene": {
+			"changed": true,
+			"path": "user://draft.tscn",
+			"observed": {"exists": true, "size": 10, "hash": 1},
+			"current": {"exists": true, "size": 12, "hash": 2},
+		},
+		"catalog": {
+			"changed": true,
+			"path": "res://levels/track_catalog.tres",
+			"observed": {"exists": true, "size": 20, "hash": 3},
+			"current": {"exists": true, "size": 22, "hash": 4},
+		},
+	})
+	_check(
+		comparison.contains("Escena: CAMBIÓ")
+		and comparison.contains("Catálogo: CAMBIÓ")
+		and comparison.contains("Confirma el catálogo"),
+		"Conflict comparison explains both sources and the publication gate."
+	)
+	var playtest := PlaytestController.new()
+	playtest.set_state(&"fallido")
+	playtest.record_summary({
+		"track_id": "demo",
+		"configuration": "vueltas=3",
+		"completed": false,
+		"failure_reason": "heartbeat perdido",
+	})
+	_check(
+		playtest.state == &"fallido"
+		and playtest.get_summary("demo", "vueltas=3").failure_reason == "heartbeat perdido",
+		"Playtest state and summaries are keyed by track and configuration."
+	)
+	playtest.fail("timeout de inicio")
+	_check(
+		playtest.get_state_label() == "FALLIDO"
+		and playtest.state_reason == "timeout de inicio",
+		"Playtest exposes a human-readable failed state and exact reason."
+	)
+	var first_issue := TrackValidationIssue.create(
+		&"route_grade_change",
+		"Transición brusca",
+		TrackValidationIssue.Severity.WARNING,
+		NodePath("MainRoute"),
+		Vector3(2.0, 0.0, 2.0)
+	)
+	var second_issue := TrackValidationIssue.create(
+		&"route_grade_change",
+		"Transición brusca",
+		TrackValidationIssue.Severity.WARNING,
+		NodePath("MainRoute"),
+		Vector3(8.0, 0.0, 8.0)
+	)
+	var issue_groups := ValidationController.group_issues([first_issue, second_issue])
+	_check(
+		issue_groups.size() == 1
+		and (issue_groups[0].issues as Array).size() == 2,
+		"Equivalent validation messages remain navigable at each location."
+	)
+	var explicit_issue := TrackValidationIssue.create(
+		&"custom_surface_issue",
+		"Problema de superficie",
+		TrackValidationIssue.Severity.WARNING,
+		NodePath("Surfaces/Zone"),
+		Vector3.ZERO,
+		4,
+		&"surface"
+	)
+	_check(
+		explicit_issue.workflow_step == 4
+		and explicit_issue.focus_kind == &"surface",
+		"Validation issues accept explicit workflow and focus metadata."
+	)
+	var edit_session := TrackEditorSession.new()
+	edit_session.create_track(&"small", "Transacciones")
+	var edit_controller := EditController.new(edit_session)
+	var missing_selection := TrackEditorSelection.node(
+		TrackEditorSelection.Kind.ITEM,
+		NodePath("ItemSpawns/Missing")
+	)
+	var failed_delete := edit_controller.delete_entity(missing_selection)
+	_check(
+		not bool(failed_delete.get("ok", false))
+		and not edit_session.can_undo(),
+		"Failed entity transactions do not leave phantom undo entries."
+	)
+	edit_session.track.free()
 
 
 func _collect_descendants(node: Node) -> Array[Node]:
@@ -1798,6 +2619,23 @@ func _collect_descendants(node: Node) -> Array[Node]:
 		descendants.append(child)
 		descendants.append_array(_collect_descendants(child))
 	return descendants
+
+
+func _has_atomic_artifacts(target_path: String) -> bool:
+	var directory := DirAccess.open(target_path.get_base_dir())
+	if directory == null:
+		return false
+	var target_name := target_path.get_file()
+	var extension := target_name.get_extension()
+	var stem := target_name.trim_suffix("." + extension) if not extension.is_empty() else target_name
+	for file_name in directory.get_files():
+		if (
+			file_name == target_name + ".bak"
+			or file_name.begins_with(target_name + ".tmp.")
+			or file_name.begins_with(stem + ".tmp.")
+		):
+			return true
+	return false
 
 
 func _check(condition: bool, message: String) -> void:

@@ -190,7 +190,8 @@ func _build_road() -> void:
 		_road_material,
 		"MainRoad",
 		true,
-		MAIN_COLLISION_LAYER
+		MAIN_COLLISION_LAYER,
+		_get_drivable_collision_width(ROAD_WIDTH)
 	)
 
 	TrackSurfaceBuilder.create_curb(
@@ -211,6 +212,10 @@ func _build_road() -> void:
 	)
 	for route_index in range(0, route_points.size(), 6):
 		_create_road_marker(route_index)
+
+
+func _get_drivable_collision_width(width: float) -> float:
+	return width
 
 
 func _build_shortcuts() -> void:

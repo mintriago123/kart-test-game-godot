@@ -9,7 +9,9 @@ var recovery_count := 0
 var off_route_count := 0
 var shortcut_count := 0
 var completed := false
+var failure_reason := ""
 var recovery_reasons: Dictionary = {}
+var last_recovery_reason := ""
 
 var _main_route: Array[Vector3] = []
 var _shortcut_routes: Array[Array] = []
@@ -47,6 +49,7 @@ func observe_position(position: Vector3, delta: float) -> void:
 func record_recovery(reason: String) -> void:
 	recovery_count += 1
 	var safe_reason := reason if not reason.is_empty() else "unknown"
+	last_recovery_reason = safe_reason
 	recovery_reasons[safe_reason] = int(recovery_reasons.get(safe_reason, 0)) + 1
 
 
@@ -54,16 +57,23 @@ func record_shortcut() -> void:
 	shortcut_count += 1
 
 
-func to_dictionary(track_id: StringName, token: String) -> Dictionary:
+func to_dictionary(
+	track_id: StringName,
+	token: String,
+	configuration := ""
+) -> Dictionary:
 	return {
 		"token": token,
 		"track_id": str(track_id),
+		"configuration": configuration,
 		"elapsed_time": elapsed_time,
 		"recovery_count": recovery_count,
 		"recovery_reasons": recovery_reasons,
+		"last_recovery_reason": last_recovery_reason,
 		"off_route_count": off_route_count,
 		"shortcut_count": shortcut_count,
 		"completed": completed,
+		"failure_reason": failure_reason,
 	}
 
 
@@ -115,4 +125,3 @@ func _point_to_segment_distance(
 		return point.distance_to(start)
 	var weight := clampf((point - start).dot(segment) / length_squared, 0.0, 1.0)
 	return point.distance_to(start + segment * weight)
-

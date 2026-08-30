@@ -7,6 +7,13 @@ const SHORTCUT_ROUTE_CLEARANCE := (
 	+ CoastalTrack.SHORTCUT_WIDTH * 0.5
 )
 const SHORTCUT_MINIMUM_TURN_RADIUS := 8.0
+const ROUTE_MAX_GRADE_WARNING := 0.32
+const ROUTE_MAX_ELEVATION_STEP_WARNING := 1.5
+const ROUTE_MIN_SEGMENT_LENGTH_WARNING := 0.75
+const ROUTE_MAX_GRADE_CHANGE_WARNING := 0.20
+const ROUTE_MINIMUM_TURN_RADIUS_WARNING := 4.0
+const SURFACE_MIN_WIDTH := 0.5
+const SURFACE_MIN_PROGRESS := 0.001
 
 
 static func inspect(track) -> Array[TrackValidationIssue]:
@@ -64,9 +71,9 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 				"La salida apunta a un punto que ya no existe.",
 				NodePath("MainRoute")
 			)
-		validation_route = track._apply_start_offset(
-			track._sample_path(main_route, true)
-		)
+		var sampled_route: Array[Vector3] = track._sample_path(main_route, true)
+		validation_route = track._apply_start_offset(sampled_route)
+		_append_route_geometry_warnings(issues, sampled_route)
 
 	var shortcut_ids: Dictionary = {}
 	var shortcuts: Array[TrackShortcut] = track.get_shortcuts()
@@ -218,7 +225,208 @@ static func inspect(track) -> Array[TrackValidationIssue]:
 					item_path,
 					marker_position
 				)
+
+	_inspect_surface_zones(issues, track)
 	return issues
+
+
+static func _inspect_surface_zones(
+	issues: Array[TrackValidationIssue],
+	track
+) -> void:
+	var zones: Array[TrackSurfaceZone] = track.get_surface_zones()
+	for zone in zones:
+		var zone_path: NodePath = track.get_path_to(zone)
+		var zone_position := _get_surface_zone_position(track, zone)
+		if zone.id.is_empty():
+			_append_issue(
+				issues,
+				&"surface_id_missing",
+				"La zona de superficie necesita un identificador.",
+				zone_path,
+				zone_position
+			)
+		if zone.surface == null:
+			_append_issue(
+				issues,
+				&"surface_missing",
+				"La zona de superficie necesita una superficie asignada.",
+				zone_path,
+				zone_position
+			)
+		if zone.path_kind not in [TrackSurfaceZone.PathKind.MAIN, TrackSurfaceZone.PathKind.SHORTCUT]:
+			_append_issue(
+				issues,
+				&"surface_path_invalid",
+				"La zona de superficie necesita una ruta válida.",
+				zone_path,
+				zone_position
+			)
+		if (
+			not is_finite(zone.start_progress)
+			or not is_finite(zone.end_progress)
+			or not is_finite(zone.lateral_offset)
+			or not is_finite(zone.width)
+		):
+			_append_issue(
+				issues,
+				&"surface_numeric_invalid",
+				"La zona de superficie contiene valores numéricos inválidos.",
+				zone_path,
+				zone_position
+			)
+		if (
+			zone.start_progress < 0.0
+			or zone.end_progress > 1.0
+			or zone.start_progress > 1.0
+			or zone.end_progress < 0.0
+		):
+			_append_issue(
+				issues,
+				&"surface_progress_invalid",
+				"El progreso de la zona debe estar entre 0 y 1.",
+				zone_path,
+				zone_position
+			)
+		if zone.end_progress - zone.start_progress < SURFACE_MIN_PROGRESS:
+			_append_issue(
+				issues,
+				&"surface_progress_order",
+				"La zona necesita un orden de progreso y una longitud válidos.",
+				zone_path,
+				zone_position
+			)
+		if zone.width < SURFACE_MIN_WIDTH:
+			_append_issue(
+				issues,
+				&"surface_width_too_small",
+				"La zona necesita al menos %.1f m de ancho." % SURFACE_MIN_WIDTH,
+				zone_path,
+				zone_position
+			)
+		if zone.surface_priority < 0 or zone.surface_priority > 100:
+			_append_issue(
+				issues,
+				&"surface_priority_invalid",
+				"La prioridad de la zona debe estar entre 0 y 100.",
+				zone_path,
+				zone_position
+			)
+		if absf(zone.lateral_offset) + zone.width * 0.5 > CoastalTrack.ROAD_WIDTH * 0.5:
+			_append_issue(
+				issues,
+				&"surface_outside_road",
+				"La zona excede el ancho transitable de la carretera.",
+				zone_path,
+				zone_position
+			)
+		if zone.path_kind == TrackSurfaceZone.PathKind.SHORTCUT:
+			var shortcut := _find_shortcut(track, zone.shortcut_id)
+			if shortcut == null:
+				_append_issue(
+					issues,
+					&"surface_shortcut_invalid",
+					"La zona de superficie apunta a un atajo inexistente.",
+					zone_path,
+					zone_position
+				)
+
+	for first_index in zones.size():
+		var first := zones[first_index]
+		for second_index in range(first_index + 1, zones.size()):
+			var second := zones[second_index]
+			if (
+				first.path_kind != second.path_kind
+				or (
+					first.path_kind == TrackSurfaceZone.PathKind.SHORTCUT
+					and first.shortcut_id != second.shortcut_id
+				)
+				or first.end_progress <= second.start_progress
+				or second.end_progress <= first.start_progress
+				or absf(first.lateral_offset - second.lateral_offset)
+					>= (first.width + second.width) * 0.5
+			):
+				continue
+			var second_path: NodePath = track.get_path_to(second)
+			var overlap_message := (
+				"Las zonas de superficie '%s' y '%s' se solapan; ajusta su progreso, "
+				+ "ancho o prioridad."
+			) % [String(first.id), String(second.id)]
+			if first.surface_priority != second.surface_priority:
+				_append_warning_issue(
+					issues,
+					&"surface_overlap",
+					overlap_message
+					+ " Se aplicará la prioridad más alta.",
+					second_path,
+					_get_surface_zone_position(track, second)
+				)
+				continue
+			_append_issue(
+				issues,
+				&"surface_overlap",
+				overlap_message,
+				second_path,
+				_get_surface_zone_position(track, second)
+			)
+
+
+static func _find_shortcut(track, shortcut_id: int) -> TrackShortcut:
+	for shortcut in track.get_shortcuts():
+		if shortcut.shortcut_id == shortcut_id:
+			return shortcut
+	return null
+
+
+static func _get_surface_zone_position(track, zone: TrackSurfaceZone) -> Vector3:
+	var points: Array[Vector3] = []
+	if zone.path_kind == TrackSurfaceZone.PathKind.SHORTCUT:
+		var shortcut := _find_shortcut(track, zone.shortcut_id)
+		if shortcut != null:
+			points = track._sample_path(shortcut, false)
+	else:
+		var route: Path3D = track.get_main_route()
+		if route != null:
+			points = track._apply_start_offset(track._sample_path(route, true))
+	if points.is_empty():
+		return track._get_transform_relative_to_track(zone).origin
+	var progress := clampf(
+		(zone.start_progress + zone.end_progress) * 0.5,
+		0.0,
+		1.0
+	)
+	var last_index := points.size() - (1 if zone.path_kind == TrackSurfaceZone.PathKind.SHORTCUT else 0)
+	var sample_index := clampi(floori(progress * last_index), 0, points.size() - 1)
+	var next_index := (
+		(sample_index + 1) % points.size()
+		if zone.path_kind == TrackSurfaceZone.PathKind.MAIN
+		else mini(sample_index + 1, points.size() - 1)
+	)
+	var scaled_progress := progress * last_index
+	var sample_position: Vector3
+	if zone.path_kind == TrackSurfaceZone.PathKind.MAIN and is_equal_approx(progress, 1.0):
+		sample_position = points[0]
+	else:
+		sample_position = points[sample_index].lerp(
+			points[next_index],
+			scaled_progress - sample_index
+		)
+	var previous_index := (
+		(sample_index - 1 + points.size()) % points.size()
+		if zone.path_kind == TrackSurfaceZone.PathKind.MAIN
+		else maxi(sample_index - 1, 0)
+	)
+	var following_index := (
+		(sample_index + 1) % points.size()
+		if zone.path_kind == TrackSurfaceZone.PathKind.MAIN
+		else mini(sample_index + 1, points.size() - 1)
+	)
+	var forward := points[following_index] - points[previous_index]
+	forward.y = 0.0
+	if forward.length_squared() <= 0.0001:
+		return sample_position
+	var right := Vector3(forward.z, 0.0, -forward.x).normalized()
+	return sample_position + right * zone.lateral_offset
 
 
 static func validate_shortcut(
@@ -540,9 +748,15 @@ static func _append_issue(
 	target_path: NodePath,
 	world_position := Vector3.ZERO
 ) -> void:
-	for issue in issues:
-		if issue.code == code and issue.target_path == target_path:
-			return
+	if _contains_same_issue(
+		issues,
+		code,
+		message,
+		target_path,
+		world_position,
+		TrackValidationIssue.Severity.ERROR
+	):
+		return
 	issues.append(
 		TrackValidationIssue.create(
 			code,
@@ -561,9 +775,15 @@ static func _append_warning_issue(
 	target_path: NodePath,
 	world_position := Vector3.ZERO
 ) -> void:
-	for issue in issues:
-		if issue.code == code and issue.target_path == target_path:
-			return
+	if _contains_same_issue(
+		issues,
+		code,
+		message,
+		target_path,
+		world_position,
+		TrackValidationIssue.Severity.WARNING
+	):
+		return
 	issues.append(
 		TrackValidationIssue.create(
 			code,
@@ -573,6 +793,29 @@ static func _append_warning_issue(
 			world_position
 		)
 	)
+
+
+static func _contains_same_issue(
+	issues: Array[TrackValidationIssue],
+	code: StringName,
+	message: String,
+	target_path: NodePath,
+	world_position: Vector3,
+	severity: TrackValidationIssue.Severity
+) -> bool:
+	for issue in issues:
+		if (
+			issue.code == code
+			and issue.message == message
+			and issue.target_path == target_path
+			and issue.severity == severity
+			and (
+				(world_position.is_zero_approx() and issue.world_position.is_zero_approx())
+				or issue.world_position.is_equal_approx(world_position)
+			)
+		):
+			return true
+	return false
 
 
 static func _append_junction_warning(
@@ -615,6 +858,113 @@ static func _append_junction_warning(
 			warning_position
 		)
 	)
+
+
+static func _append_route_geometry_warnings(
+	issues: Array[TrackValidationIssue],
+	points: Array[Vector3]
+) -> void:
+	if points.size() < 3:
+		return
+	for point_index in points.size():
+		var next_index := (point_index + 1) % points.size()
+		var start := points[point_index]
+		var finish := points[next_index]
+		var horizontal_distance := Vector2(
+			finish.x - start.x,
+			finish.z - start.z
+		).length()
+		var segment_length := start.distance_to(finish)
+		var elevation_delta := absf(finish.y - start.y)
+		var midpoint := start.lerp(finish, 0.5)
+		if segment_length < ROUTE_MIN_SEGMENT_LENGTH_WARNING:
+			_append_warning_issue(
+				issues,
+				&"route_segment_too_short",
+				"MainRoute tiene un tramo demasiado corto; puede generar una vibración del kart.",
+				NodePath("MainRoute"),
+				midpoint
+			)
+		var grade := elevation_delta / maxf(horizontal_distance, 0.01)
+		if grade > ROUTE_MAX_GRADE_WARNING:
+			_append_warning_issue(
+				issues,
+				&"route_slope_sharp",
+				"MainRoute tiene una pendiente brusca (%.0f%%); puede producir saltos del kart."
+				% (grade * 100.0),
+				NodePath("MainRoute"),
+				midpoint
+			)
+		if elevation_delta > ROUTE_MAX_ELEVATION_STEP_WARNING and horizontal_distance < 8.0:
+			_append_warning_issue(
+				issues,
+				&"route_height_discontinuity",
+				"MainRoute cambia %.1f m de altura en un tramo corto; suaviza esa transición."
+				% elevation_delta,
+				NodePath("MainRoute"),
+				midpoint
+			)
+		var previous := points[(point_index - 1 + points.size()) % points.size()]
+		var previous_horizontal_distance := Vector2(
+			start.x - previous.x,
+			start.z - previous.z
+		).length()
+		if previous_horizontal_distance <= 0.01 or horizontal_distance <= 0.01:
+			continue
+		var previous_grade := (start.y - previous.y) / maxf(
+			previous_horizontal_distance,
+			0.01
+		)
+		var signed_grade := (finish.y - start.y) / maxf(horizontal_distance, 0.01)
+		if absf(signed_grade - previous_grade) > ROUTE_MAX_GRADE_CHANGE_WARNING:
+			_append_warning_issue(
+				issues,
+				&"route_grade_change",
+				"MainRoute cambia la pendiente demasiado rápido; suaviza la transición para evitar un salto del kart.",
+				NodePath("MainRoute"),
+				midpoint
+			)
+		var previous_direction := Vector2(
+			start.x - previous.x,
+			start.z - previous.z
+		).normalized()
+		var next_direction := Vector2(
+			finish.x - start.x,
+			finish.z - start.z
+		).normalized()
+		var turn_angle := acos(clampf(previous_direction.dot(next_direction), -1.0, 1.0))
+		var turn_radius := _get_turn_radius(previous, start, finish)
+		if (
+			turn_angle > 0.35
+			and turn_radius < ROUTE_MINIMUM_TURN_RADIUS_WARNING
+		):
+			_append_warning_issue(
+				issues,
+				&"route_turn_too_tight",
+				"MainRoute tiene un radio de giro de %.1f m; puede provocar una reacción brusca del kart."
+				% turn_radius,
+				NodePath("MainRoute"),
+				start
+			)
+
+
+static func _get_turn_radius(
+	previous: Vector3,
+	current: Vector3,
+	next: Vector3
+) -> float:
+	var first := Vector2(previous.x, previous.z)
+	var middle := Vector2(current.x, current.z)
+	var final := Vector2(next.x, next.z)
+	var first_length := first.distance_to(middle)
+	var second_length := middle.distance_to(final)
+	var chord_length := first.distance_to(final)
+	if first_length <= 0.01 or second_length <= 0.01:
+		return INF
+	var twice_area := absf((middle - first).cross(final - first))
+	if twice_area <= 0.0001:
+		return INF
+	return first_length * second_length * chord_length / (2.0 * twice_area)
 
 
 static func _distance_to_route_points_2d(

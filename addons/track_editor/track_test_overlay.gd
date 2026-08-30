@@ -28,10 +28,10 @@ func _ready() -> void:
 	panel.name = "TrackTestMetrics"
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	panel.position = Vector2(-265.0, 18.0)
-	panel.custom_minimum_size = Vector2(245.0, 128.0)
+	panel.custom_minimum_size = Vector2(245.0, 148.0)
 	root.add_child(panel)
 	_metrics = Label.new()
-	_metrics.text = "DIAGNÓSTICO DE PISTA\n00:00.000\nRecuperaciones: 0\nFuera de ruta: 0\nAtajos: 0"
+	_metrics.text = "DIAGNÓSTICO DE PISTA\n00:00.000\nRecuperaciones: 0\nFuera de ruta: 0\nAtajos: 0\nÚltima recuperación: —"
 	_metrics.add_theme_constant_override("line_spacing", 4)
 	panel.add_child(_metrics)
 
@@ -40,12 +40,13 @@ func update_metrics(diagnostics: RefCounted) -> void:
 	if diagnostics == null or _metrics == null:
 		return
 	_metrics.text = (
-		"DIAGNÓSTICO DE PISTA\n%s\nRecuperaciones: %d\nFuera de ruta: %d\nAtajos: %d"
+		"DIAGNÓSTICO DE PISTA\n%s\nRecuperaciones: %d\nFuera de ruta: %d\nAtajos: %d\nÚltima recuperación: %s"
 		% [
 			_format_time(diagnostics.elapsed_time),
 			diagnostics.recovery_count,
 			diagnostics.off_route_count,
 			diagnostics.shortcut_count,
+			diagnostics.last_recovery_reason if not diagnostics.last_recovery_reason.is_empty() else "—",
 		]
 	)
 

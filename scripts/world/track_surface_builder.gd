@@ -12,7 +12,8 @@ static func create_drivable_surface(
 	material: StandardMaterial3D,
 	node_name: String,
 	is_closed: bool,
-	collision_layer: int
+	collision_layer: int,
+	collision_width: float = -1.0
 ) -> void:
 	var path_mesh := create_ribbon_mesh(
 		path_points,
@@ -20,6 +21,18 @@ static func create_drivable_surface(
 		width * 0.5,
 		0.0,
 		is_closed
+	)
+	var collision_points := _densify_path(path_points, is_closed, 4)
+	# Keep a generous visual shoulder while keeping the physical ribbon clear of
+	# the self-intersecting inner edge at very tight turns.
+	var physical_width := collision_width if collision_width > 0.0 else width
+	var collision_mesh := create_ribbon_mesh(
+		collision_points,
+		-physical_width * 0.5,
+		physical_width * 0.5,
+		0.0,
+		is_closed,
+		true
 	)
 	var path_visual := MeshInstance3D.new()
 	path_visual.name = node_name
@@ -33,11 +46,51 @@ static func create_drivable_surface(
 	path_body.collision_mask = PhysicsLayers.KARTS
 	parent.add_child(path_body)
 	var path_collision := CollisionShape3D.new()
-	var path_shape := path_mesh.create_trimesh_shape()
+	var path_shape := collision_mesh.create_trimesh_shape()
 	if path_shape is ConcavePolygonShape3D:
 		(path_shape as ConcavePolygonShape3D).backface_collision = true
+	# Use one surface shape for the whole road. Splitting the ribbon into many
+	# convex cells exposes their shared end faces to CharacterBody3D and creates
+	# artificial horizontal impacts at tight bends.
+	path_collision.disabled = false
 	path_collision.shape = path_shape
 	path_body.add_child(path_collision)
+
+
+static func _densify_path(
+	path_points: Array[Vector3],
+	is_closed: bool,
+	subdivisions: int
+) -> Array[Vector3]:
+	if not is_closed or path_points.size() < 4 or subdivisions <= 1:
+		return path_points
+	var dense_points: Array[Vector3] = []
+	for point_index in path_points.size():
+		var previous := path_points[(point_index - 1 + path_points.size()) % path_points.size()]
+		var current := path_points[point_index]
+		var next := path_points[(point_index + 1) % path_points.size()]
+		var following := path_points[(point_index + 2) % path_points.size()]
+		for subdivision in subdivisions:
+			var weight := float(subdivision) / float(subdivisions)
+			dense_points.append(_catmull_rom(previous, current, next, following, weight))
+	return dense_points
+
+
+static func _catmull_rom(
+	previous: Vector3,
+	current: Vector3,
+	next: Vector3,
+	following: Vector3,
+	weight: float
+) -> Vector3:
+	var weight_squared := weight * weight
+	var weight_cubed := weight_squared * weight
+	return 0.5 * (
+		2.0 * current
+		+ (-previous + next) * weight
+		+ (2.0 * previous - 5.0 * current + 4.0 * next - following) * weight_squared
+		+ (-previous + 3.0 * current - 3.0 * next + following) * weight_cubed
+	)
 
 
 static func create_shortcut_drivable_surface(
@@ -199,7 +252,8 @@ static func create_ribbon_mesh(
 	offset_a: float,
 	offset_b: float,
 	height_offset: float,
-	is_closed: bool
+	is_closed: bool,
+	use_indexed_geometry: bool = false
 ) -> ArrayMesh:
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -239,39 +293,82 @@ static func create_ribbon_mesh(
 			cumulative_distance
 			+ path_points[point_index].distance_to(path_points[next_index])
 		)
-		_add_surface_vertex(
+		_add_ribbon_quad(
 			surface,
 			current_left,
-			Vector2(0.0, cumulative_distance * UV_DISTANCE_SCALE)
-		)
-		_add_surface_vertex(
-			surface,
 			next_right,
-			Vector2(1.0, next_distance * UV_DISTANCE_SCALE)
-		)
-		_add_surface_vertex(
-			surface,
 			current_right,
-			Vector2(1.0, cumulative_distance * UV_DISTANCE_SCALE)
-		)
-		_add_surface_vertex(
-			surface,
-			current_left,
-			Vector2(0.0, cumulative_distance * UV_DISTANCE_SCALE)
-		)
-		_add_surface_vertex(
-			surface,
 			next_left,
+			Vector2(0.0, cumulative_distance * UV_DISTANCE_SCALE),
+			Vector2(1.0, next_distance * UV_DISTANCE_SCALE),
+			Vector2(1.0, cumulative_distance * UV_DISTANCE_SCALE),
 			Vector2(0.0, next_distance * UV_DISTANCE_SCALE)
 		)
-		_add_surface_vertex(
-			surface,
-			next_right,
-			Vector2(1.0, next_distance * UV_DISTANCE_SCALE)
-		)
 		cumulative_distance = next_distance
+	if use_indexed_geometry:
+		surface.index()
 	surface.generate_normals()
 	return surface.commit()
+
+
+static func _add_ribbon_quad(
+	surface: SurfaceTool,
+	current_left: Vector3,
+	next_right: Vector3,
+	current_right: Vector3,
+	next_left: Vector3,
+	current_left_uv: Vector2,
+	next_right_uv: Vector2,
+	current_right_uv: Vector2,
+	next_left_uv: Vector2
+) -> void:
+	# The usual diagonal creates a near-vertical triangle when the inner edge
+	# folds at a tight, banked corner. Pick the diagonal whose two triangles
+	# retain the strongest upward-facing normals.
+	var triangle_sets := [
+		[
+			[current_left, next_right, current_right],
+			[current_left, next_left, next_right],
+		],
+		[
+			[current_left, next_left, current_right],
+			[next_left, next_right, current_right],
+		],
+	]
+	var uv_sets := [
+		[
+			[current_left_uv, next_right_uv, current_right_uv],
+			[current_left_uv, next_left_uv, next_right_uv],
+		],
+		[
+			[current_left_uv, next_left_uv, current_right_uv],
+			[next_left_uv, next_right_uv, current_right_uv],
+		],
+	]
+	var best_set := 0
+	var best_score := -INF
+	for set_index in triangle_sets.size():
+		var first: Array = triangle_sets[set_index][0]
+		var second: Array = triangle_sets[set_index][1]
+		var first_normal: Vector3 = (first[1] - first[0]).cross(first[2] - first[0]).normalized()
+		var second_normal: Vector3 = (second[1] - second[0]).cross(second[2] - second[0]).normalized()
+		var score := minf(absf(first_normal.y), absf(second_normal.y))
+		if score > best_score:
+			best_score = score
+			best_set = set_index
+	for triangle_index in 2:
+		var triangle: Array = triangle_sets[best_set][triangle_index].duplicate()
+		var triangle_uv: Array = uv_sets[best_set][triangle_index].duplicate()
+		var normal: Vector3 = (triangle[1] - triangle[0]).cross(triangle[2] - triangle[0])
+		if normal.y < 0.0:
+			var swapped_vertex = triangle[1]
+			triangle[1] = triangle[2]
+			triangle[2] = swapped_vertex
+			var swapped_uv = triangle_uv[1]
+			triangle_uv[1] = triangle_uv[2]
+			triangle_uv[2] = swapped_uv
+		for vertex_index in 3:
+			_add_surface_vertex(surface, triangle[vertex_index], triangle_uv[vertex_index])
 
 
 static func create_boundary_ribbon_mesh(

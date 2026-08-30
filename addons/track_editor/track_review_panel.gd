@@ -2,6 +2,10 @@
 class_name TrackReviewPanel
 extends "res://addons/track_editor/track_editor_panel.gd"
 
+const ValidationController := preload(
+	"res://addons/track_editor/track_editor_validation_controller.gd"
+)
+
 signal issue_focus_requested(issue: TrackValidationIssue)
 signal validate_requested
 signal save_requested
@@ -13,14 +17,14 @@ func configure(
 	issues: Array[TrackValidationIssue],
 	button_factory: Callable
 ) -> void:
-	configure_panel("5  REVISAR", button_factory)
+	configure_panel("6  REVISAR", button_factory)
 	add_help(
-		"El editor revisa carretera, salida, cajas y atajos. "
+		"El editor revisa carretera, salida, cajas, atajos y superficies. "
 		+ "Puedes guardar un borrador aunque todavía tenga errores."
 	)
 	var blocking_issue_count := 0
 	for issue in issues:
-		if issue.severity == TrackValidationIssue.Severity.ERROR:
+		if issue.is_blocking():
 			blocking_issue_count += 1
 	if issues.is_empty():
 		var ready := Label.new()
@@ -35,20 +39,41 @@ func configure(
 			warning_ready.add_theme_color_override("font_color", EditorStyle.FOCUS)
 			warning_ready.add_theme_font_size_override("font_size", 17)
 			add_child(warning_ready)
-		for issue in issues:
-			var is_warning := issue.severity == TrackValidationIssue.Severity.WARNING
-			var issue_button := make_button(
-				("△  " if is_warning else "⚠  ") + issue.message,
-				func() -> void: issue_focus_requested.emit(issue),
-				"Ir al elemento con este problema"
-			)
-			issue_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			issue_button.add_theme_color_override(
-				"font_color",
-				EditorStyle.FOCUS if is_warning else EditorStyle.ERROR
-			)
-			add_child(issue_button)
+		for group in ValidationController.group_issues(issues):
+			var group_issues: Array = group.issues
+			var first_issue: TrackValidationIssue = group.issue
+			var is_warning := first_issue.severity == TrackValidationIssue.Severity.WARNING
+			if group_issues.size() > 1:
+				var group_label := Label.new()
+				group_label.text = (
+					("△  " if is_warning else "⚠  ")
+					+ first_issue.message
+					+ " · %d ubicaciones" % group_issues.size()
+				)
+				group_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				group_label.add_theme_color_override(
+					"font_color",
+					EditorStyle.FOCUS if is_warning else EditorStyle.ERROR
+				)
+				add_child(group_label)
+			for issue_index in group_issues.size():
+				var issue: TrackValidationIssue = group_issues[issue_index]
+				var issue_button := make_button(
+					(
+						("  ↳ ubicación %d/%d" % [issue_index + 1, group_issues.size()])
+						if group_issues.size() > 1
+						else (("△  " if is_warning else "⚠  ") + issue.message)
+					),
+					func() -> void: issue_focus_requested.emit(issue),
+					"Ir al elemento con este problema"
+				)
+				issue_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+				issue_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				issue_button.add_theme_color_override(
+					"font_color",
+					EditorStyle.FOCUS if is_warning else EditorStyle.ERROR
+				)
+				add_child(issue_button)
 	add_child(
 		make_button(
 			"VALIDAR DE NUEVO",

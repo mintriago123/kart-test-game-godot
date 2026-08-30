@@ -12,7 +12,29 @@ const SetupPanel := preload("res://addons/track_editor/track_setup_panel.gd")
 const RoutePanel := preload("res://addons/track_editor/track_route_panel.gd")
 const ShortcutPanel := preload("res://addons/track_editor/track_shortcut_panel.gd")
 const ObjectPanel := preload("res://addons/track_editor/track_object_panel.gd")
+const SurfacePanel := preload("res://addons/track_editor/track_surface_panel.gd")
 const ReviewPanel := preload("res://addons/track_editor/track_review_panel.gd")
+const ValidationController := preload(
+	"res://addons/track_editor/track_editor_validation_controller.gd"
+)
+const DialogController := preload(
+	"res://addons/track_editor/track_editor_dialog_controller.gd"
+)
+const ConflictController := preload(
+	"res://addons/track_editor/track_editor_conflict_controller.gd"
+)
+const ExternalController := preload(
+	"res://addons/track_editor/track_editor_external_controller.gd"
+)
+const PublicationController := preload(
+	"res://addons/track_editor/track_editor_publication_controller.gd"
+)
+const PlaytestController := preload(
+	"res://addons/track_editor/track_editor_playtest_controller.gd"
+)
+const EditController := preload(
+	"res://addons/track_editor/track_editor_edit_controller.gd"
+)
 const EditorStyle := preload("res://addons/track_editor/track_editor_style.gd")
 const Selection := preload(
 	"res://addons/track_editor/track_editor_selection.gd"
@@ -32,9 +54,20 @@ const PANEL_RESET_LAYOUT_ID := 3
 const COMPACT_LAYOUT_BREAKPOINT := 1600.0
 const NEW_DIALOG_PREFERRED_SIZE := Vector2i(480, 340)
 const NEW_DIALOG_CONTENT_WIDTH := 400.0
+const TEST_CONFIG_PATH := "user://coastal_karts_track_test.cfg"
+const TEST_STATUS_PATH := "user://coastal_karts_track_test_status.cfg"
+const TEST_STARTUP_TIMEOUT_SECONDS := 10.0
+const TEST_HEARTBEAT_TIMEOUT_SECONDS := 5.0
 
 var session := TrackEditorSession.new()
 var _preview_controller := PreviewController.new()
+var _conflict_controller := ConflictController.new()
+var _external_controller := ExternalController.new(session)
+var _publication_controller := PublicationController.new(session)
+var _playtest_controller := PlaytestController.new()
+var _validation_controller := ValidationController.new()
+var _dialog_controller := DialogController.new()
+var _edit_controller := EditController.new(session)
 
 var _title_label: Label
 var _dirty_label: Label
@@ -46,6 +79,7 @@ var _preview_container: SubViewportContainer
 var _preview_viewport: SubViewport
 var _preview_camera: Camera3D
 var _view_toggle: Button
+var _preview_status_label: Label
 var _undo_button: Button
 var _redo_button: Button
 var _track_picker: OptionButton
@@ -60,6 +94,7 @@ var _panels_menu: MenuButton
 var _header_actions_scroll: ScrollContainer
 var _new_button: Button
 var _open_button: Button
+var _user_open_button: Button
 var _save_button: Button
 var _guide_button: Button
 var _new_dialog: ConfirmationDialog
@@ -67,19 +102,30 @@ var _new_name: LineEdit
 var _new_size: OptionButton
 var _new_template_details: Label
 var _open_dialog: FileDialog
+var _user_open_dialog: FileDialog
 var _unsaved_dialog: ConfirmationDialog
+var _recovery_dialog: ConfirmationDialog
 var _guide_dialog: AcceptDialog
 var _calibration_dialog: ConfirmationDialog
 var _pending_action := ""
 var _pending_path := ""
 var _current_step := 0
-var _laps := 3
-var _description := ""
 var _is_showing_preview := false
 var _selection: RefCounted = Selection.none()
 var _pending_test_token := ""
 var _test_result_path := ""
+var _test_status_path := TEST_STATUS_PATH
+var _test_wait_elapsed := 0.0
+var _test_ready := false
 var _is_compact := false
+var _preview_rebuild_pending := false
+var _catalog_conflict_pending := false
+var _scene_conflict_pending := false
+var _playtest_state: StringName = &"iniciando"
+var last_playtest_summary: Dictionary = {}
+var playtest_summaries: Dictionary = {}
+var _inspector_focus_path := NodePath()
+var _inspector_scroll_value := 0
 
 
 func _ready() -> void:
@@ -94,29 +140,155 @@ func _ready() -> void:
 	_reload_track_picker()
 	if _track_picker.item_count > 0:
 		_load_selected_track()
+	call_deferred("_offer_recovery")
 
 
-func _process(_delta: float) -> void:
-	if (
-		_pending_test_token.is_empty()
-		or _test_result_path.is_empty()
-		or not FileAccess.file_exists(_test_result_path)
-	):
+func _exit_tree() -> void:
+	_preview_controller.dispose()
+
+
+func has_pending_test() -> bool:
+	return not _pending_test_token.is_empty()
+
+
+func get_playtest_state() -> StringName:
+	return _playtest_state
+
+
+func get_publication_state() -> StringName:
+	return _publication_controller.get_state()
+
+
+func _set_playtest_state(new_state: StringName) -> void:
+	_playtest_state = new_state
+	_playtest_controller.set_state(new_state)
+	if _status_label == null or _pending_test_token.is_empty():
 		return
-	var result := ConfigFile.new()
-	if result.load(_test_result_path) != OK:
-		return
-	if str(result.get_value("result", "token", "")) != _pending_test_token:
-		return
-	_show_test_result(result)
-	_pending_test_token = ""
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(_test_result_path))
+	var marker := "⚠" if new_state == &"fallido" else "▶"
+	_status_label.text = "%s  PRUEBA · %s" % [marker, _playtest_controller.get_state_label()]
+	_status_label.add_theme_color_override(
+		"font_color",
+		EditorStyle.ERROR if new_state == &"fallido" else EditorStyle.FOCUS
+	)
 
 
-func track_test_started(token: String, result_path: String) -> void:
+func _sync_conflict_flags() -> void:
+	_scene_conflict_pending = _conflict_controller.scene_pending
+	_catalog_conflict_pending = _conflict_controller.catalog_pending
+
+
+func offer_recovery() -> void:
+	_offer_recovery()
+
+
+func _process(delta: float) -> void:
+	if _preview_rebuild_pending:
+		_preview_rebuild_pending = false
+		_preview_controller.flush_pending(session.track, _map_view)
+		_update_preview_status()
+	if _external_controller.process(delta):
+		_process_preview_poll()
+	_poll_test_status(delta)
+
+
+func _process_preview_poll() -> void:
+	_preview_controller.request_rebuild(session.track, _map_view)
+	if _preview_controller.has_pending_rebuild():
+		_preview_rebuild_pending = true
+
+
+
+
+func track_test_started(
+	token: String,
+	result_path: String,
+	status_path := TEST_STATUS_PATH
+) -> void:
 	_pending_test_token = token
 	_test_result_path = result_path
+	_test_status_path = status_path
+	_test_wait_elapsed = 0.0
+	_test_ready = false
+	_set_playtest_state(&"iniciando")
 	_show_success("Prueba iniciada. Usa F8 o VOLVER AL EDITOR para regresar.")
+
+
+func _poll_test_status(delta: float) -> void:
+	if _pending_test_token.is_empty():
+		return
+	if not _test_result_path.is_empty() and FileAccess.file_exists(_test_result_path):
+		var result := ConfigFile.new()
+		if (
+			result.load(_test_result_path) == OK
+			and str(result.get_value("result", "token", "")) == _pending_test_token
+		):
+			_show_test_result(result)
+			_clear_test_state()
+			return
+	var status := ConfigFile.new()
+	if not _test_status_path.is_empty() and FileAccess.file_exists(_test_status_path):
+		if status.load(_test_status_path) == OK:
+			if str(status.get_value("test", "token", "")) == _pending_test_token:
+				var state := str(status.get_value("test", "state", ""))
+				if state == "failed":
+					var failure_reason := str(
+						status.get_value("test", "error", "Error desconocido.")
+					)
+					_playtest_controller.fail(failure_reason)
+					_set_playtest_state(&"fallido")
+					_show_error(
+						"La prueba no pudo iniciarse: %s"
+						% failure_reason
+					)
+					_clear_test_state()
+					return
+				if state == "ready":
+					_set_playtest_state(&"listo")
+					_test_ready = true
+				elif state in ["running", "executing"]:
+					_set_playtest_state(&"ejecutando")
+					_test_ready = true
+				elif state in ["completed", "complete"]:
+					_set_playtest_state(&"completado")
+					_test_ready = true
+				var heartbeat := float(
+					status.get_value("test", "heartbeat", 0.0)
+				)
+				if (
+					heartbeat > 0.0
+					and Time.get_unix_time_from_system() - heartbeat
+					> TEST_HEARTBEAT_TIMEOUT_SECONDS
+				):
+					var stale_seconds := Time.get_unix_time_from_system() - heartbeat
+					_playtest_controller.fail(
+						"heartbeat detenido hace %.1f s" % stale_seconds
+					)
+					_set_playtest_state(&"fallido")
+					_show_error(
+						"La prueba dejó de responder: heartbeat detenido hace %.1f s."
+						% stale_seconds
+					)
+					_clear_test_state()
+					return
+	if not _test_ready:
+		_test_wait_elapsed += delta
+		if _test_wait_elapsed >= TEST_STARTUP_TIMEOUT_SECONDS:
+			_playtest_controller.fail("timeout de inicio")
+			_set_playtest_state(&"fallido")
+			_show_error("La prueba no respondió a tiempo: timeout de inicio.")
+			_clear_test_state()
+			return
+	return
+
+
+func _clear_test_state() -> void:
+	_pending_test_token = ""
+	_test_ready = false
+	_test_wait_elapsed = 0.0
+	for path in [TEST_CONFIG_PATH, _test_status_path, _test_result_path]:
+		if not path.is_empty() and FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	_test_status_path = TEST_STATUS_PATH
 
 
 func _show_test_result(result: ConfigFile) -> void:
@@ -124,15 +296,44 @@ func _show_test_result(result: ConfigFile) -> void:
 	var minutes := floori(elapsed / 60.0)
 	var seconds := fmod(elapsed, 60.0)
 	var completed := bool(result.get_value("result", "completed", false))
+	var failure_reason := str(result.get_value("result", "failure_reason", ""))
+	last_playtest_summary = {
+		"track_id": str(result.get_value("result", "track_id", "")),
+		"configuration": str(result.get_value("result", "configuration", "")),
+		"elapsed_time": elapsed,
+		"completed": completed,
+		"recovery_count": int(result.get_value("result", "recovery_count", 0)),
+		"off_route_count": int(result.get_value("result", "off_route_count", 0)),
+		"shortcut_count": int(result.get_value("result", "shortcut_count", 0)),
+		"recovery_reasons": result.get_value("result", "recovery_reasons", {}),
+		"last_recovery_reason": str(result.get_value("result", "last_recovery_reason", "")),
+	}
+	_playtest_controller.record_summary(last_playtest_summary)
+	playtest_summaries = _playtest_controller.summaries
+	if not failure_reason.is_empty():
+		_playtest_controller.fail(failure_reason)
+		_set_playtest_state(&"fallido")
+		_show_error("Prueba fallida: %s" % failure_reason)
+		return
+	_set_playtest_state(&"completado")
+	var reasons: Dictionary = result.get_value("result", "recovery_reasons", {})
+	var reason_text := ""
+	if not reasons.is_empty():
+		var entries := PackedStringArray()
+		for reason in reasons:
+			entries.append("%s ×%d" % [reason, int(reasons[reason])])
+		reason_text = " · Motivos: %s" % ", ".join(entries)
 	_show_success(
-		"Última prueba%s · %02d:%06.3f · %d recuperaciones · %d fuera de ruta · %d atajos."
+		"Última prueba%s%s · %02d:%06.3f · %d recuperaciones · %d fuera de ruta · %d atajos%s."
 		% [
 			" completada" if completed else "",
+			(" · " + str(result.get_value("result", "configuration", ""))) if not str(result.get_value("result", "configuration", "")).is_empty() else "",
 			minutes,
 			seconds,
 			int(result.get_value("result", "recovery_count", 0)),
 			int(result.get_value("result", "off_route_count", 0)),
 			int(result.get_value("result", "shortcut_count", 0)),
+			reason_text,
 		]
 	)
 
@@ -228,7 +429,14 @@ func _build_interface() -> void:
 
 	_build_new_dialog()
 	_build_open_dialog()
+	_build_user_open_dialog()
 	_build_unsaved_dialog()
+	_build_recovery_dialog()
+	_dialog_controller.build(self)
+	_dialog_controller.external_reload_requested.connect(_reload_external_scene)
+	_dialog_controller.external_keep_requested.connect(_keep_external_scene)
+	_dialog_controller.catalog_acknowledged.connect(_acknowledge_catalog_change)
+	_dialog_controller.compare_requested.connect(_show_conflict_comparison)
 	_build_guide_dialog()
 	_build_calibration_dialog()
 	call_deferred("_reset_panel_layout")
@@ -263,6 +471,13 @@ func _build_header() -> Control:
 	_open_button = _button("ABRIR", _handle_open_pressed, "Abrir una pista o borrador")
 	_open_button.name = "OpenTrackButton"
 	header_actions.add_child(_open_button)
+	_user_open_button = _button(
+		"USER://",
+		_handle_user_open_pressed,
+		"Abrir un borrador guardado en los datos del usuario"
+	)
+	_user_open_button.name = "OpenUserDraftButton"
+	header_actions.add_child(_user_open_button)
 
 	_track_picker = OptionButton.new()
 	_track_picker.name = "TrackPicker"
@@ -389,6 +604,7 @@ func _build_workspace() -> VBoxContainer:
 		&"direction": "Sentido",
 		&"objects": "Objetos",
 		&"shortcuts": "Atajos y portales",
+		&"surfaces": "Superficies",
 		&"errors": "Errores",
 		&"slope": "Pendiente",
 		&"curvature": "Curvatura",
@@ -400,7 +616,7 @@ func _build_workspace() -> VBoxContainer:
 		layers.get_popup().set_item_metadata(layer_index, layer_name)
 		layers.get_popup().set_item_checked(
 			layer_index,
-			layer_name in [&"direction", &"objects", &"shortcuts", &"errors"]
+			layer_name in [&"direction", &"objects", &"shortcuts", &"surfaces", &"errors"]
 		)
 	layers.get_popup().index_pressed.connect(func(index: int) -> void:
 		var popup := layers.get_popup()
@@ -416,6 +632,13 @@ func _build_workspace() -> VBoxContainer:
 	view_bar.add_child(_button("＋", func() -> void: _map_view.zoom_in(), "Acercar mapa"))
 	view_bar.add_child(_button("ENCUADRAR", func() -> void: _map_view.frame_all(), "Mostrar la pista completa"))
 	_view_toggle = _button("VISTA 3D", _toggle_view)
+	_preview_status_label = Label.new()
+	_preview_status_label.name = "PreviewStatus"
+	_preview_status_label.text = "● PREVIEW PENDIENTE"
+	_preview_status_label.add_theme_color_override("font_color", EditorStyle.FOCUS)
+	_preview_status_label.custom_minimum_size.x = 150.0
+	_preview_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	view_bar.add_child(_preview_status_label)
 	view_bar.add_child(_view_toggle)
 	workspace.add_child(view_bar)
 
@@ -539,11 +762,19 @@ func _connect_session() -> void:
 	session.route_changed.connect(_handle_session_route_changed)
 	session.dirty_changed.connect(_handle_dirty_changed)
 	session.history_changed.connect(_handle_history_changed)
+	_preview_controller.state_changed.connect(_handle_preview_state_changed)
+	_external_controller.changes_detected.connect(_handle_external_changes)
 
 
 func _reload_track_picker() -> void:
 	_track_picker.clear()
-	var catalog := load(CATALOG_PATH) as TrackCatalog
+	if not FileAccess.file_exists(CATALOG_PATH):
+		return
+	var catalog := ResourceLoader.load(
+		CATALOG_PATH,
+		"TrackCatalog",
+		ResourceLoader.CACHE_MODE_REPLACE
+	) as TrackCatalog
 	if catalog == null:
 		return
 	for definition in catalog.tracks:
@@ -573,20 +804,9 @@ func _load_selected_track() -> void:
 func _load_path(path: String) -> void:
 	var error := session.load_track(path)
 	if error != OK:
-		_show_error("No se pudo abrir la pista (%s)." % error_string(error))
+		_show_error(_get_persistence_error("No se pudo abrir la pista"))
 		return
-	var catalog := load(CATALOG_PATH) as TrackCatalog
-	var definition := (
-		catalog.get_track(session.track.track_id)
-		if catalog != null
-		else null
-	)
-	if definition != null:
-		_laps = definition.laps
-		_description = definition.description
-	else:
-		_laps = 3
-		_description = ""
+	_show_step(_current_step)
 	if session.last_repair_summary.is_empty():
 		_show_success("Pista abierta. Comienza por Configuración o Carretera.")
 	else:
@@ -597,6 +817,9 @@ func _load_path(path: String) -> void:
 
 
 func _handle_track_changed(track: TrackLevel) -> void:
+	_conflict_controller.clear_all()
+	_sync_conflict_flags()
+	_publication_controller.refresh()
 	_selection = Selection.none()
 	_preview_controller.set_track(track)
 	_map_view.set_track(track)
@@ -604,9 +827,11 @@ func _handle_track_changed(track: TrackLevel) -> void:
 	_rebuild_preview()
 	_refresh_validation()
 	_show_step(_current_step)
+	_update_preview_status()
 
 
 func _handle_dirty_changed(is_dirty: bool) -> void:
+	_publication_controller.refresh()
 	_dirty_label.text = "● SIN GUARDAR" if is_dirty else "✓ GUARDADO"
 	_dirty_label.add_theme_color_override(
 		"font_color",
@@ -618,8 +843,8 @@ func _handle_session_route_changed() -> void:
 	_map_view.set_track(session.track)
 	_restore_selection_after_history()
 	_rebuild_preview()
-	if _current_step == 1:
-		_show_step(1)
+	_show_step(_current_step)
+	_update_preview_status()
 
 
 func _handle_history_changed(can_undo: bool, can_redo: bool) -> void:
@@ -627,11 +852,21 @@ func _handle_history_changed(can_undo: bool, can_redo: bool) -> void:
 	_redo_button.disabled = not can_redo
 
 
-func _show_step(step_index: int) -> void:
+
+func _show_step(step_index: int, preserve_inspector_state := true) -> void:
+	var previous_step := _current_step
+	var focus_path := NodePath()
+	var scroll_value := 0
+	if preserve_inspector_state and _properties != null:
+		var focus_owner := get_viewport().gui_get_focus_owner()
+		if focus_owner != null and _properties.is_ancestor_of(focus_owner):
+			focus_path = _properties.get_path_to(focus_owner)
+		var inspector_scroll := _properties.get_parent() as ScrollContainer
+		if inspector_scroll != null:
+				scroll_value = inspector_scroll.scroll_vertical
 	_current_step = clampi(step_index, 0, STEP_LABELS.size() - 1)
 	_step_buttons[_current_step].set_pressed_no_signal(true)
-	for child in _properties.get_children():
-		child.queue_free()
+	_clear_inspector_properties()
 	if session.track == null:
 		_add_help("Abre o crea una pista para comenzar.")
 		return
@@ -648,105 +883,62 @@ func _show_step(step_index: int) -> void:
 			_build_surface_properties()
 		5:
 			_build_review_properties()
+	_inspector_focus_path = focus_path
+	_inspector_scroll_value = scroll_value if previous_step == _current_step else 0
+	call_deferred(
+		"_restore_inspector_state",
+		_inspector_focus_path,
+		_inspector_scroll_value,
+		not preserve_inspector_state
+	)
+
+
+func _clear_inspector_properties() -> void:
+	if _properties == null:
+		return
+	for child in _properties.get_children():
+		_properties.remove_child(child)
+		if is_instance_valid(child):
+			child.queue_free()
 
 
 func _build_surface_properties() -> void:
-	var title := Label.new()
-	title.text = "SUPERFICIES"
-	title.add_theme_font_size_override("font_size", 24)
-	_properties.add_child(title)
-	_add_help("Crea zonas visuales sin alterar el piso físico. El ancho se valida dentro de las barreras.")
-	var kind := OptionButton.new()
-	for entry in [["Asfalto", ""], ["Tierra", "dirt"], ["Arena", "sand"], ["Césped", "grass"]]:
-		kind.add_item(entry[0])
-		kind.set_item_metadata(kind.item_count - 1, entry[1])
-	_properties.add_child(kind)
-	var route_kind := OptionButton.new()
-	route_kind.add_item("Ruta principal", TrackSurfaceZone.PathKind.MAIN)
-	route_kind.add_item("Atajo", TrackSurfaceZone.PathKind.SHORTCUT)
-	_properties.add_child(route_kind)
-	var start := SpinBox.new()
-	start.prefix = "Inicio  "
-	start.max_value = 1.0
-	start.step = 0.01
-	start.value = 0.1
-	_properties.add_child(start)
-	var finish := SpinBox.new()
-	finish.prefix = "Final  "
-	finish.max_value = 1.0
-	finish.step = 0.01
-	finish.value = 0.2
-	_properties.add_child(finish)
-	var width := SpinBox.new()
-	width.prefix = "Ancho  "
-	width.min_value = 0.5
-	width.max_value = CoastalTrack.ROAD_WIDTH
-	width.step = 0.25
-	width.value = 3.0
-	_properties.add_child(width)
-	var create := _button("+ CREAR ZONA", func() -> void:
-		if finish.value <= start.value:
-			_status_label.text = "El final debe estar después del inicio."
-			return
-		session.snapshot_track_for_undo()
-		var root := session.track.get_node_or_null("Surfaces")
-		if root == null:
-			root = Node3D.new()
-			root.name = "Surfaces"
-			session.track.add_child(root)
-			root.owner = session.track
-		var zone := TrackSurfaceZone.new()
-		zone.name = "SurfaceZone%d" % (root.get_child_count() + 1)
-		zone.id = StringName("surface_zone_%d" % (root.get_child_count() + 1))
-		zone.path_kind = route_kind.get_selected_id()
-		zone.start_progress = start.value
-		zone.end_progress = finish.value
-		zone.width = width.value
-		var surface_id := str(kind.get_selected_metadata())
-		zone.surface = (load("res://levels/surfaces/%s.tres" % surface_id) as SurfaceDefinition if not surface_id.is_empty() else SurfaceDefinition.asphalt())
-		root.add_child(zone)
-		zone.owner = session.track
-		session.mark_dirty()
-		session.route_changed.emit()
-		_show_step(4)
-	)
-	_properties.add_child(create)
-	var surfaces := session.track.get_node_or_null("Surfaces")
-	if surfaces != null:
-		for child in surfaces.get_children():
-			if child is TrackSurfaceZone:
-				var row := HBoxContainer.new()
-				var label := Label.new()
-				label.text = "%s · %.0f–%.0f%%" % [child.id, child.start_progress * 100.0, child.end_progress * 100.0]
-				label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-				row.add_child(label)
-				row.add_child(_button("ELIMINAR", func() -> void:
-					session.snapshot_track_for_undo()
-					child.queue_free()
-					session.mark_dirty()
-					session.route_changed.emit()
-					_show_step(4)
-				))
-				_properties.add_child(row)
+	var panel := SurfacePanel.new()
+	panel.name = "TrackSurfacePanel"
+	panel.configure(session.track, _button, _selection)
+	panel.surface_selection_requested.connect(_handle_surface_selection_requested)
+	panel.create_requested.connect(_handle_surface_create_requested)
+	panel.update_requested.connect(_handle_surface_update_requested)
+	panel.delete_requested.connect(_handle_surface_delete_requested)
+	_properties.add_child(panel)
 
 
 func _build_setup_properties() -> void:
 	var panel := SetupPanel.new()
 	panel.name = "TrackSetupPanel"
-	panel.configure(session.track, _laps, _description, _button)
+	panel.configure(session.track, session.laps, session.description, _button)
 	panel.name_changed.connect(_handle_track_name_changed)
-	panel.laps_changed.connect(func(value: int) -> void: _laps = value)
-	panel.description_changed.connect(
-		func(value: String) -> void: _description = value
-	)
+	panel.laps_changed.connect(_handle_laps_changed)
+	panel.description_changed.connect(_handle_description_changed)
+	panel.metadata_edit_finished.connect(session.finish_metadata_edit)
 	panel.environment_theme_changed.connect(func(value: TrackTheme) -> void:
-		session.track.track_theme = value; session.mark_dirty(); _rebuild_preview()
+		session.snapshot_track_for_undo()
+		session.track.track_theme = value
+		session.finish_metadata_edit()
+		session.mark_dirty()
+		_rebuild_preview()
 	)
 	panel.music_changed.connect(func(value: AudioStream) -> void:
-		session.track.track_music = value; session.mark_dirty()
+		session.snapshot_track_for_undo()
+		session.track.track_music = value
+		session.finish_metadata_edit()
+		session.mark_dirty()
 	)
 	panel.difficulty_changed.connect(func(value: String) -> void:
-		session.track.difficulty = value; session.mark_dirty()
+		session.snapshot_track_for_undo()
+		session.track.difficulty = value
+		session.finish_metadata_edit()
+		session.mark_dirty()
 	)
 	_properties.add_child(panel)
 
@@ -797,7 +989,7 @@ func _build_object_properties() -> void:
 
 
 func _build_review_properties() -> void:
-	var issues := _deduplicate_issues(session.track.inspect_track())
+	var issues := _inspect_track()
 	var panel := ReviewPanel.new()
 	panel.name = "TrackReviewPanel"
 	panel.configure(issues, _button)
@@ -810,10 +1002,23 @@ func _build_review_properties() -> void:
 
 
 func _handle_track_name_changed(value: String) -> void:
-	session.track.display_name = value
-	session.track.start_banner_text = value.to_upper()
+	session.snapshot_metadata_for_undo()
+	if not session.set_display_name(value):
+		return
 	_title_label.text = "PISTAS  /  %s" % value.to_upper()
 	session.mark_dirty()
+
+
+func _handle_laps_changed(value: int) -> void:
+	session.snapshot_metadata_for_undo()
+	if session.set_editor_metadata(value, session.description):
+		session.mark_dirty()
+
+
+func _handle_description_changed(value: String) -> void:
+	session.snapshot_metadata_for_undo()
+	if session.set_editor_metadata(session.laps, value):
+		session.mark_dirty()
 
 
 func _handle_new_pressed() -> void:
@@ -827,58 +1032,88 @@ func _handle_open_pressed() -> void:
 	_open_dialog.popup_centered_ratio(0.72)
 
 
+func _handle_user_open_pressed() -> void:
+	_user_open_dialog.popup_centered_ratio(0.72)
+
+
 func _create_new_track() -> void:
 	var size_ids := [&"small", &"medium", &"large"]
 	session.create_track(size_ids[_new_size.selected], _new_name.text)
-	_laps = 3
-	_description = ""
 	_new_dialog.hide()
 	_show_success("Plantilla creada. Ajusta los puntos amarillos a tu gusto.")
 
 
 func _handle_save_pressed() -> void:
+	var changes := session.get_external_changes()
+	if _conflict_controller.scene_pending or bool(changes.get("scene", false)):
+		_show_external_change_dialog()
+		return
 	var error := session.save()
 	if error == OK:
 		session.clear_recovery()
+		_publication_controller.refresh()
 		_show_success("Borrador guardado en %s." % session.scene_path)
 	else:
-		_show_error("No se pudo guardar (%s)." % error_string(error))
+		_show_error(_get_persistence_error("No se pudo guardar"))
 
 
 func _handle_publish_pressed() -> void:
+	var changes := session.get_external_changes()
+	_conflict_controller.absorb(changes)
+	_sync_conflict_flags()
+	if _conflict_controller.has_pending():
+		if _conflict_controller.scene_pending:
+			_show_external_change_dialog()
+		else:
+			_show_catalog_change_dialog()
+		return
+	if bool(changes.get("scene", false)):
+		_show_external_change_dialog()
+		return
 	var issues := session.track.inspect_track() if session.track != null else []
 	if _has_blocking_issues(issues):
-		_show_error("Corrige los problemas indicados antes de publicar.")
-		_show_step(4)
+		_show_error(
+			"Validación bloqueante: corrige los problemas indicados antes de publicar."
+		)
+		_show_step(5)
 		return
-	var error := session.publish(_laps, _description)
+	var error := _publication_controller.publish(
+		session.laps,
+		session.description
+	)
 	if error == OK:
+		session.clear_recovery()
 		_reload_track_picker()
 		_show_success("Pista publicada. Ya aparece en el menú del juego.")
 	else:
-		_show_error("No se pudo publicar (%s)." % error_string(error))
+		_show_error(_get_persistence_error("No se pudo publicar"))
 
 
 func _handle_test_pressed() -> void:
-	if session.track == null or not session.track.validate_track().is_empty():
+	var issues := _inspect_track()
+	if session.track == null or _has_blocking_issues(issues):
 		_show_error("La pista necesita pasar la revisión antes de probarla.")
-		_show_step(4)
+		_show_step(5)
 		return
 	var error := session.save()
 	if error != OK:
-		_show_error("No se pudo preparar la prueba (%s)." % error_string(error))
+		_show_error(_get_persistence_error("No se pudo preparar la prueba"))
 		return
-	play_requested.emit(session.scene_path, session.track.track_id, _laps)
+	_set_playtest_state(&"iniciando")
+	play_requested.emit(session.scene_path, session.track.track_id, session.laps)
 	_show_success("Iniciando prueba con el kart del jugador…")
 
 
 func _handle_validate_pressed() -> void:
 	_rebuild_preview()
-	if session.track.inspect_track().is_empty():
+	var issues := _inspect_track()
+	if issues.is_empty():
 		_show_success("Revisión completa: no hay problemas.")
-	else:
+	elif _has_blocking_issues(issues):
 		_show_error("La pista tiene problemas. Usa los mensajes para localizarlos.")
-	_show_step(4)
+	else:
+		_show_warning("Revisión completa con advertencias no bloqueantes.")
+	_show_step(5)
 
 
 func _handle_route_edited() -> void:
@@ -902,7 +1137,98 @@ func _handle_selection_changed(new_selection: RefCounted) -> void:
 	_selection = new_selection
 	var step := int(_selection.workflow_step())
 	if step >= 0:
-		_show_step(step)
+		_show_step(step, false)
+
+
+func _restore_inspector_state(
+	focus_path: NodePath,
+	scroll_value: int,
+	focus_first_control: bool
+) -> void:
+	if _properties == null:
+		return
+	var inspector_scroll := _properties.get_parent() as ScrollContainer
+	if inspector_scroll != null:
+		inspector_scroll.scroll_vertical = scroll_value
+	if not focus_path.is_empty():
+		var remembered_control := _properties.get_node_or_null(focus_path) as Control
+		if (
+			remembered_control != null
+			and remembered_control.visible
+			and remembered_control.focus_mode != Control.FOCUS_NONE
+			and _is_focusable_inspector_control(remembered_control)
+		):
+			remembered_control.grab_focus()
+			return
+	if not focus_first_control:
+		return
+	for candidate in _properties.find_children("*", "Control", true, false):
+		var control := candidate as Control
+		if (
+			control != null
+			and control.visible
+			and control.focus_mode != Control.FOCUS_NONE
+			and _is_focusable_inspector_control(control)
+		):
+			control.grab_focus()
+			return
+
+
+func _is_focusable_inspector_control(control: Control) -> bool:
+	if control is BaseButton:
+		return not (control as BaseButton).disabled
+	if control is LineEdit:
+		return (control as LineEdit).editable
+	if control is TextEdit:
+		return (control as TextEdit).editable
+	if control is SpinBox:
+		return (control as SpinBox).editable
+	return true
+
+
+func _handle_surface_selection_requested(selected: RefCounted) -> void:
+	_map_view.set_selection(selected, true)
+
+
+func _handle_surface_create_requested(data: Dictionary) -> void:
+	var result: Dictionary = _edit_controller.create_surface(data)
+	if not bool(result.get("ok", false)):
+		_show_error("No se pudo crear la zona de superficie.")
+		return
+	_complete_surface_edit("Zona de superficie creada.")
+	_map_view.set_selection(result.selection)
+
+
+func _handle_surface_update_requested(
+	selected: RefCounted,
+	data: Dictionary
+) -> void:
+	var result: Dictionary = _edit_controller.update_surface(selected, data)
+	if not bool(result.get("changed", false)):
+		_show_warning("La zona no cambió.")
+		return
+	_complete_surface_edit("Zona de superficie actualizada.")
+
+
+func _handle_surface_delete_requested(selected: RefCounted) -> void:
+	if not bool(_edit_controller.delete_surface(selected).get("ok", false)):
+		_show_error("No se encontró la zona seleccionada.")
+		return
+	_selection = Selection.none()
+	_map_view.clear_selection()
+	_complete_surface_edit("Zona de superficie eliminada.")
+
+
+func _complete_surface_edit(message: String) -> void:
+	_map_view.refresh_view_bounds()
+	_rebuild_preview()
+	_refresh_validation()
+	_show_step(4)
+	var issues := _inspect_track()
+	if _has_blocking_issues(issues):
+		_show_error(message + " Revisa la zona antes de publicar.")
+	else:
+		_show_success(message)
 
 
 func _handle_entity_move_requested(
@@ -918,28 +1244,23 @@ func _handle_entity_move_requested(
 func _handle_entity_delete_requested(selected: RefCounted) -> void:
 	if selected == null or selected.is_empty():
 		return
-	session.snapshot_track_for_undo()
-	if not session.delete_entity(selected):
+	if not bool(_edit_controller.delete_entity(selected).get("ok", false)):
 		_show_error("Este elemento no se puede eliminar.")
 		return
 	_selection = Selection.none()
 	_map_view.clear_selection()
-	session.mark_dirty()
-	session.recalculate_route_dependents()
 	_complete_entity_edit("Elemento eliminado.")
 
 
 func _handle_entity_duplicate_requested(selected: RefCounted) -> void:
 	if selected == null or selected.is_empty():
 		return
-	session.snapshot_track_for_undo()
-	var duplicated := session.duplicate_entity(selected)
-	if duplicated == null or duplicated.is_empty():
+	var result: Dictionary = _edit_controller.duplicate_entity(selected)
+	if not bool(result.get("ok", false)):
 		_show_error("Este elemento no se puede duplicar.")
 		return
-	_selection = duplicated
+	_selection = result.selection
 	_map_view.set_selection(_selection)
-	session.mark_dirty()
 	_complete_entity_edit("Elemento duplicado.")
 
 
@@ -965,25 +1286,13 @@ func _restore_selection_after_history() -> void:
 func _refresh_validation() -> void:
 	if session.track == null:
 		return
-	var issues := _deduplicate_issues(session.track.inspect_track())
+	var issues := _inspect_track()
 	_map_view.set_issues(issues)
 	_update_step_badges(issues)
 
 
 func _update_step_badges(issues: Array[TrackValidationIssue]) -> void:
-	var counts := [0, 0, 0, 0, 0, 0]
-	for issue in issues:
-		var path_text := str(issue.target_path)
-		if path_text.begins_with("Shortcuts"):
-			counts[2] += 1
-		elif path_text.begins_with("ItemSpawns") or path_text.begins_with("Props"):
-			counts[3] += 1
-		elif path_text.begins_with("Surfaces"):
-			counts[4] += 1
-		elif path_text == ".":
-			counts[0] += 1
-		else:
-			counts[1] += 1
+	var counts := _validation_controller.counts_by_step(issues)
 	for step_index in STEP_LABELS.size():
 		_step_buttons[step_index].text = (
 			"%s  ⚠ %d" % [STEP_LABELS[step_index], counts[step_index]]
@@ -1425,48 +1734,76 @@ func _add_asset(
 
 
 func _focus_issue(issue: TrackValidationIssue) -> void:
-	var path_text := str(issue.target_path)
-	if path_text.begins_with("Shortcuts/"):
+	if issue.focus_kind == &"shortcut":
 		_selection = Selection.node(
 			Selection.Kind.SHORTCUT_MIDPOINT,
 			issue.target_path
 		)
-	elif path_text.begins_with("ItemSpawns/"):
+	elif issue.focus_kind == &"item":
 		_selection = Selection.node(Selection.Kind.ITEM, issue.target_path)
-	elif path_text.begins_with("Props/"):
+	elif issue.focus_kind == &"prop":
 		_selection = Selection.node(Selection.Kind.PROP, issue.target_path)
+	elif issue.focus_kind == &"surface":
+		_selection = Selection.node(Selection.Kind.SURFACE, issue.target_path)
 	else:
 		_selection = Selection.none()
-	if not _selection.is_empty():
+	var selection_target_exists: bool = (
+		_selection.kind == Selection.Kind.ROUTE_POINT
+		or session.track != null
+		and session.track.get_node_or_null(_selection.node_path) != null
+	)
+	if not _selection.is_empty() and selection_target_exists:
 		_map_view.set_selection(_selection, true)
 	else:
-		_show_step(1)
-	_show_error(issue.message)
+		_selection = Selection.none()
+		_show_step(issue.workflow_step)
+		_map_view.focus_issue(issue)
+	if not issue.world_position.is_zero_approx():
+		_map_view.focus_world_position(issue.world_position)
+	if issue.severity == TrackValidationIssue.Severity.WARNING:
+		_show_warning(issue.message)
+	else:
+		_show_error(issue.message)
 
 
 func _rebuild_preview() -> void:
-	_preview_controller.rebuild(session.track, _map_view)
+	_preview_rebuild_pending = true
+	_preview_controller.request_rebuild(session.track, _map_view)
+	_update_preview_status()
 
 
-func _deduplicate_issues(
-	issues: Array[TrackValidationIssue]
-) -> Array[TrackValidationIssue]:
-	var unique_issues: Array[TrackValidationIssue] = []
-	var observed: Dictionary = {}
-	for issue in issues:
-		var key := "%s|%s" % [issue.code, issue.target_path]
-		if observed.has(key):
-			continue
-		observed[key] = true
-		unique_issues.append(issue)
-	return unique_issues
+func _handle_preview_state_changed(_state: StringName) -> void:
+	_update_preview_status()
+
+
+func _update_preview_status() -> void:
+	if _preview_status_label == null:
+		return
+	var state: StringName = _preview_controller.preview_state
+	match state:
+		&"pendiente":
+			_preview_status_label.text = "● PREVIEW PENDIENTE"
+			_preview_status_label.add_theme_color_override("font_color", EditorStyle.FOCUS)
+		&"diferido":
+			_preview_status_label.text = "○ PREVIEW DIFERIDO"
+			_preview_status_label.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
+		&"actualizado_con_advertencias":
+			_preview_status_label.text = "△ PREVIEW CON AVISOS"
+			_preview_status_label.add_theme_color_override("font_color", EditorStyle.FOCUS)
+		&"sin_pista":
+			_preview_status_label.text = "— SIN PREVIEW"
+			_preview_status_label.add_theme_color_override("font_color", EditorStyle.TEXT_MUTED)
+		_:
+			_preview_status_label.text = "✓ PREVIEW ACTUALIZADO"
+			_preview_status_label.add_theme_color_override("font_color", EditorStyle.SUCCESS)
+
+
+func _inspect_track() -> Array[TrackValidationIssue]:
+	return _validation_controller.inspect(session.track)
 
 
 func _has_blocking_issues(issues: Array[TrackValidationIssue]) -> bool:
-	for issue in issues:
-		if issue.severity == TrackValidationIssue.Severity.ERROR:
-			return true
-	return false
+	return _validation_controller.has_blocking_issues(issues)
 
 
 func _frame_preview_camera() -> void:
@@ -1476,6 +1813,7 @@ func _frame_preview_camera() -> void:
 
 
 func _toggle_view() -> void:
+	_preview_rebuild_pending = false
 	_is_showing_preview = _preview_controller.toggle_view(
 		_map_view,
 		_view_toggle,
@@ -1496,6 +1834,11 @@ func _show_error(message: String) -> void:
 func _show_warning(message: String) -> void:
 	_status_label.text = "⚠  " + message
 	_status_label.add_theme_color_override("font_color", EditorStyle.FOCUS)
+
+
+func _get_persistence_error(fallback: String) -> String:
+	var detail := session.last_persistence_error
+	return detail if not detail.is_empty() else fallback
 
 
 func _add_help(text: String) -> void:
@@ -1624,6 +1967,149 @@ func _build_unsaved_dialog() -> void:
 	add_child(_unsaved_dialog)
 
 
+func _build_recovery_dialog() -> void:
+	_recovery_dialog = ConfirmationDialog.new()
+	_recovery_dialog.title = "Recuperación de pista"
+	_recovery_dialog.ok_button_text = "Restaurar"
+	_recovery_dialog.cancel_button_text = "Ahora no"
+	_recovery_dialog.add_button("Descartar", true, "discard")
+	_recovery_dialog.confirmed.connect(_restore_recovery)
+	_recovery_dialog.custom_action.connect(func(action: StringName) -> void:
+		if action == &"discard":
+			session.clear_recovery()
+			_recovery_dialog.hide()
+			_show_success("Recuperación descartada.")
+	)
+	add_child(_recovery_dialog)
+
+
+func _poll_external_changes() -> void:
+	_external_controller.poll()
+
+
+func _handle_external_changes(changes: Dictionary) -> void:
+	if session.track == null:
+		return
+	var scene_was_pending := _conflict_controller.scene_pending
+	var catalog_was_pending := _conflict_controller.catalog_pending
+	_conflict_controller.absorb(changes)
+	_sync_conflict_flags()
+	var scene_became_pending := (
+		_conflict_controller.scene_pending and not scene_was_pending
+	)
+	var catalog_became_pending := (
+		_conflict_controller.catalog_pending and not catalog_was_pending
+	)
+	if bool(changes.get("catalog", false)):
+		if session.is_dirty:
+			if bool(changes.get("scene", false)):
+				if scene_became_pending or catalog_became_pending:
+					_show_external_change_dialog()
+			elif catalog_became_pending:
+				_show_catalog_change_dialog()
+		else:
+			if catalog_became_pending:
+				_reload_track_picker()
+				session.acknowledge_external_changes(false, true)
+				_conflict_controller.clear_catalog()
+				_sync_conflict_flags()
+				_show_warning("El catálogo cambió fuera del editor; se actualizó la lista de pistas.")
+	if not bool(changes.get("scene", false)):
+		return
+	if session.is_dirty:
+		if scene_became_pending:
+			_show_external_change_dialog()
+		return
+	var path := session.scene_path
+	var error := session.load_track(path)
+	if error == OK:
+		_conflict_controller.clear_scene()
+		_sync_conflict_flags()
+		_show_warning("La pista se recargó porque cambió fuera del editor.")
+	else:
+		_show_error(
+			_get_persistence_error(
+				"La pista cambió fuera del editor y no se pudo recargar"
+			)
+		)
+
+
+func _show_external_change_dialog() -> void:
+	_dialog_controller.show_external(_conflict_controller.affected_scope())
+
+
+func _show_catalog_change_dialog() -> void:
+	_dialog_controller.show_catalog()
+
+
+func _acknowledge_catalog_change() -> void:
+	session.acknowledge_external_changes(false, true)
+	_conflict_controller.clear_catalog()
+	_sync_conflict_flags()
+	_reload_track_picker()
+	_show_warning("Catálogo actualizado. Revisa la pista y vuelve a publicar cuando esté lista.")
+
+
+func _reload_external_scene() -> void:
+	var path := session.scene_path
+	var error := session.load_track(path)
+	if error == OK:
+		_conflict_controller.clear_all()
+		_sync_conflict_flags()
+		_show_success("Cambios externos cargados.")
+	else:
+		_show_error(_get_persistence_error("No se pudo recargar la pista"))
+
+
+func _keep_external_scene() -> void:
+	session.acknowledge_external_changes(true, false)
+	_conflict_controller.clear_scene()
+	_sync_conflict_flags()
+	_show_warning("Se conservaron los cambios locales.")
+	if _catalog_conflict_pending:
+		_show_catalog_change_dialog()
+
+
+func _show_conflict_comparison() -> void:
+	_dialog_controller.show_comparison(_conflict_controller.comparison_text(
+		session.get_external_change_summary()
+	))
+
+
+func _offer_recovery() -> void:
+	if (
+		_recovery_dialog == null
+		or not visible
+		or session.is_dirty
+		or not session.has_recovery()
+	):
+		return
+	var info := session.get_recovery_info()
+	var track_id := str(info.get("track_id", ""))
+	var source := str(info.get("scene_path", ""))
+	var source_text := source if not source.is_empty() else "pista nueva"
+	_recovery_dialog.dialog_text = (
+		"Se encontró una edición recuperable de %s%s. ¿Quieres restaurarla?"
+		% [
+			source_text,
+			(" (" + track_id + ")" if not track_id.is_empty() else ""),
+		]
+	)
+	_recovery_dialog.popup_centered()
+
+
+func _restore_recovery() -> void:
+	var error := session.load_recovery()
+	if error != OK:
+		_show_error(
+			"No se pudo restaurar la recuperación (%s). Se conservará para otro intento."
+			% error_string(error)
+		)
+		return
+	_show_step(_current_step)
+	_show_success("Edición recuperada. Guarda la pista para conservarla.")
+
+
 func _build_calibration_dialog() -> void:
 	_calibration_dialog = ConfirmationDialog.new()
 	_calibration_dialog.title = "Calibrar decoración conocida"
@@ -1644,13 +2130,32 @@ func _build_open_dialog() -> void:
 	_open_dialog.access = FileDialog.ACCESS_RESOURCES
 	_open_dialog.current_dir = "res://levels"
 	_open_dialog.filters = PackedStringArray(["*.tscn ; Escenas de pista"])
-	_open_dialog.file_selected.connect(func(path: String) -> void:
-		if session.is_dirty:
-			_show_unsaved_dialog("load", path)
-		else:
-			_load_path(path)
-	)
+	_open_dialog.file_selected.connect(_handle_file_selected)
 	add_child(_open_dialog)
+
+
+func _build_user_open_dialog() -> void:
+	_user_open_dialog = FileDialog.new()
+	_user_open_dialog.title = "Abrir borrador de user://"
+	_user_open_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	_user_open_dialog.access = FileDialog.ACCESS_USERDATA
+	_user_open_dialog.current_dir = "user://"
+	_user_open_dialog.filters = PackedStringArray(["*.tscn ; Escenas de pista"])
+	_user_open_dialog.file_selected.connect(_handle_file_selected)
+	add_child(_user_open_dialog)
+
+
+func _handle_file_selected(path: String) -> void:
+	var normalized_path := ProjectSettings.localize_path(path)
+	if normalized_path == path:
+		var user_root := ProjectSettings.globalize_path("user://").trim_suffix("/")
+		var absolute_path := path.trim_suffix("/")
+		if absolute_path.begins_with(user_root + "/"):
+			normalized_path = "user://" + absolute_path.substr(user_root.length() + 1)
+	if session.is_dirty:
+		_show_unsaved_dialog("load", normalized_path)
+	else:
+		_load_path(normalized_path)
 
 
 func _build_guide_dialog() -> void:
@@ -1662,14 +2167,15 @@ func _build_guide_dialog() -> void:
 		+ "2. CARRETERA: arrastra los puntos blancos en el mapa.\n\n"
 		+ "3. ATAJOS: elige una entrada y una salida.\n\n"
 		+ "4. OBJETOS: coloca cajas y decoración sin tocar nodos.\n\n"
-		+ "5. REVISAR: corrige los avisos, prueba y publica.\n\n"
+		+ "5. SUPERFICIES: asigna zonas y comprueba sus límites.\n\n"
+		+ "6. REVISAR: corrige los avisos, prueba y publica.\n\n"
 		+ "Puedes volver a abrir esta guía con el botón ? GUÍA."
 	)
 	add_child(_guide_dialog)
 
 
 func _show_guide() -> void:
-	_guide_dialog.popup_centered(Vector2i(540, 460))
+	_guide_dialog.popup_centered(Vector2i(540, 520))
 
 
 func _show_unsaved_dialog(action: String, path: String) -> void:
@@ -1682,7 +2188,9 @@ func _save_then_continue() -> void:
 	if session.save() == OK:
 		_continue_pending_action()
 	else:
-		_show_error("No se pudo guardar; la acción fue cancelada.")
+		_show_error(
+			_get_persistence_error("No se pudo guardar; la acción fue cancelada")
+		)
 
 
 func _continue_pending_action() -> void:
