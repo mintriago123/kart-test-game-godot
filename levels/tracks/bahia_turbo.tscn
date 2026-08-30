@@ -1,25 +1,36 @@
-[gd_scene format=3 uid="uid://0cw3gm7ph46x"]
+[gd_scene format=3 uid="uid://cphxgyr6r2cg0"]
 
-[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_4llsa"]
-[ext_resource type="Resource" path="res://levels/themes/coastal_theme.tres" id="2_pllua"]
-[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="3_surface"]
-[ext_resource type="Resource" path="res://levels/surfaces/sand.tres" id="4_sand"]
-[ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="5_dirt"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_umt13"]
+[ext_resource type="Resource" path="res://levels/themes/coastal_theme.tres" id="2_3q5wp"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="3_w6sdc"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="4_teyls"]
+[ext_resource type="Resource" path="res://levels/surfaces/sand.tres" id="5_wkhav"]
+[ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="6_c45vy"]
 
 [sub_resource type="Curve3D" id="Curve3D_bgu47"]
 closed = true
 _data = {
-"points": PackedVector3Array(-17.945248, -0.008333336, -1.8907381, 17.945248, 0.008333336, 1.8907381, -7.9827347, 0.25, 57.502243, -24.131699, -0.06666666, 0.82086563, 24.131699, 0.06666666, -0.82086563, 42.342796, 0.4, 59.13205, -18.506777, -0.08333333, 9.175506, 18.506777, 0.08333333, -9.175506, 136.80746, 0.65, 52.57705, -0.70661926, -0.07500001, 24.870035, 0.70661926, 0.07500001, -24.870035, 153.38345, 0.9, 4.0790176, 14.157105, 0.01666666, 20.532267, -14.157105, -0.01666666, -20.532267, 141.04718, 1.1, -96.64316, 31.003325, 0.10833334, 1.8827375, -31.003325, -0.10833334, -1.8827375, 68.44082, 0.8, -119.11458, 22.118753, 0.083333336, -8.487714, -22.118753, -0.083333336, 8.487714, -44.972767, 0.45, -107.93958, -15.152501, -0.016666671, -6.7654786, 15.152501, 0.016666671, 6.7654786, -64.2717, 0.3, -68.18829, -19.69184, -0.09166667, -5.528971, 19.69184, 0.09166667, 5.528971, 45.942245, 0.55, -67.34671, 19.587118, -0.008333336, -8.181634, -19.587118, 0.008333336, 8.181634, 53.87934, 0.85, -35.014465, 19.868006, 0.083333336, -13.800347, -19.868006, -0.083333336, 13.800347, -71.58046, 0.6, -18.256905, -10.599621, 0.058333337, -12.626525, 10.599621, -0.058333337, 12.626525, -65.32869, 0.35, 47.78762),
-"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+"points": PackedVector3Array(-37.16347, -0.008333336, -0.5063095, 37.16347, 0.008333336, 0.5063095, -10.518219, 0.25, 63.14293, -19.741556, -0.04583333, -0.007820129, 19.741556, 0.04583333, 0.007820129, 53.21872, 0.4, 63.568024, -16.194147, -0.04166666, 0.24177043, 16.194147, 0.04166666, -0.24177043, 107.93112, 0.525, 63.18985, -28.528818, -0.0625, 6.5989738, 28.528818, 0.0625, -6.5989738, 150.3836, 0.65, 62.1174, -10.635921, -0.07500001, 34.98386, 10.635921, 0.07500001, -34.98386, 279.10403, 0.9, 23.596008, 75.526924, 0.01666666, 32.19835, -75.526924, -0.01666666, -32.19835, 214.19913, 1.1, -147.78575, 72.05776, 0.10833334, -9.488361, -72.05776, -0.10833334, 9.488361, -174.05753, 0.8, -169.59409, -18.357834, 0.083333336, -13.64219, 18.357834, -0.083333336, 13.64219, -218.14742, 0.45, -90.85558, -57.442516, -0.016666671, 1.3306059, 57.442516, 0.016666671, -1.3306059, -63.910522, 0.3, -87.740944, -31.564367, -0.09166667, -9.674648, 31.564367, 0.09166667, 9.674648, 126.50769, 0.55, -98.83922, 46.539806, -0.008333336, -12.786514, -46.539806, 0.008333336, 12.786514, 125.47568, 0.85, -29.693054, 49.2063, 0.083333336, -15.037204, -49.2063, -0.083333336, 15.037204, -152.73116, 0.6, -22.120132, -23.702156, 0.058333337, -14.21051, 23.702156, -0.058333337, 14.21051, -169.76212, 0.35, 60.530167),
+"tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 }
-point_count = 12
+point_count = 13
+
+[sub_resource type="Curve3D" id="Curve3D_gmuvy"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 10.589258, 0, 7.831427, -218.1474, 0.45, -90.855576, -26.784933, -0.061418086, -28.144001, 27.98685, 0.06417409, 29.406904, -160.3973, 0.525, -61.68606, 12.597684, 0, -3.8421369, 0, 0, 0, -152.73117, 0.59999996, -22.120136),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
 
 [node name="TrackLevel" type="Node3D" unique_id=1468651586]
-script = ExtResource("1_4llsa")
+script = ExtResource("1_umt13")
 track_id = &"bahia_turbo"
 display_name = "Bahia Turbo"
 start_banner_text = "BAHIA TURBO"
-track_theme = ExtResource("2_pllua")
+track_theme = ExtResource("2_3q5wp")
+track_editor_description = "Una ruta extensa y veloz junto a la bahía."
+track_editor_laps = 3
+start_point_index = 1
 environment_size = Vector2(285.05948, 265.74664)
 
 [node name="MainRoute" type="Path3D" parent="." unique_id=1965037911]
@@ -27,12 +38,27 @@ curve = SubResource("Curve3D_bgu47")
 
 [node name="Shortcuts" type="Node3D" parent="." unique_id=26707340]
 
+[node name="Shortcut1" type="Path3D" parent="Shortcuts" unique_id=2015164596]
+curve = SubResource("Curve3D_gmuvy")
+script = ExtResource("3_w6sdc")
+display_name = "Atajo 1"
+route_anchor_enabled = true
+entry_progress = 0.5043462298906511
+exit_progress = 0.8666398480878312
+midpoint_lateral_offset = -21.723576
+midpoint_longitudinal_offset = 13.49848
+entry_handle_length = 13.17056
+exit_handle_length = 13.17056
+midpoint_in_handle_length = 38.85255769043215
+midpoint_out_handle_length = 40.595985
+metadata/editor_safety_checked = true
+
 [node name="WaterCurveSand" type="Area3D" parent="." unique_id=1199382560]
 collision_layer = 0
 collision_mask = 2
-script = ExtResource("3_surface")
+script = ExtResource("4_teyls")
 id = &"bay_water_sand"
-surface = ExtResource("4_sand")
+surface = ExtResource("5_wkhav")
 start_progress = 0.12
 end_progress = 0.31
 lateral_offset = 3.5
@@ -41,9 +67,9 @@ width = 2.8
 [node name="WaterCurveDirt" type="Area3D" parent="." unique_id=1231058059]
 collision_layer = 0
 collision_mask = 2
-script = ExtResource("3_surface")
+script = ExtResource("4_teyls")
 id = &"bay_water_dirt"
-surface = ExtResource("5_dirt")
+surface = ExtResource("6_c45vy")
 start_progress = 0.55
 end_progress = 0.75
 lateral_offset = -3.5
@@ -54,28 +80,28 @@ width = 2.8
 [node name="ItemSpawns" type="Node3D" parent="." unique_id=365757900]
 
 [node name="ItemSpawn1" type="Marker3D" parent="ItemSpawns" unique_id=400183640]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 152.45816, 0.7989025, 30.208538)
-metadata/track_editor_anchor_progress = 0.18
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 281.44388, 1.0184646, -50.68598)
+metadata/track_editor_anchor_progress = 0.18821674152002332
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn2" type="Marker3D" parent="ItemSpawns" unique_id=1672373999]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 153.46301, 0.908615, 1.1873167)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 269.13428, 1.0676243, -92.27001)
 metadata/track_editor_anchor_progress = 0.21
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn3" type="Marker3D" parent="ItemSpawns" unique_id=236596279]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 153.65813, 0.9872307, -27.860216)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 231.78943, 1.1009662, -138.15083)
 metadata/track_editor_anchor_progress = 0.24
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn4" type="Marker3D" parent="ItemSpawns" unique_id=1096034412]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 152.00146, 1.0531945, -56.854866)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 176.04558, 1.085458, -158.9424)
 metadata/track_editor_anchor_progress = 0.27
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0

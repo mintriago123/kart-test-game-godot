@@ -1,12 +1,12 @@
-[gd_scene format=3 uid="uid://io6qn016jgw"]
+[gd_scene format=3 uid="uid://dpo5m0ao63nm5"]
 
-[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_6sc2t"]
-[ext_resource type="Resource" path="res://levels/themes/jungle_theme.tres" id="2_axqyk"]
-[ext_resource type="AudioStream" uid="uid://bho3swf4xffny" path="res://assets/music/garden.ogg" id="3_e0j5e"]
-[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="4_axqyk"]
-[ext_resource type="PackedScene" path="res://assets/track/large_bush.tscn" id="4_dm3cn"]
-[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="5_ihxun"]
-[ext_resource type="Resource" path="res://levels/surfaces/grass.tres" id="6_bphyf"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_3sm83"]
+[ext_resource type="Resource" path="res://levels/themes/jungle_theme.tres" id="2_1crvk"]
+[ext_resource type="AudioStream" uid="uid://bho3swf4xffny" path="res://assets/music/garden.ogg" id="3_xh4pa"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="4_dcvhb"]
+[ext_resource type="PackedScene" path="res://assets/track/large_bush.tscn" id="5_6byp0"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="6_kwsfn"]
+[ext_resource type="Resource" path="res://levels/surfaces/grass.tres" id="7_vpann"]
 
 [sub_resource type="Curve3D" id="Curve3D_bgu47"]
 closed = true
@@ -16,28 +16,30 @@ _data = {
 }
 point_count = 12
 
-[sub_resource type="Curve3D" id="Curve3D_e0j5e"]
+[sub_resource type="Curve3D" id="Curve3D_d1oq1"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 25.467468, 0, 11.636493, -17.237534, 3.745514, 88.37603, -16.733318, 0.61125326, 6.604725, 16.733318, -0.61125326, -6.604725, 75.53812, 0.01132822, 24.0872, 5.028211, 0, 27.544819, 0, 0, 0, 187.21234, -3.7228575, 7.6786313),
+"points": PackedVector3Array(0, 0, 0, 25.111582, 0, 12.385813, -17.229689, 3.745514, 88.335815, -86.09634, 1.4568031, 31.469942, 16.903894, -0.2860243, -6.178713, 75.964294, 2.0191069, 26.868595, -7.4213743, 0, 26.998577, 0, 0, 0, 186.82991, 0.29269978, 13.747934),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
 
-[sub_resource type="Curve3D" id="Curve3D_dm3cn"]
+[sub_resource type="Curve3D" id="Curve3D_44cy4"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, -12.733554, 0, -10.656235, 119.311714, -3.5647733, -49.36571, 17.844055, -0.5508147, 2.2991953, -17.844055, 0.5508147, -2.2991953, 1.2507172, -0.021965265, -38.627525, 14.83785, 0, -7.4523096, 0, 0, 0, -110.23215, 3.5208426, -78.94229),
+"points": PackedVector3Array(0, 0, 0, -13.302563, 0, -9.936828, 125.836914, 0.20311595, -44.16705, 81.64762, -1.412255, 14.845634, -17.707071, 0.30627835, -3.2196002, 7.3035283, 2.128531, -39.671875, 15.676872, 0, -5.4712324, 0, 0, 0, -96.79365, 4.053946, -84.647),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
 
 [node name="TrackLevel" type="Node3D" unique_id=820603595]
-script = ExtResource("1_6sc2t")
+script = ExtResource("1_3sm83")
 track_id = &"ruinas_esmeralda"
 display_name = "Ruinas Esmeralda"
 start_banner_text = "RUINAS ESMERALDA"
-track_theme = ExtResource("2_axqyk")
-track_music = ExtResource("3_e0j5e")
+track_theme = ExtResource("2_1crvk")
+track_music = ExtResource("3_xh4pa")
 difficulty = "Difícil"
+track_editor_description = "Una ruta estrecha entre templos y vegetación de selva profunda."
+track_editor_laps = 3
 environment_size = Vector2(620, 560)
 
 [node name="MainRoute" type="Path3D" parent="." unique_id=1701276662]
@@ -46,55 +48,58 @@ curve = SubResource("Curve3D_bgu47")
 [node name="Shortcuts" type="Node3D" parent="." unique_id=1423282528]
 
 [node name="Shortcut0" type="Path3D" parent="Shortcuts" unique_id=1440820187]
-curve = SubResource("Curve3D_e0j5e")
-script = ExtResource("4_axqyk")
+curve = SubResource("Curve3D_d1oq1")
+script = ExtResource("4_dcvhb")
 display_name = "Ruta arriesgada 1"
 route_anchor_enabled = true
 exit_progress = 0.2690543633134
 midpoint_lateral_offset = -25.737503
 entry_handle_length = 27.999998
 exit_handle_length = 27.999998
-midpoint_in_handle_length = 17.999998
+midpoint_in_handle_length = 91.67911
 midpoint_out_handle_length = 17.999998
+metadata/editor_safety_checked = true
 
 [node name="Shortcut1" type="Path3D" parent="Shortcuts" unique_id=945954155]
-curve = SubResource("Curve3D_dm3cn")
-script = ExtResource("4_axqyk")
+curve = SubResource("Curve3D_44cy4")
+script = ExtResource("4_dcvhb")
 shortcut_id = 1
 display_name = "Ruta arriesgada 2"
 route_anchor_enabled = true
 entry_progress = 0.368417639258628
 exit_progress = 0.6492762560687667
-midpoint_lateral_offset = -25.737494
+midpoint_lateral_offset = -25.627413
+midpoint_longitudinal_offset = 2.676734
 entry_handle_length = 16.604177
 exit_handle_length = 16.604177
-midpoint_in_handle_length = 18.0
+midpoint_in_handle_length = 82.99832
 midpoint_out_handle_length = 18.0
+metadata/editor_safety_checked = true
 
 [node name="Props" type="Node3D" parent="." unique_id=663633849]
 
-[node name="ThemeProp1" type="Node3D" parent="Props" unique_id=1425600328 instance=ExtResource("4_dm3cn")]
+[node name="ThemeProp1" type="Node3D" parent="Props" unique_id=1425600328 instance=ExtResource("5_6byp0")]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 17.827827, 4.590865, 141.03441)
 
-[node name="ThemeProp2" type="Node3D" parent="Props" unique_id=572965341 instance=ExtResource("4_dm3cn")]
+[node name="ThemeProp2" type="Node3D" parent="Props" unique_id=572965341 instance=ExtResource("5_6byp0")]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 134.41591, 2.7407813, 76.76957)
 
-[node name="ThemeProp3" type="Node3D" parent="Props" unique_id=1007549181 instance=ExtResource("4_dm3cn")]
+[node name="ThemeProp3" type="Node3D" parent="Props" unique_id=1007549181 instance=ExtResource("5_6byp0")]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 242.3016, -4.033624, -12.288241)
 
-[node name="ThemeProp4" type="Node3D" parent="Props" unique_id=2011565827 instance=ExtResource("4_dm3cn")]
+[node name="ThemeProp4" type="Node3D" parent="Props" unique_id=2011565827 instance=ExtResource("5_6byp0")]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 110.3319, -2.2922409, -73.68747)
 
-[node name="ThemeProp5" type="Node3D" parent="Props" unique_id=1017645929 instance=ExtResource("4_dm3cn")]
+[node name="ThemeProp5" type="Node3D" parent="Props" unique_id=1017645929 instance=ExtResource("5_6byp0")]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 1.3390968, 4.248461, -147.98662)
 
-[node name="ThemeProp6" type="Node3D" parent="Props" unique_id=1955371589 instance=ExtResource("4_dm3cn")]
+[node name="ThemeProp6" type="Node3D" parent="Props" unique_id=1955371589 instance=ExtResource("5_6byp0")]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -121.122574, 3.8950927, -86.16035)
 
-[node name="ThemeProp7" type="Node3D" parent="Props" unique_id=1149775221 instance=ExtResource("4_dm3cn")]
+[node name="ThemeProp7" type="Node3D" parent="Props" unique_id=1149775221 instance=ExtResource("5_6byp0")]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -220.639, -3.256556, -1.5055265)
 
-[node name="ThemeProp8" type="Node3D" parent="Props" unique_id=1354922894 instance=ExtResource("4_dm3cn")]
+[node name="ThemeProp8" type="Node3D" parent="Props" unique_id=1354922894 instance=ExtResource("5_6byp0")]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -121.19071, -1.041768, 77.79998)
 
 [node name="Surfaces" type="Node3D" parent="." unique_id=1265834371]
@@ -102,9 +107,9 @@ transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, -121.19071, -1.041768, 77.799
 [node name="IdentitySurface" type="Area3D" parent="Surfaces" unique_id=937271831]
 collision_layer = 0
 collision_mask = 2
-script = ExtResource("5_ihxun")
+script = ExtResource("6_kwsfn")
 id = &"grass_zone"
-surface = ExtResource("6_bphyf")
+surface = ExtResource("7_vpann")
 start_progress = 0.18
 end_progress = 0.36
 width = 8.5
@@ -112,56 +117,56 @@ width = 8.5
 [node name="ItemSpawns" type="Node3D" parent="." unique_id=131159310]
 
 [node name="ItemSpawn1" type="Marker3D" parent="ItemSpawns" unique_id=853704661]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53.16508, 5.2754793, 102.94933)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 51.162685, 5.259677, 103.110565)
 metadata/track_editor_anchor_progress = 0.08
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn2" type="Marker3D" parent="ItemSpawns" unique_id=1746092485]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 141.38069, 0.876617, 52.53574)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 137.67247, 1.1355232, 55.29482)
 metadata/track_editor_anchor_progress = 0.195
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn3" type="Marker3D" parent="ItemSpawns" unique_id=2090555810]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 162.44763, -4.255576, -18.900066)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 168.06108, 0.13206229, -14.707652)
 metadata/track_editor_anchor_progress = 0.31
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn4" type="Marker3D" parent="ItemSpawns" unique_id=10243224]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 82.79925, -0.88535297, -85.090294)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 89.661514, 0.55043787, -78.41033)
 metadata/track_editor_anchor_progress = 0.425
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn5" type="Marker3D" parent="ItemSpawns" unique_id=547090647]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.342339, 4.9545355, -101.12908)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4403367, 4.3813176, -103.327446)
 metadata/track_editor_anchor_progress = 0.54
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn6" type="Marker3D" parent="ItemSpawns" unique_id=1768091764]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -114.818474, 3.2669272, -76.55522)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -101.51803, 3.870886, -82.88707)
 metadata/track_editor_anchor_progress = 0.655
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn7" type="Marker3D" parent="ItemSpawns" unique_id=1756696001]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -159.46611, -3.6796536, 0.462229)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -151.95088, 0.023762956, -5.3813577)
 metadata/track_editor_anchor_progress = 0.77
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="ItemSpawn8" type="Marker3D" parent="ItemSpawns" unique_id=1835992886]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -94.28817, -0.6479514, 76.58878)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -89.77625, 1.0598985, 59.354004)
 metadata/track_editor_anchor_progress = 0.885
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
