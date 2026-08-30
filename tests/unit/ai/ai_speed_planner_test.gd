@@ -52,6 +52,24 @@ func _run() -> void:
 	_check(planner.compute_target_speed(20.0, 0.0, 0.0, true, 25.0, 0.5) <= 12.5,
 		"wall recovery caps target at recovery_ratio * max_speed")
 
+	_check(is_equal_approx(planner.update_target_speed(20.0, 19.0, 1.0 / 60.0), 19.0),
+		"target speed descends at 60 units per second")
+	_check(is_equal_approx(planner.update_target_speed(20.0, 30.0, 1.0 / 60.0), 20.2),
+		"target speed ascends at 12 units per second")
+	_check(planner.update_target_speed(20.0, 10.0, 1.0 / 15.0) >= 18.0,
+		"target speed remains capped at 2 units per engine frame")
+	_check(planner.front_threat(0.22) > planner.front_threat(0.28),
+		"front sensor threat increases continuously toward the obstacle")
+	_check(planner.front_threat(0.28) > planner.front_threat(0.33),
+		"front sensor values 0.28 and 0.33 remain distinct")
+	_check(is_zero_approx(planner.front_threat(0.38)),
+		"front sensor transition ends at 0.38")
+	var clear_sample := RacingLineSample.new()
+	clear_sample.available_width = 6.0
+	var safe_at_028 := planner.compute_safe_speed(clear_sample, 0.0, {"front": 0.28}, 1.0)
+	var safe_at_033 := planner.compute_safe_speed(clear_sample, 0.0, {"front": 0.33}, 1.0)
+	_check(safe_at_028 < safe_at_033, "safe speed changes continuously across the front transition")
+
 	if _failures == 0:
 		print("AiSpeedPlanner tests passed.")
 		quit(0)

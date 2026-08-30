@@ -1,6 +1,8 @@
 class_name AiSpeedPlanner
 extends RefCounted
 
+const MAX_TARGET_SPEED_STEP_PER_FRAME := 2.0
+
 var tuning: AiTuning
 var kart: Kart
 
@@ -36,11 +38,13 @@ func compute_safe_speed(sample, lateral_error: float, sensors: Dictionary, line_
 		clampf(kart.get_horizontal_speed() / maxf(maximum, 0.1), 0.0, 1.0)
 	)
 	var barrier_limit := maximum
-	if front_ratio < tuning.safe_speed_barrier_activation_ratio:
-		barrier_limit = sqrt(maxf(
+	var front_threat_weight := front_threat(front_ratio)
+	if front_threat_weight > 0.0:
+		var braking_limit := sqrt(maxf(
 			2.0 * kart.stats.braking * maxf(front_distance - tuning.safe_speed_barrier_brake_distance, 0.0),
 			0.0
 		))
+		barrier_limit = lerpf(maximum, braking_limit, front_threat_weight)
 	return clampf(
 		minf(line_limit, minf(turn_limit, minf(lateral_limit, barrier_limit))),
 		maximum * tuning.safe_speed_min_ratio,
@@ -60,6 +64,29 @@ func compute_target_speed(
 	if is_wall_recovery:
 		target = minf(target, max_speed * wall_recovery_ratio)
 	return target
+
+
+func update_target_speed(current: float, target: float, delta: float) -> float:
+	var rate := (
+		tuning.target_speed_deceleration_rate
+		if target < current
+		else tuning.target_speed_acceleration_rate
+	)
+	var step := minf(
+		maxf(rate, 0.0) * maxf(delta, 0.0),
+		MAX_TARGET_SPEED_STEP_PER_FRAME
+	)
+	return move_toward(current, target, step)
+
+
+func smooth_target_speed(current: float, target: float, delta: float) -> float:
+	return update_target_speed(current, target, delta)
+
+
+func front_threat(front_ratio: float) -> float:
+	var start := tuning.sensor_front_transition_start
+	var finish := maxf(tuning.sensor_front_transition_end, start + 0.001)
+	return 1.0 - clampf(inverse_lerp(start, finish, front_ratio), 0.0, 1.0)
 
 
 func wanted_throttle(speed_error: float, max_speed: float) -> float:
@@ -84,15 +111,14 @@ func wanted_brake(speed_error: float, max_speed: float) -> float:
 
 
 func clamp_throttle_under_threat(throttle: float, sensors: Dictionary) -> float:
-	if float(sensors.front) < 0.22:
-		return minf(throttle, tuning.sensor_threat_throttle_ceiling)
-	return throttle
+	var threat := front_threat(float(sensors.get("front", 1.0)))
+	return lerpf(throttle, minf(throttle, tuning.sensor_threat_throttle_ceiling), threat)
 
 
 func clamp_brake_under_threat(brake: float, sensors: Dictionary) -> float:
-	if float(sensors.front) < 0.22:
-		return maxf(brake, lerpf(tuning.sensor_threat_brake_floor, 1.0, 1.0 - float(sensors.front)))
-	return brake
+	var threat := front_threat(float(sensors.get("front", 1.0)))
+	var brake_floor := lerpf(0.0, tuning.sensor_threat_brake_floor, threat)
+	return maxf(brake, brake_floor)
 
 
 func update_throttle(current: float, wanted: float, response_multiplier: float, delta: float) -> float:

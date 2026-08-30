@@ -18,9 +18,22 @@ func _run() -> void:
 			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true) == true,
 		"commits drift on tight curve with sufficient steer")
 
+	for _frame in range(maxi(tuning.drift_min_hold_frames - 1, 0)):
+		_check(decision.update(sample, 0.05, 20.0, 25.0, sensors, 0.0,
+				AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true),
+			"minimum drift hold keeps the drift active")
 	_check(decision.update(sample, 0.05, 20.0, 25.0, sensors, 0.0,
 			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true) == false,
-		"releases drift when steer drops below cancel threshold")
+		"releases drift after the minimum hold when steer drops below cancel threshold")
+
+	_reset(decision)
+	decision.update(sample, 0.5, 20.0, 25.0, sensors, 0.0,
+		AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true)
+	var next_section_sample := _make_sample(0.05)
+	next_section_sample.section_id = 1
+	_check(decision.update(next_section_sample, 0.05, 20.0, 25.0, sensors, 0.0,
+			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true),
+		"minimum drift hold survives a racing-line section transition")
 
 	var gentle_sample := _make_sample(0.005)
 	_reset(decision)
@@ -56,8 +69,9 @@ func _run() -> void:
 	decision.update(sample, 0.5, 20.0, 25.0, sensors, 0.0,
 		AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true)
 	var cancel_sample := _make_sample(0.001)
-	decision.update(cancel_sample, 0.05, 20.0, 25.0, sensors, 0.0,
-		AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true)
+	for _frame in tuning.drift_min_hold_frames:
+		decision.update(cancel_sample, 0.05, 20.0, 25.0, sensors, 0.0,
+			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true)
 	var rec_commit_sample := _make_sample(0.05)
 	_check(decision.update(rec_commit_sample, 0.5, 20.0, 25.0, sensors, 0.0,
 			AiRecoveryState.DriveState.DRIVING, 30.0, 0.8, true) == false,

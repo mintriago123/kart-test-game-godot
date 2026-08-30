@@ -6,8 +6,15 @@ extends Resource
 @export var steering_curvature_gain := 2.4
 @export var steering_lateral_gain_min := 0.09
 @export var steering_lateral_gain_max := 0.16
+@export var steering_lateral_recovery_start_ratio := 0.58
+@export var steering_lateral_recovery_end_ratio := 0.9
+@export var steering_lateral_recovery_gain := 0.65
 @export var steer_response_min := 4.5
 @export var steer_response_max := 8.5
+@export var steering_target_response_hz := 8.0
+@export var steering_straight_curvature_max := 0.015
+@export var steering_straight_sensor_min := 0.38
+@export var steering_straight_sign_deadband := 0.05
 @export var line_steer_max_magnitude := 1.0
 
 @export_group("Speed planning")
@@ -21,6 +28,8 @@ extends Resource
 @export var brake_deadband := 0.4
 @export var throttle_smooth_rate := 2.8
 @export var brake_smooth_rate := 3.8
+@export var target_speed_deceleration_rate := 60.0
+@export var target_speed_acceleration_rate := 12.0
 @export var item_cooldown_min := 2.4
 @export var item_cooldown_max := 4.8
 @export var aggression_safe_speed_min := 0.96
@@ -42,6 +51,8 @@ extends Resource
 @export var sensor_origin_height := 0.55
 @export var sensor_side_offset := 0.55
 @export var sensor_side_forward_blend := 0.35
+@export var sensor_front_transition_start := 0.22
+@export var sensor_front_transition_end := 0.38
 
 @export_group("Wall contact")
 @export var wall_recovery_contact_time := 0.4
@@ -69,6 +80,10 @@ extends Resource
 @export var drift_sensor_front_min := 0.24
 @export var drift_sensor_side_min := 0.14
 @export var drift_lock_frames := 12
+@export var drift_min_hold_frames := 6
+@export var drift_extreme_front_min := 0.08
+@export var drift_extreme_side_min := 0.05
+@export var drift_extreme_lateral_error_ratio := 0.95
 
 @export_group("Racer avoidance")
 @export var racer_avoidance_distance := 10.0
@@ -80,7 +95,7 @@ extends Resource
 @export var racer_avoidance_weight_ceiling := 0.9
 
 @export_group("Barrier steering")
-@export var barrier_threat_front_start := 0.24
+@export var barrier_threat_front_start := 0.30
 @export var barrier_threat_front_range := 0.18
 @export var barrier_threat_side_start := 0.16
 @export var barrier_threat_side_range := 0.11

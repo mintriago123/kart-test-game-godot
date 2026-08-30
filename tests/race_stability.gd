@@ -15,6 +15,7 @@ var _has_failed := false
 var _profile := "quick"
 var _track_filter := &""
 var _cc_filter := &""
+var _required_laps := 1
 var _has_explicit_filter := false
 var _executed_cases := 0
 
@@ -32,7 +33,7 @@ func _run() -> void:
 		_finish(1)
 		return
 
-	print("INFO: Race stability profile=%s filters=%s" % [_profile, _filter_summary()])
+	print("INFO: Race stability profile=%s filters=%s laps=%d" % [_profile, _filter_summary(), _required_laps])
 	for cc_id in RACE_CLASS_IDS:
 		for track_definition in TRACK_CATALOG.tracks:
 			if _matches_case(track_definition.id, cc_id):
@@ -78,7 +79,10 @@ func _test_track_stability(
 	for index in manager.route_points.size():
 		route_length += manager.route_points[index].distance_to(manager.route_points[(index + 1) % manager.route_points.size()])
 	var expected_minimum_speed := 25.0 * race_class.speed_multiplier * 0.42
-	simulation_seconds = maxf(simulation_seconds, route_length / maxf(expected_minimum_speed, 1.0))
+	simulation_seconds = maxf(
+		simulation_seconds,
+		route_length / maxf(expected_minimum_speed, 1.0) * _required_laps
+	)
 	await create_timer(simulation_seconds).timeout
 	# A recovery near the sampling boundary can leave a healthy racer a handful
 	# of checkpoints short. Extend only while progress is still incomplete, with
@@ -102,9 +106,9 @@ func _test_track_stability(
 			]
 		)
 		_check(
-			completed_checkpoints >= manager.route_points.size(),
-			"%s / %s completes at least one lap without getting stuck."
-			% [race_label, racer.racer_name]
+			completed_checkpoints >= manager.route_points.size() * _required_laps,
+			"%s / %s completes %d lap(s) without getting stuck."
+			% [race_label, racer.racer_name, _required_laps]
 		)
 		_check(
 			racer.recovery_count <= MAX_ALLOWED_RECOVERIES,
@@ -126,7 +130,7 @@ func _all_rivals_completed_lap(manager: RaceManager) -> bool:
 	for racer_index in range(1, manager.racers.size()):
 		if (
 			manager.get_completed_checkpoint_count(manager.racers[racer_index])
-			< manager.route_points.size()
+			< manager.route_points.size() * _required_laps
 		):
 			return false
 	return true
@@ -165,6 +169,9 @@ func _parse_arguments() -> void:
 			_has_explicit_filter = true
 		elif argument.begins_with("--cc="):
 			_cc_filter = StringName(argument.trim_prefix("--cc="))
+			_has_explicit_filter = true
+		elif argument.begins_with("--laps="):
+			_required_laps = maxi(int(argument.trim_prefix("--laps=")), 1)
 			_has_explicit_filter = true
 	if _profile not in ["quick", "exhaustive"]:
 		push_error("Unknown race stability profile: %s" % _profile)

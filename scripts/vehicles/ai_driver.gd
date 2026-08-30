@@ -24,23 +24,37 @@ var _last_checkpoint_index := -1
 var _best_checkpoint_distance := INF
 var _checkpoint_stall_time := 0.0
 var _projection_hint := -1
+var _last_projection_distance := -1.0
+var _projection_progress_valid := false
 var _branch_projection_hint := -1
+var _last_branch_projection_distance := -1.0
+var _branch_projection_progress_valid := false
 var _active_branch_id := -1
 var _decided_branches: Dictionary = {}
 var _current_section_id := -1
 var _section_variation := {}
 var _smoothed_throttle := 0.0
 var _smoothed_brake := 0.0
+var _steering_target := 0.0
 var _smoothed_steer := 0.0
 var _strategy_timer := 0.0
 var _debug_log_timer := 0.0
 var _telemetry_frame := 0
 var _last_target_speed := 0.0
+var _filtered_target_speed := 0.0
+var _target_speed_initialized := false
+var _last_safe_speed := 0.0
+var _last_target_curvature := 0.0
+var _last_recovery_reason := ""
+var _recovery_reason_pending := false
+var _last_completed_checkpoint_count := -1
 var _telemetry: AiTelemetryRecorder
 
 var telemetry := {
 	"lateral_error": 0.0,
 	"target_speed": 0.0,
+	"safe_speed": 0.0,
+	"target_curvature": 0.0,
 	"actual_speed": 0.0,
 	"braking_time": 0.0,
 	"drift_time": 0.0,
@@ -53,6 +67,8 @@ var telemetry := {
 	"maximum_lateral_error": 0.0,
 	"wall_recoveries": 0,
 	"hard_resets": 0,
+	"recovery_reason": "",
+	"recovery_count": 0,
 }
 
 
@@ -173,16 +189,46 @@ func _perceive_frame() -> PerceivedFrame:
 	var checkpoint_distance := kart.global_position.distance_to(next_checkpoint)
 	if _update_progress_recovery(checkpoint_distance):
 		return PerceivedFrame.new(true)
+	var completed_checkpoint_count := race_manager.get_completed_checkpoint_count(kart)
+	var crossed_finish := (
+		_last_completed_checkpoint_count >= 0
+		and completed_checkpoint_count > _last_completed_checkpoint_count
+		and next_index == 1
+	)
+	_last_completed_checkpoint_count = completed_checkpoint_count
+	var allow_lap_wrap := (
+		crossed_finish
+		or (
+			_projection_progress_valid
+			and _last_projection_distance > racing_line.total_length * 0.75
+			and next_index == 1
+		)
+	)
 
-	var projection := racing_line.project(kart.global_position, _projection_hint)
+	var projection := racing_line.project(
+		kart.global_position,
+		_projection_hint,
+		_last_projection_distance if _projection_progress_valid else -1.0,
+		allow_lap_wrap
+	)
 	_projection_hint = projection.sample_index
+	if projection.sample_index >= 0:
+		_last_projection_distance = projection.distance
+		_projection_progress_valid = true
 	_update_shortcut_choice_at(projection.distance)
 
 	if _active_branch_id >= 0:
-		var branch_projection := racing_line.project_branch(kart.global_position, _active_branch_id, _branch_projection_hint)
+		var branch_projection := racing_line.project_branch(
+			kart.global_position,
+			_active_branch_id,
+			_branch_projection_hint,
+			_last_branch_projection_distance if _branch_projection_progress_valid else -1.0
+		)
 		if branch_projection.sample_index >= 0:
 			projection = branch_projection
 			_branch_projection_hint = projection.sample_index
+			_last_branch_projection_distance = projection.distance
+			_branch_projection_progress_valid = true
 		var active_branch := racing_line.get_branch(_active_branch_id)
 		if (
 			active_branch == null
@@ -191,7 +237,14 @@ func _perceive_frame() -> PerceivedFrame:
 		):
 			_active_branch_id = -1
 			_branch_projection_hint = -1
-			projection = racing_line.project(kart.global_position, _projection_hint)
+			_last_branch_projection_distance = -1.0
+			_branch_projection_progress_valid = false
+			projection = racing_line.project(
+				kart.global_position,
+				_projection_hint,
+				_last_projection_distance if _projection_progress_valid else -1.0,
+				false
+			)
 
 	var current_sample := racing_line.sample_at_distance(projection.distance, _active_branch_id)
 	if current_sample == null:
@@ -213,7 +266,7 @@ func _decide(frame: PerceivedFrame, delta: float) -> AiDecision:
 	if target_sample == null:
 		target_sample = current_sample
 
-	var right := Vector3.UP.cross(target_sample.forward).normalized()
+	var right := target_sample.forward.cross(Vector3.UP).normalized()
 	var correction_factor := clampf(_recovery.correction_remaining / 4.5, 0.0, 1.0)
 	var available_variation := maxf(target_sample.available_width - absf(target_sample.lateral_offset), 0.0)
 	var section_offset := clampf(
@@ -238,7 +291,7 @@ func _decide(frame: PerceivedFrame, delta: float) -> AiDecision:
 	var safe_speed := _speed_planner.compute_safe_speed(
 		target_sample, projection.lateral_error, frame.sensors, speed_ratio
 	)
-	var target_speed := _speed_planner.compute_target_speed(
+	var raw_target_speed := _speed_planner.compute_target_speed(
 		safe_speed,
 		_personality.aggression,
 		_buff.top_speed_bias,
@@ -246,33 +299,62 @@ func _decide(frame: PerceivedFrame, delta: float) -> AiDecision:
 		kart.stats.max_speed,
 		_buff.wall_recovery_speed_ratio
 	)
+	if not _target_speed_initialized:
+		_filtered_target_speed = raw_target_speed
+		_target_speed_initialized = true
+	else:
+		_filtered_target_speed = _speed_planner.update_target_speed(
+			_filtered_target_speed, raw_target_speed, delta
+		)
 
-	var speed_error := target_speed - frame.speed
-	var wanted_throttle := _speed_planner.wanted_throttle(speed_error, kart.stats.max_speed)
-	var wanted_brake := _speed_planner.wanted_brake(speed_error, kart.stats.max_speed)
+	# Acceleration follows the filtered target. Braking always sees the raw
+	# descending target so a newly discovered corner or barrier is acted on in
+	# the same frame instead of waiting for the upward/downward filter.
+	var acceleration_error := _filtered_target_speed - frame.speed
+	var braking_error := raw_target_speed - frame.speed
+	var wanted_throttle := _speed_planner.wanted_throttle(acceleration_error, kart.stats.max_speed)
+	var wanted_brake := _speed_planner.wanted_brake(braking_error, kart.stats.max_speed)
 	wanted_throttle = _speed_planner.clamp_throttle_under_threat(wanted_throttle, frame.sensors)
 	wanted_brake = _speed_planner.clamp_brake_under_threat(wanted_brake, frame.sensors)
 	if _recovery.state == AiRecoveryState.DriveState.WALL_RECOVERY:
 		wanted_throttle = minf(wanted_throttle, _tuning.wall_recovery_throttle_ceiling)
 		wanted_brake = maxf(wanted_brake,
-			_tuning.wall_recovery_brake_min if frame.speed > target_speed else 0.0)
+			_tuning.wall_recovery_brake_min if frame.speed > raw_target_speed else 0.0)
 
 	var line_steer := _steering.compute_line_steer(
 		target, forward, projection.lateral_error,
-		target_sample.curvature, correction_factor, _personality.precision
+		target_sample.curvature, correction_factor, _personality.precision,
+		target_sample.available_width
 	)
 	var steer := _steering.apply_barrier_steering(
 		line_steer, frame.sensors, target_sample.forward,
 		_recovery.contact_normal, _recovery.state
 	)
-	steer = _steering.apply_racer_avoidance(
-		steer, forward, race_manager.racers, kart.participant_slot,
-		_buff.avoidance_weight_max
-	)
-	_smoothed_steer = _steering.update_smoothed_steer(
-		steer, _smoothed_steer, _personality.reaction_time,
-		_buff.response_multiplier, delta
-	)
+	if _recovery.state == AiRecoveryState.DriveState.WALL_RECOVERY:
+		# The contact-normal arc is an emergency escape command. Do not delay it
+		# behind either steering filter while the kart is pressed into a wall.
+		_steering_target = steer
+		_smoothed_steer = steer
+	else:
+		steer = _steering.apply_racer_avoidance(
+			steer, forward, race_manager.racers, kart.participant_slot,
+			_buff.avoidance_weight_max
+		)
+		steer = _steering.stabilize_straight_target(
+			steer, _steering_target, target_sample.curvature, frame.sensors
+		)
+		_steering_target = _steering.update_target_steer(
+			steer, _steering_target, delta
+		)
+		var previous_smoothed_steer := _smoothed_steer
+		_smoothed_steer = _steering.update_smoothed_steer(
+			_steering_target, _smoothed_steer, _personality.reaction_time,
+			_buff.response_multiplier, delta
+		)
+		_smoothed_steer = _steering.stabilize_straight_output(
+			_smoothed_steer, previous_smoothed_steer,
+			target_sample.curvature, frame.sensors
+		)
 
 	_smoothed_throttle = _speed_planner.update_throttle(
 		_smoothed_throttle, wanted_throttle, _buff.response_multiplier, delta
@@ -299,7 +381,11 @@ func _decide(frame: PerceivedFrame, delta: float) -> AiDecision:
 			_items.notify_item_used(kart.held_item, cooldown)
 			_item_cooldown = cooldown
 
-	_last_target_speed = target_speed
+	_last_target_speed = _filtered_target_speed
+	_last_safe_speed = safe_speed
+	_last_target_curvature = target_sample.curvature
+	telemetry.safe_speed = safe_speed
+	telemetry.target_curvature = target_sample.curvature
 	return AiDecision.new(_smoothed_throttle, _smoothed_brake, _smoothed_steer, should_drift, should_use_item)
 
 
@@ -315,6 +401,8 @@ func _record_telemetry(frame: PerceivedFrame, decision: AiDecision, delta: float
 		)
 	telemetry.target_speed = _last_target_speed
 	telemetry.actual_speed = frame.speed
+	telemetry.recovery_reason = _last_recovery_reason
+	telemetry.recovery_count = kart.recovery_count
 	telemetry.braking_time += delta if _smoothed_brake > 0.2 else 0.0
 	telemetry.drift_time += delta if decision.drift else 0.0
 	telemetry.avoidance_time += 0.0 if _recovery.state == AiRecoveryState.DriveState.DRIVING else delta
@@ -345,8 +433,20 @@ func _record_telemetry(frame: PerceivedFrame, decision: AiDecision, delta: float
 			sens_left,
 			sens_right,
 			_current_section_id,
-			_recovery.recovery_time
+			_recovery.recovery_time,
+			Engine.get_physics_frames(),
+			frame.projection.sample_index if frame.projection != null else -1,
+			frame.projection.distance if frame.projection != null else 0.0,
+			frame.projection.lateral_error if frame.projection != null else 0.0,
+			_last_safe_speed,
+			_last_target_curvature,
+			_last_recovery_reason if _recovery_reason_pending else "",
+			kart.recovery_count,
+			kart.global_position.x,
+			kart.global_position.y,
+			kart.global_position.z
 		)
+		_recovery_reason_pending = false
 
 
 func _update_progress_recovery(checkpoint_distance: float) -> bool:
@@ -391,6 +491,8 @@ func _update_shortcut_choice_at(distance: float) -> void:
 		telemetry.shortcut_decisions += 1
 		_active_branch_id = new_branch
 		_branch_projection_hint = -1
+		_last_branch_projection_distance = -1.0
+		_branch_projection_progress_valid = false
 
 
 func _update_section_variation() -> void:
@@ -416,14 +518,27 @@ func _update_section_variation_for(section_id: int) -> void:
 		"reaction": rng.randf_range(0.0, _tuning.section_reaction_max) * error_scale,
 		"omit_drift": rng.randf() > _personality.drift_usage,
 	}
-	_drift.reset()
 
 
 func _handle_recovery() -> void:
 	_recovery.notify_recovery(_tuning.recovery_correction_seconds)
+	_drift.reset()
 	_active_branch_id = -1
 	_branch_projection_hint = -1
+	_last_branch_projection_distance = -1.0
+	_branch_projection_progress_valid = false
+	_projection_hint = -1
+	_last_projection_distance = -1.0
+	_projection_progress_valid = false
+	_steering_target = 0.0
+	_smoothed_steer = 0.0
+	_smoothed_throttle = 0.0
+	_smoothed_brake = 0.0
+	_last_recovery_reason = kart.last_recovery_reason
+	_recovery_reason_pending = true
 	telemetry.recoveries += 1
+	telemetry.recovery_reason = _last_recovery_reason
+	telemetry.recovery_count = kart.recovery_count
 	if kart.last_recovery_reason == "navigation" or kart.last_recovery_reason == "wall_recovery":
 		telemetry.hard_resets += 1
 

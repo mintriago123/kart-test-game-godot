@@ -18,7 +18,8 @@ func _run() -> void:
 	recorder.record(
 		1, 0.0, &"coral", 10.0, 38.5, 28.5,
 		0.625, 0.0, 0.15, 0, false,
-		0.45, 0.65, 0.62, 3, 0.0
+		0.45, 0.65, 0.62, 3, 0.0,
+		99, 42, 123.456, -1.25, 24.5, 0.031, "stalled", 2, 1.0, 2.0, 3.0
 	)
 	recorder.record(
 		2, 0.1, &"coral", 11.2, 38.5, 27.3,
@@ -39,10 +40,14 @@ func _run() -> void:
 			"header includes driver command columns")
 		_check(header.contains("sens_front,sens_left,sens_right,section_id,wall_recovery_time"),
 			"header includes sensor and section columns")
+		_check(header.ends_with("engine_frame,projection_sample_index,projection_distance,lateral_error,safe_speed,target_curvature,recovery_reason,recovery_count,position_x,position_y,position_z"),
+			"new diagnostic columns are appended to the CSV")
 
 		var line1 := file.get_line()
 		_check(line1.begins_with("1,0.000,coral,10.00,38.50,28.50"),
 			"first data row has expected frame/time/ai/speed/target/error fields")
+		_check(line1.ends_with("99,42,123.456,-1.250,24.500,0.031,stalled,2,1.000,2.000,3.000"),
+			"first data row records projection, recovery, and position diagnostics")
 
 		var line2 := file.get_line()
 		_check(line2.begins_with("2,0.100,coral,11.20,38.50,27.30"),

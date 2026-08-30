@@ -105,6 +105,10 @@ var visual_variant: KartVariantDefinition
 
 
 func _ready() -> void:
+	# The drivable ribbon is triangulated. A large speculative margin makes a kart
+	# catch internal triangle edges and lose speed on otherwise clear asphalt,
+	# especially at tight elevated turns.
+	safe_margin = 0.01
 	collision_layer = PhysicsLayers.KARTS
 	collision_mask = (
 		PhysicsLayers.WORLD

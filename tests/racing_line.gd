@@ -39,6 +39,33 @@ func _init() -> void:
 	_check(narrow_safe, "The 1.9 m edge margin constrains every generated offset.")
 	var projection := first.project(route[4])
 	_check(projection.sample_index >= 0, "Positions project onto the line.")
+	var segment_line := RacingLine.new()
+	segment_line.total_length = 30.0
+	for sample_data in [
+		[0.0, Vector3(0.0, 0.0, 0.0)],
+		[10.0, Vector3(10.0, 0.0, 0.0)],
+		[20.0, Vector3(10.0, 0.0, 10.0)],
+	]:
+		var sample := RacingLineSample.new()
+		sample.distance = sample_data[0]
+		sample.position = sample_data[1]
+		sample.forward = Vector3.RIGHT if sample_data[0] < 10.0 else Vector3.BACK
+		segment_line.samples.append(sample)
+	var midpoint := segment_line.project(Vector3(4.0, 0.0, 1.0))
+	_check(
+		midpoint.sample_index == 0
+		and is_equal_approx(midpoint.distance, 4.0)
+		and is_equal_approx(midpoint.lateral_error, 1.0),
+		"Projection uses the nearest segment and interpolates its distance."
+	)
+	var progressed := segment_line.project(Vector3(8.0, 0.0, 0.0), 0)
+	var regressed := segment_line.project(Vector3(1.0, 0.0, 0.0), 0, progressed.distance)
+	_check(
+		regressed.progress_clamped and regressed.distance >= progressed.distance,
+		"Projection progress stays monotonic while a lap is in progress."
+	)
+	var wrapped := segment_line.project(Vector3(0.5, 0.0, 0.0), 0, progressed.distance, true)
+	_check(wrapped.distance < progressed.distance, "Finish-line wrap can reset projection progress.")
 	var invalid := RacingLineBuilder.build([Vector3.ZERO, Vector3.ONE], [], "invalid")
 	_check(not invalid.is_valid(), "Routes that are too short are rejected.")
 	if _failures == 0:

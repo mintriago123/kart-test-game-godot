@@ -6,6 +6,7 @@ const MINIMUM_ROUTE_LENGTH := 30.0
 const SAFE_EDGE_MARGIN := 1.9
 const CORNER_THRESHOLD := 0.012
 const APEX_THRESHOLD := 0.035
+const OFFSET_SMOOTH_PASSES := 3
 
 
 static func build(
@@ -52,6 +53,37 @@ static func _build_samples(points: Array[Vector3], width: float, optimize: bool)
 		for offset in range(-2, 3):
 			sum += curvatures[posmod(index + offset, points.size())]
 		smoothed[index] = sum / 5.0
+	var optimized_offsets: Array[float] = []
+	if optimize:
+		for index in points.size():
+			var signed_curvature: float = smoothed[index]
+			var future_curve: float = smoothed[(index + 4) % points.size()]
+			var previous_curve: float = smoothed[posmod(index - 4, points.size())]
+			var phase := clampf((future_curve - previous_curve) * 18.0, -1.0, 1.0)
+			# Do not use sign(curvature) here: when a curve crosses zero it
+			# flips the racing line by almost five metres in one sample. A
+			# bounded continuous response preserves the racing-line bias while
+			# keeping adjacent samples connected.
+			var curvature_bias := clampf(signed_curvature / 0.04, -1.0, 1.0)
+			optimized_offsets.append(
+				clampf(
+					-curvature_bias * half_safe_width * 0.42
+					+ phase * half_safe_width * 0.2,
+					-half_safe_width,
+					half_safe_width
+				)
+			)
+		for _pass in OFFSET_SMOOTH_PASSES:
+			var filtered_offsets: Array[float] = []
+			for index in points.size():
+				filtered_offsets.append(
+					(
+						optimized_offsets[posmod(index - 1, points.size())]
+						+ optimized_offsets[index] * 2.0
+						+ optimized_offsets[(index + 1) % points.size()]
+					) / 4.0
+				)
+			optimized_offsets = filtered_offsets
 	for index in points.size():
 		if index > 0:
 			distance += points[index - 1].distance_to(points[index])
@@ -61,13 +93,7 @@ static func _build_samples(points: Array[Vector3], width: float, optimize: bool)
 		if not _finite_vector(forward) or forward.is_zero_approx():
 			return []
 		var signed_curvature: float = smoothed[index]
-		var offset := 0.0
-		if optimize:
-			# A smooth outside-inside-outside bias. It remains deliberately modest.
-			var future_curve: float = smoothed[(index + 4) % points.size()]
-			var previous_curve: float = smoothed[posmod(index - 4, points.size())]
-			var phase := clampf((future_curve - previous_curve) * 18.0, -1.0, 1.0)
-			offset = clampf(-signf(signed_curvature) * half_safe_width * 0.42 + phase * half_safe_width * 0.2, -half_safe_width, half_safe_width)
+		var offset := optimized_offsets[index] if optimize else 0.0
 		var right := Vector3.UP.cross(forward).normalized()
 		var sample := RacingLineSample.new()
 		sample.distance = distance

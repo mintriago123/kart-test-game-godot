@@ -11,7 +11,8 @@ func compute_line_steer(
 	lateral_error: float,
 	curvature: float,
 	correction_factor: float,
-	precision: float
+	precision: float,
+	available_width: float = 6.85
 ) -> float:
 	if kart == null:
 		return 0.0
@@ -29,6 +30,19 @@ func compute_line_steer(
 		-tuning.line_steer_max_magnitude,
 		tuning.line_steer_max_magnitude
 	)
+	var lateral_ratio := absf(lateral_error) / maxf(available_width, 0.5)
+	var recovery_weight := inverse_lerp(
+		tuning.steering_lateral_recovery_start_ratio,
+		tuning.steering_lateral_recovery_end_ratio,
+		lateral_ratio
+	)
+	if recovery_weight > 0.0:
+		var recovery_target := -signf(lateral_error) * tuning.line_steer_max_magnitude
+		steer = lerpf(
+			steer,
+			recovery_target,
+			clampf(recovery_weight * tuning.steering_lateral_recovery_gain, 0.0, 1.0)
+		)
 	return steer
 
 
@@ -115,6 +129,64 @@ func apply_racer_avoidance(
 		weight_max
 	)
 	return lerpf(line_steer, avoidance_side, weight)
+
+
+func stabilize_straight_target(
+	target_steer: float,
+	current_target: float,
+	curvature: float,
+	sensors: Dictionary
+) -> float:
+	var minimum_sensor := minf(
+		float(sensors.get("front", 1.0)),
+		minf(float(sensors.get("left", 1.0)), float(sensors.get("right", 1.0)))
+	)
+	if (
+		absf(curvature) > tuning.steering_straight_curvature_max
+		or minimum_sensor < tuning.steering_straight_sensor_min
+	):
+		return target_steer
+	var deadband := tuning.steering_straight_sign_deadband
+	if (
+		absf(current_target) > deadband
+		and absf(target_steer) > deadband
+		and signf(current_target) != signf(target_steer)
+	):
+		# Cross zero before changing sides. This prevents a clear straight from
+		# alternating left/right commands when the projected line moves by one
+		# sample, while retaining full response in bends and near barriers.
+		return 0.0
+	return target_steer
+
+
+func stabilize_straight_output(
+	steer: float,
+	previous_steer: float,
+	curvature: float,
+	sensors: Dictionary
+) -> float:
+	var minimum_sensor := minf(
+		float(sensors.get("front", 1.0)),
+		minf(float(sensors.get("left", 1.0)), float(sensors.get("right", 1.0)))
+	)
+	var deadband := tuning.steering_straight_sign_deadband
+	if (
+		absf(curvature) <= tuning.steering_straight_curvature_max
+		and minimum_sensor >= tuning.steering_straight_sensor_min
+		and absf(previous_steer) > deadband
+		and absf(steer) > deadband
+		and signf(previous_steer) != signf(steer)
+	):
+		return 0.0
+	return steer
+
+
+func update_target_steer(target_steer: float, current_target: float, delta: float) -> float:
+	return move_toward(
+		current_target,
+		target_steer,
+		maxf(tuning.steering_target_response_hz, 0.0) * maxf(delta, 0.0)
+	)
 
 
 func update_smoothed_steer(

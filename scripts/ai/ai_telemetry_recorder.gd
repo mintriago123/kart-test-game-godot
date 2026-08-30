@@ -18,7 +18,9 @@ func open_for_race(race_seed: int, ai_id: StringName, flush_interval: int = 30) 
 		return
 	_file.store_line("frame,time,ai_id,speed,target_speed,speed_error,"
 		+ "throttle,brake,steer,recovery_state,drift_committed,"
-		+ "sens_front,sens_left,sens_right,section_id,wall_recovery_time")
+		+ "sens_front,sens_left,sens_right,section_id,wall_recovery_time,"
+		+ "engine_frame,projection_sample_index,projection_distance,lateral_error,"
+		+ "safe_speed,target_curvature,recovery_reason,recovery_count,position_x,position_y,position_z")
 
 
 func get_recorded_path() -> String:
@@ -41,15 +43,34 @@ func record(
 	sens_left: float,
 	sens_right: float,
 	section_id: int,
-	wall_recovery_time: float
+	wall_recovery_time: float,
+	engine_frame: int = 0,
+	projection_sample_index: int = -1,
+	projection_distance: float = 0.0,
+	lateral_error: float = 0.0,
+	safe_speed: float = 0.0,
+	target_curvature: float = 0.0,
+	recovery_reason: String = "",
+	recovery_count: int = 0,
+	position_x: float = 0.0,
+	position_y: float = 0.0,
+	position_z: float = 0.0
 ) -> void:
 	if _file == null:
 		return
-	var line := "%d,%.3f,%s,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%d,%s,%.2f,%.2f,%.2f,%d,%.2f" % [
-		frame, time, str(ai_id), speed, target_speed, speed_error,
-		throttle, brake, steer, recovery_state, str(drift_committed),
-		sens_front, sens_left, sens_right, section_id, wall_recovery_time
-	]
+	var fields := PackedStringArray([
+		str(frame), ("%.3f" % time), str(ai_id), ("%.2f" % speed),
+		("%.2f" % target_speed), ("%.2f" % speed_error),
+		("%.3f" % throttle), ("%.3f" % brake), ("%.3f" % steer),
+		str(recovery_state), str(drift_committed), ("%.2f" % sens_front),
+		("%.2f" % sens_left), ("%.2f" % sens_right), str(section_id),
+		("%.2f" % wall_recovery_time), str(engine_frame),
+		str(projection_sample_index), ("%.3f" % projection_distance),
+		("%.3f" % lateral_error), ("%.3f" % safe_speed),
+		("%.3f" % target_curvature), str(recovery_reason), str(recovery_count),
+		("%.3f" % position_x), ("%.3f" % position_y), ("%.3f" % position_z)
+	])
+	var line := ",".join(fields)
 	_buffer.append(line)
 	_frame_count += 1
 	if _frame_count >= _flush_interval:
