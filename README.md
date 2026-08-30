@@ -87,7 +87,7 @@ escenas, seleccionar nodos ni usar el Inspector:
 
 1. Entrar en **Pistas** desde la barra superior del editor.
 2. Abrir Costa Turbo o Circuito Jardín, o pulsar **Nueva**.
-3. Seguir los cinco pasos: Configuración, Carretera, Atajos, Objetos y Revisar.
+3. Seguir los seis pasos: Configuración, Carretera, Atajos, Objetos, Superficies y Revisar.
 4. Dibujar desde el mapa aéreo y usar **Vista 3D** para comprobar el resultado.
 5. Guardar el borrador, probarlo con el kart y publicarlo en el menú.
 
@@ -150,11 +150,11 @@ GODOT_BIN=/home/mintriago/Godot_v4.7.1-stable_linux.x86_64
 
 El runner asigna un directorio `user://` aislado y escribible a cada prueba.
 Esto evita que la persistencia o la rotación de logs de una suite contaminen a
-la siguiente. `quick` también abre sockets UDP locales para su host + tres
-clientes LAN. Para ejecutar únicamente esa integración:
+la siguiente. `quick` contiene solo pruebas locales; la integración de sockets
+UDP con un host y tres clientes LAN se ejecuta por separado:
 
 ```sh
-tools/run_lan_loopback.sh
+tools/run_tests.sh lan
 ```
 
 Para usar otro binario:

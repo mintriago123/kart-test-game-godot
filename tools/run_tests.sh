@@ -6,8 +6,8 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFAULT_GODOT_BIN="/home/mintriago/Godot_v4.7.1-stable_linux.x86_64"
 GODOT_EXECUTABLE="${GODOT_BIN:-$DEFAULT_GODOT_BIN}"
 
-if [[ "$TEST_PROFILE" != "quick" && "$TEST_PROFILE" != "exhaustive" ]]; then
-	echo "Usage: $0 [quick|exhaustive]" >&2
+if [[ "$TEST_PROFILE" != "quick" && "$TEST_PROFILE" != "exhaustive" && "$TEST_PROFILE" != "lan" ]]; then
+	echo "Usage: $0 [quick|exhaustive|lan]" >&2
 	exit 2
 fi
 
@@ -32,6 +32,13 @@ echo "==> Importing project resources"
 		--headless --path . --import
 )
 
+if [[ "$TEST_PROFILE" == "lan" ]]; then
+	echo "==> LAN loopback · 1 host + 3 clients"
+	timeout "${LAN_TEST_TIMEOUT_SECONDS:-30}" "$PROJECT_ROOT/tools/run_lan_loopback.sh"
+	echo "All LAN test suites passed."
+	exit 0
+fi
+
 CORE_SUITES=(
 	tests/multiplayer_session.gd
 	tests/cup_progression.gd
@@ -48,6 +55,10 @@ CORE_SUITES=(
 	tests/track_barriers.gd
 	tests/track_minimap.gd
 	tests/racing_line.gd
+	tests/unit/ai/ruinas_esmeralda_geometry_test.gd
+	tests/unit/ai/ai_speed_planner_test.gd
+	tests/unit/ai/ai_drift_decision_test.gd
+	tests/unit/ai/ai_telemetry_recorder_test.gd
 	tests/ai_barrier_avoidance.gd
 	tests/race_intro.gd
 	tests/item_physics.gd
@@ -81,10 +92,7 @@ for suite in "${CORE_SUITES[@]}"; do
 	run_suite "$suite"
 done
 
-echo "==> LAN loopback · 1 host + 3 clients"
-timeout "${LAN_TEST_TIMEOUT_SECONDS:-30}" "$PROJECT_ROOT/tools/run_lan_loopback.sh"
-
 run_suite tests/shortcut_drive.gd "--profile=$TEST_PROFILE"
 run_suite tests/race_stability.gd "--profile=$TEST_PROFILE"
 
-echo "All $TEST_PROFILE test suites passed."
+echo "All $TEST_PROFILE local test suites passed. LAN loopback: $0 lan"

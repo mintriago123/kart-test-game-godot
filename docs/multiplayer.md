@@ -49,11 +49,11 @@ nuevos durante una carrera ni combinaciones LAN + pantalla dividida.
 ## Pruebas
 
 `tools/run_tests.sh quick` incluye catálogo, sesiones, aislamiento de input,
-migración de progreso, un mundo local 2+6 y un loopback real con un host y tres
-clientes. Ese loopback certifica descubrimiento UDP, entrada por IP, ready,
-inicio, inputs numerados, snapshots, eventos fiables y reconexión de un slot
-reservado. Puede ejecutarse solo con `tools/run_lan_loopback.sh`; necesita
-permiso para abrir sockets UDP locales.
+migración de progreso y un mundo local 2+6. La prueba de loopback real con un
+host y tres clientes se ejecuta separadamente con `tools/run_tests.sh lan`.
+Certifica descubrimiento UDP, entrada por IP, ready, inicio, inputs numerados,
+snapshots, eventos fiables y reconexión de un slot reservado; necesita permiso
+para abrir sockets UDP locales.
 `exhaustive` añade la matriz completa de pistas/CC y carreras largas; la
 certificación previa a distribución debe incluir combinaciones de Android,
 Windows y Linux, además de hot-plug y mandos Xbox, PlayStation y genéricos.
