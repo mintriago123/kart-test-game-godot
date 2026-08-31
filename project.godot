@@ -31,7 +31,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/track_editor/plugin.cfg", "res://addons/cup_editor/plugin.cfg", "res://addons/input_prompts/plugin.cfg")
+enabled=PackedStringArray("res://addons/track_editor/plugin.cfg", "res://addons/cup_editor/plugin.cfg", "res://addons/input_prompts/plugin.cfg", "res://addons/lan_build_id/plugin.cfg")
 
 [layer_names]
 
@@ -51,6 +51,6 @@ common/enable_pause_aware_picking=true
 [rendering]
 
 rendering_device/driver.windows="d3d12"
-renderer/rendering_method="mobile"
+renderer/rendering_method="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.027, 0.129, 0.18, 1)

@@ -1,6 +1,8 @@
 class_name TrackSelectScreen
 extends Control
 
+const TouchScrollContainer = preload("res://scripts/ui/touch_scroll_container.gd")
+
 signal race_requested(track_id: StringName, cc_id: StringName, game_mode: int, difficulty_id: StringName)
 signal back_requested
 signal track_selected(track_id: StringName)
@@ -33,6 +35,7 @@ var _back_button: Button
 var _difficulty_label: Label
 var _difficulty_row: HBoxContainer
 var _mode_label: Label
+var _context_payload: Dictionary = {}
 
 
 func _ready() -> void:
@@ -63,6 +66,26 @@ func update_best_times(best_times: Dictionary) -> void:
 func set_ghost_available(available: bool) -> void:
 	_ghost_available = available
 	_update_details()
+
+
+func is_ghost_available() -> bool:
+	return _ghost_available
+
+
+func set_context_payload(value: Dictionary) -> void:
+	_context_payload = value.duplicate(true)
+	if _mode_label == null: return
+	var mode := int(value.get("mode", _selected_game_mode))
+	var mode_name: String = {
+		GameModeDefinition.RACE: "CARRERA RÁPIDA",
+		GameModeDefinition.TIME_TRIAL: "CONTRARRELOJ",
+		GameModeDefinition.CUP: "COPA",
+		GameModeDefinition.LOCAL_MULTIPLAYER: "LOCAL",
+		GameModeDefinition.LAN_MULTIPLAYER: "RED LOCAL",
+	}.get(mode, "EVENTO")
+	var cc := StringName(value.get("cc_id", _selected_cc_id))
+	var players := String(value.get("player_summary", "INDIVIDUAL"))
+	_mode_label.text = "%s  ·  %s  ·  %s" % [mode_name, RaceClassDefinition.get_by_id(cc).display_name, players]
 
 
 func show_screen() -> void:
@@ -124,10 +147,13 @@ func select_game_mode(game_mode: int, should_emit := true) -> void:
 		}.get(_selected_game_mode, "CARRERA RÁPIDA")
 	for button_mode in game_mode_buttons:
 		(game_mode_buttons[button_mode] as Button).set_pressed_no_signal(button_mode == _selected_game_mode)
+	var difficulty_visible := _selected_game_mode == GameModeDefinition.CUP \
+		or _selected_game_mode == GameModeDefinition.RACE
 	if _difficulty_label != null:
-		_difficulty_label.visible = _selected_game_mode == GameModeDefinition.CUP
+		_difficulty_label.visible = difficulty_visible
+		_difficulty_label.text = "DIFICULTAD DE RIVALES" if _selected_game_mode == GameModeDefinition.RACE else "DIFICULTAD DE COPA"
 	if _difficulty_row != null:
-		_difficulty_row.visible = _selected_game_mode == GameModeDefinition.CUP
+		_difficulty_row.visible = difficulty_visible
 	_update_details()
 	if should_emit:
 		game_mode_selected.emit(_selected_game_mode)
@@ -210,10 +236,14 @@ func _build_interface() -> void:
 	list_margin.add_theme_constant_override("margin_top", 18)
 	list_margin.add_theme_constant_override("margin_bottom", 18)
 	list_panel.add_child(list_margin)
-	var scroll := ScrollContainer.new()
+	var scroll := TouchScrollContainer.new()
 	scroll.name = "TrackScroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.custom_minimum_size.y = 180.0
+	scroll.get_v_scroll_bar().custom_minimum_size.x = 18.0
+	scroll.get_v_scroll_bar().add_theme_stylebox_override("grabber", _style(UiTokens.MUTED, 9))
+	scroll.get_v_scroll_bar().add_theme_stylebox_override("grabber_highlighted", _style(UiTokens.WARM_WHITE, 9))
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	list_margin.add_child(scroll)
 	var track_list := VBoxContainer.new()
@@ -298,6 +328,7 @@ func _build_interface() -> void:
 	_difficulty_row.add_theme_constant_override("separation", 8)
 	detail_panel.add_child(_difficulty_row)
 	var difficulty_group := ButtonGroup.new()
+	difficulty_group.allow_unpress = false
 	for difficulty_data in [[&"relaxed", "RELAJADA"], [&"competitive", "COMPETITIVA"], [&"expert", "EXPERTA"]]:
 		var difficulty_button := _create_button(difficulty_data[1], UiTokens.CORAL, Vector2(130.0, 42.0))
 		difficulty_button.toggle_mode = true
@@ -305,9 +336,15 @@ func _build_interface() -> void:
 		difficulty_button.pressed.connect(func() -> void:
 			_selected_difficulty_id = difficulty_data[0]
 		)
+		difficulty_button.toggled.connect(func(pressed: bool) -> void:
+			_refresh_difficulty_style(difficulty_button, pressed)
+		)
 		_difficulty_row.add_child(difficulty_button)
 		difficulty_buttons[difficulty_data[0]] = difficulty_button
 	(difficulty_buttons[_selected_difficulty_id] as Button).set_pressed_no_signal(true)
+	for id in difficulty_buttons:
+		var btn := difficulty_buttons[id] as Button
+		_refresh_difficulty_style(btn, btn.button_pressed)
 
 	var race_class_label := Label.new()
 	race_class_label.visible = false
@@ -455,9 +492,9 @@ func _update_details() -> void:
 	)
 	_ghost_available_label.visible = _selected_game_mode == GameModeDefinition.TIME_TRIAL and _ghost_available
 	var cover := definition.preview_texture
-	var generated_cover_path := "res://assets/track/previews/%s.webp" % definition.id
-	if cover == null and ResourceLoader.exists(generated_cover_path):
-		cover = load(generated_cover_path) as Texture2D
+	# Generated preview files may be stale/debug captures (for example, a flat
+	# striped frame with no camera render). Only an explicitly assigned cover is
+	# trusted; otherwise the track minimap is the reliable visual fallback.
 	_preview_texture.texture = cover
 	_preview_texture.visible = cover != null
 	_minimap_view.visible = cover == null
@@ -558,7 +595,10 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 	button.custom_minimum_size = minimum_size
 	button.focus_mode = Control.FOCUS_ALL
 	button.add_theme_font_size_override("font_size", 19)
-	button.add_theme_color_override("font_color", UiTokens.GRAPHITE)
+	var text_color := _contrast_text_color(color)
+	button.add_theme_color_override("font_color", text_color)
+	button.add_theme_color_override("font_hover_color", text_color)
+	button.add_theme_color_override("font_pressed_color", text_color)
 	button.add_theme_color_override("font_focus_color", UiTokens.GRAPHITE)
 	button.add_theme_stylebox_override("normal", _style(color, 16))
 	button.add_theme_stylebox_override("hover", _style(color.lightened(0.1), 16))
@@ -566,9 +606,31 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 	button.add_theme_stylebox_override("focus", _style(UiTokens.WARM_WHITE, 16, 4, UiTokens.WARM_WHITE))
 	button.add_theme_stylebox_override(
 		"disabled",
-		_style(Color(0.23, 0.28, 0.31, 0.65), 16)
+		_style(UiTokens.BUTTON_DISABLED_BG, 16)
 	)
+	button.add_theme_color_override("font_disabled_color", _contrast_text_color(UiTokens.BUTTON_DISABLED_BG))
 	return button
+
+
+func _refresh_difficulty_style(button: Button, active: bool) -> void:
+	var border_width := 4 if active else 0
+	button.add_theme_stylebox_override("normal", _style(UiTokens.CORAL, 16, border_width, UiTokens.WARM_WHITE))
+	button.add_theme_stylebox_override(
+		"hover",
+		_style(UiTokens.CORAL.lightened(0.1), 16, border_width, UiTokens.WARM_WHITE)
+	)
+	button.add_theme_stylebox_override(
+		"pressed",
+		_style(UiTokens.CORAL.darkened(0.14), 16, 4, UiTokens.WARM_WHITE)
+	)
+
+
+func _contrast_text_color(background: Color) -> Color:
+	# Track preview colors are authored per circuit, so text cannot be fixed to
+	# the global dark ink token. Use a WCAG-style luminance threshold to keep
+	# every track label readable, including future dark palettes.
+	var luminance := background.r * 0.2126 + background.g * 0.7152 + background.b * 0.0722
+	return UiTokens.GRAPHITE if luminance >= 0.48 else UiTokens.WARM_WHITE
 
 
 func _style(

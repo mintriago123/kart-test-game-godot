@@ -57,7 +57,7 @@ func build_interface(
 		"OBJETO",
 		UiTokens.CORAL,
 		Vector2(104.0, 104.0),
-		Vector2(-280.0, -128.0),
+		Vector2(-400.0, -128.0),
 		vibration_enabled
 	)
 	item_button.visible = false

@@ -51,6 +51,7 @@ var _layers := {
 	&"direction": true,
 	&"objects": true,
 	&"shortcuts": true,
+	&"surfaces": true,
 	&"errors": true,
 	&"slope": false,
 	&"curvature": false,
@@ -136,6 +137,29 @@ func set_selection(new_selection: RefCounted, center := false) -> void:
 	if selected_point >= 0:
 		point_selected.emit(selected_point)
 	queue_redraw()
+
+
+func focus_world_position(world_position: Vector3) -> void:
+	if not is_finite(world_position.x) or not is_finite(world_position.z):
+		return
+	_center_on_world_position(world_position)
+
+
+func focus_issue(issue: TrackValidationIssue) -> void:
+	if issue == null:
+		return
+	var position := issue.world_position
+	if position.is_zero_approx() and track != null:
+		if issue.target_path == NodePath("MainRoute"):
+			var curve := _get_curve()
+			if curve != null and curve.point_count > 0:
+				position = curve.get_point_position(0)
+		else:
+			var target := track.get_node_or_null(issue.target_path) as Node3D
+			if target != null:
+				position = _get_node_track_position(target)
+	if not position.is_zero_approx():
+		focus_world_position(position)
 
 
 func insert_point_after_selected() -> bool:
@@ -320,6 +344,8 @@ func _draw() -> void:
 			_draw_direction_arrows(screen_points)
 	if is_layer_enabled(&"shortcuts"):
 		_draw_shortcuts()
+	if is_layer_enabled(&"surfaces"):
+		_draw_surfaces()
 	if is_layer_enabled(&"objects"):
 		_draw_objects()
 	for point_index in curve.point_count:
@@ -484,6 +510,93 @@ func _draw_shortcuts() -> void:
 			_draw_shortcut_junctions(shortcut)
 			draw_polyline(shortcut_points, SHORTCUT_COLOR, 8.0, true)
 			_draw_shortcut_controls(shortcut)
+
+
+func _draw_surfaces() -> void:
+	if track == null:
+		return
+	for zone in track.get_surface_zones():
+		var path_points := _get_surface_path_points(zone)
+		if path_points.size() < 2:
+			continue
+		var center_path_points := _get_surface_center_path_points(zone, path_points)
+		var screen_points := PackedVector2Array()
+		for point in center_path_points:
+			screen_points.append(_world_to_screen(point))
+		var surface_color := (
+			zone.surface.color if zone.surface != null else WARNING_COLOR
+		)
+		surface_color.a = 0.48 if selection.node_path != track.get_path_to(zone) else 0.72
+		draw_polyline(
+			screen_points,
+			surface_color,
+			maxf(_world_distance_to_screen(zone.width), 5.0),
+			true
+		)
+		var boundary_color := surface_color
+		boundary_color.a = 0.95
+		for side in [-1.0, 1.0]:
+			var boundary := PackedVector2Array()
+			for point_index in path_points.size():
+				var forward := _surface_forward(path_points, point_index)
+				var side_vector := Vector3(forward.z, 0.0, -forward.x)
+				boundary.append(_world_to_screen(
+					path_points[point_index]
+					+ side_vector * (zone.lateral_offset + zone.width * 0.5 * side)
+				))
+			draw_polyline(boundary, boundary_color, 1.5, true)
+
+
+func _get_surface_path_points(zone: TrackSurfaceZone) -> PackedVector3Array:
+	var source: Array[Vector3] = []
+	if zone.path_kind == TrackSurfaceZone.PathKind.SHORTCUT:
+		for shortcut in track.get_shortcuts():
+			if shortcut.shortcut_id == zone.shortcut_id:
+				source = track._sample_path(shortcut, false)
+				break
+	else:
+		var route := track.get_main_route()
+		if route != null:
+			source = track._apply_start_offset(track._sample_path(route, true))
+	var result := PackedVector3Array()
+	if source.size() < 2:
+		return result
+	var is_closed := zone.path_kind == TrackSurfaceZone.PathKind.MAIN
+	var steps := 12
+	for step in steps + 1:
+		var progress := clampf(
+			lerpf(zone.start_progress, zone.end_progress, float(step) / steps),
+			0.0,
+			1.0
+		)
+		var last_index: int = source.size() if is_closed else source.size() - 1
+		var scaled := progress * last_index
+		if is_closed and is_equal_approx(progress, 1.0):
+			scaled = 0.0
+		var index := clampi(floori(scaled), 0, source.size() - 1)
+		var next_index := (index + 1) % source.size() if is_closed else mini(index + 1, source.size() - 1)
+		result.append(source[index].lerp(source[next_index], scaled - floorf(scaled)))
+	return result
+
+
+func _get_surface_center_path_points(
+	zone: TrackSurfaceZone,
+	path_points: PackedVector3Array
+) -> PackedVector3Array:
+	var result := PackedVector3Array()
+	for point_index in path_points.size():
+		var forward := _surface_forward(path_points, point_index)
+		var right := Vector3(forward.z, 0.0, -forward.x)
+		result.append(path_points[point_index] + right * zone.lateral_offset)
+	return result
+
+
+func _surface_forward(points: PackedVector3Array, index: int) -> Vector3:
+	var previous := points[maxi(index - 1, 0)]
+	var next := points[mini(index + 1, points.size() - 1)]
+	var forward := next - previous
+	forward.y = 0.0
+	return forward.normalized() if forward.length_squared() > 0.0001 else Vector3.FORWARD
 
 
 func get_shortcut_safety_state(shortcut: TrackShortcut) -> StringName:
@@ -732,7 +845,19 @@ func _draw_issues() -> void:
 			if issue.severity == TrackValidationIssue.Severity.WARNING
 			else ERROR_COLOR
 		)
-		draw_arc(screen_position, 14.0, 0.0, TAU, 20, issue_color, 3.0, true)
+		if issue.severity == TrackValidationIssue.Severity.WARNING:
+			var warning_marker := PackedVector2Array([
+				screen_position + Vector2(0.0, -14.0),
+				screen_position + Vector2(13.0, 10.0),
+				screen_position + Vector2(-13.0, 10.0),
+			])
+			draw_colored_polygon(warning_marker, Color(issue_color, 0.32))
+			draw_polyline(warning_marker + PackedVector2Array([warning_marker[0]]), issue_color, 2.0, true)
+		else:
+			draw_circle(screen_position, 14.0, Color(issue_color, 0.18))
+			draw_arc(screen_position, 14.0, 0.0, TAU, 20, issue_color, 3.0, true)
+			draw_line(screen_position - Vector2(6.0, 6.0), screen_position + Vector2(6.0, 6.0), issue_color, 2.0, true)
+			draw_line(screen_position - Vector2(-6.0, 6.0), screen_position + Vector2(-6.0, 6.0), issue_color, 2.0, true)
 		draw_string(
 			get_theme_default_font(),
 			screen_position + Vector2(12.0, -10.0),
@@ -830,6 +955,31 @@ func _get_screen_scale() -> float:
 
 func _world_distance_to_screen(distance: float) -> float:
 	return distance * _get_screen_scale()
+
+
+func _distance_to_screen_polyline(
+	point: Vector2,
+	polyline: PackedVector2Array
+) -> float:
+	if polyline.is_empty():
+		return INF
+	if polyline.size() == 1:
+		return point.distance_to(polyline[0])
+	var minimum := INF
+	for point_index in range(1, polyline.size()):
+		var start := polyline[point_index - 1]
+		var finish := polyline[point_index]
+		var segment := finish - start
+		var segment_length_squared := segment.length_squared()
+		var weight := 0.0
+		if segment_length_squared > 0.0001:
+			weight = clampf(
+				(point - start).dot(segment) / segment_length_squared,
+				0.0,
+				1.0
+			)
+		minimum = minf(minimum, point.distance_to(start + segment * weight))
+	return minimum
 
 
 func get_scale_bar_distance() -> float:
@@ -941,6 +1091,24 @@ func _find_selection_at(screen_position: Vector2) -> RefCounted:
 						int(control_kind),
 						track.get_path_to(shortcut)
 					)
+	if is_layer_enabled(&"surfaces"):
+		for zone in track.get_surface_zones():
+			var path_points := _get_surface_path_points(zone)
+			var center_points := _get_surface_center_path_points(zone, path_points)
+			var screen_points := PackedVector2Array()
+			for point in center_points:
+				screen_points.append(_world_to_screen(point))
+			var distance := _distance_to_screen_polyline(
+				screen_position,
+				screen_points
+			)
+			var hit_radius := maxf(_world_distance_to_screen(zone.width * 0.5), 8.0)
+			if distance <= hit_radius and distance < best_distance:
+				best_distance = distance
+				best = Selection.node(
+					Selection.Kind.SURFACE,
+					track.get_path_to(zone)
+				)
 	return best
 
 
@@ -954,9 +1122,12 @@ func _get_selection_position(selected: RefCounted) -> Vector3:
 			and route.curve != null
 			and selected.point_index >= 0
 			and selected.point_index < route.curve.point_count
-		):
-			return route.transform * route.curve.get_point_position(selected.point_index)
+			):
+				return route.transform * route.curve.get_point_position(selected.point_index)
 		return Vector3.ZERO
+	if selected.kind == Selection.Kind.SURFACE:
+		var zone := track.get_node_or_null(selected.node_path) as TrackSurfaceZone
+		return get_surface_zone_position(zone) if zone != null else Vector3.ZERO
 	var node := track.get_node_or_null(selected.node_path) as Node3D
 	if node == null:
 		return Vector3.ZERO
@@ -968,6 +1139,15 @@ func _get_selection_position(selected: RefCounted) -> Vector3:
 				Vector3.ZERO
 			)
 	return _get_node_track_position(node)
+
+
+func get_surface_zone_position(zone: TrackSurfaceZone) -> Vector3:
+	if zone == null:
+		return Vector3.ZERO
+	var points := _get_surface_path_points(zone)
+	if not points.is_empty():
+		return _get_surface_center_path_points(zone, points)[points.size() / 2]
+	return _get_node_track_position(zone)
 
 
 func _get_shortcut_control_positions(shortcut: TrackShortcut) -> Dictionary:

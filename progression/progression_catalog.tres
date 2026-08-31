@@ -34,7 +34,7 @@
 [ext_resource type="AudioStream" uid="uid://c4o1286dldljx" path="res://assets/music/coastal.ogg" id="27_wi277"]
 [ext_resource type="PackedScene" uid="uid://beypfxsghui4w" path="res://levels/tracks/can_carmes.tscn" id="28_awpue"]
 [ext_resource type="Resource" path="res://progression/variants/race.tres" id="28_f6lg3"]
-[ext_resource type="PackedScene" uid="uid://io6qn016jgw" path="res://levels/tracks/ruinas_esmeralda.tscn" id="29_7e0st"]
+[ext_resource type="PackedScene" uid="uid://dpo5m0ao63nm5" path="res://levels/tracks/ruinas_esmeralda.tscn" id="29_7e0st"]
 [ext_resource type="Resource" path="res://progression/variants/race_future.tres" id="29_a80nv"]
 [ext_resource type="Script" uid="uid://cy48hxea6w7ie" path="res://scripts/data/kart_variant_definition.gd" id="30_24ud6"]
 [ext_resource type="PackedScene" uid="uid://c1lcg5pccc7mb" path="res://levels/tracks/caldera_furiosa.tscn" id="32_7e0st"]

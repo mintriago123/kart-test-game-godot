@@ -8,6 +8,7 @@ signal description_changed(value: String)
 signal environment_theme_changed(theme: TrackTheme)
 signal music_changed(music: AudioStream)
 signal difficulty_changed(value: String)
+signal metadata_edit_finished
 
 const THEMES := [
 	["Costa", "res://levels/themes/coastal_theme.tres"],
@@ -43,6 +44,7 @@ func configure(
 	name_edit.text_changed.connect(
 		func(value: String) -> void: name_changed.emit(value)
 	)
+	name_edit.focus_exited.connect(func() -> void: metadata_edit_finished.emit())
 	add_child(name_edit)
 
 	add_field_label("Identificador")
@@ -94,6 +96,7 @@ func configure(
 	laps_input.value_changed.connect(
 		func(value: float) -> void: laps_changed.emit(int(value))
 	)
+	laps_input.focus_exited.connect(func() -> void: metadata_edit_finished.emit())
 	add_child(laps_input)
 
 	add_field_label("Descripción para el menú")
@@ -102,5 +105,8 @@ func configure(
 	description_input.custom_minimum_size.y = 100.0
 	description_input.text_changed.connect(
 		func() -> void: description_changed.emit(description_input.text)
+	)
+	description_input.focus_exited.connect(
+		func() -> void: metadata_edit_finished.emit()
 	)
 	add_child(description_input)

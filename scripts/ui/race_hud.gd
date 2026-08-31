@@ -47,6 +47,7 @@ var _intro_laps: Label
 var _intro_skip_button: Button
 var _is_intro_visible := false
 var _minimap: RaceMinimap
+var _pause_menu_owner := true
 
 var mobile_controls_enabled := (
 	OS.has_feature("android")
@@ -56,6 +57,7 @@ var mobile_controls_enabled := (
 var vibration_enabled := true
 var vibration_intensity := 1.0
 var compact_mode := false
+var hud_density: StringName = &"full"
 
 
 func _ready() -> void:
@@ -69,6 +71,8 @@ func bind_player(kart: Kart) -> void:
 	_touch_view.bind_player(kart)
 	kart.item_changed.connect(_handle_item_changed)
 	kart.boost_changed.connect(_handle_boost_changed)
+	kart.drift_charge_changed.connect(_handle_drift_charge_changed)
+	kart.hit_received.connect(_handle_hit_received)
 	kart.shield_state_changed.connect(_handle_shield_state_changed)
 	_handle_item_changed(kart.held_item)
 
@@ -164,9 +168,11 @@ func set_game_mode(game_mode: int) -> void:
 
 func set_compact_mode(enabled: bool, shared_controls: bool = true) -> void:
 	compact_mode = enabled
+	_pause_menu_owner = shared_controls
 	if not is_node_ready():
 		return
-	_status_view.scale = Vector2.ONE * (0.82 if enabled else 1.0)
+	hud_density = &"split" if enabled else (&"touch" if mobile_controls_enabled else &"full")
+	_status_view.set_density(hud_density)
 	if enabled:
 		_minimap.offset_left = -156.0
 		_minimap.offset_right = -12.0
@@ -177,6 +183,18 @@ func set_compact_mode(enabled: bool, shared_controls: bool = true) -> void:
 		pause_button.visible = shared_controls
 
 
+func set_density(density: StringName) -> void:
+	hud_density = density
+	compact_mode = density == &"split"
+	if _status_view != null:
+		_status_view.set_density(density)
+
+
+func set_player_label(player_number: int) -> void:
+	if _status_view != null:
+		_status_view.set_player_label(player_number)
+
+
 func update_ghost_delta(delta: float) -> void:
 	_status_view.update_ghost_delta(delta)
 
@@ -185,10 +203,35 @@ func request_resume() -> void:
 	_flow_overlay.request_resume()
 
 
+func request_pause() -> void:
+	_flow_overlay.request_pause()
+
+
+func set_pause_overlay_visible(is_visible: bool) -> void:
+	if _flow_overlay != null:
+		_flow_overlay.set_pause_menu_visible(is_visible)
+
+
+func handle_pause_input(event: InputEvent) -> bool:
+	return _flow_overlay != null and _flow_overlay.handle_pause_input(event)
+
+
+func set_pause_menu_owner(is_owner: bool) -> void:
+	_pause_menu_owner = is_owner
+	if _flow_overlay == null:
+		return
+	var pause_button := _flow_overlay.get_node_or_null("PauseButton") as Button
+	if pause_button != null:
+		pause_button.visible = is_owner
+	if not is_owner:
+		_flow_overlay.update_pause_visibility(false)
+
+
 func _process(_delta: float) -> void:
 	if _player_kart != null:
 		_status_view.update_speed(_player_kart.get_speed_kph())
-	if _flow_overlay != null:
+		_status_view.set_boost_active(_player_kart.is_boost_active())
+	if _flow_overlay != null and _pause_menu_owner:
 		_flow_overlay.update_pause_visibility(get_tree().paused)
 	if _touch_view != null:
 		_touch_view.update_state(
@@ -279,6 +322,8 @@ func _update_responsive_layout() -> void:
 		pause_button.offset_right = -12.0 if compact else -24.0
 		pause_button.offset_top = 198.0 if compact else 278.0
 		pause_button.offset_bottom = pause_button.offset_top + 64.0
+	if _status_view != null:
+		_status_view.set_density(&"split" if compact_mode else (&"touch" if mobile_controls_enabled else &"full"))
 
 
 func _bind_status_references() -> void:
@@ -336,6 +381,14 @@ func _handle_shield_state_changed(
 
 func _handle_boost_changed(charge_ratio: float) -> void:
 	_status_view.show_boost(charge_ratio)
+
+
+func _handle_drift_charge_changed(_level: int, ratio: float, _quality: float) -> void:
+	_status_view.show_boost(ratio)
+
+
+func _handle_hit_received() -> void:
+	_status_view.show_hit_feedback()
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -17,15 +17,31 @@ func is_valid() -> bool:
 	return samples.size() >= 3 and total_length > 10.0
 
 
-func project(position: Vector3, hint_index: int = -1) -> RacingLineProjection:
-	return _project_samples(position, samples, hint_index, true, -1)
+func project(
+	position: Vector3,
+	hint_index: int = -1,
+	previous_distance: float = -1.0,
+	allow_lap_wrap: bool = false
+) -> RacingLineProjection:
+	return _project_samples(
+		position, samples, hint_index, true, -1,
+		previous_distance, allow_lap_wrap
+	)
 
 
-func project_branch(position: Vector3, branch_id: int, hint_index: int = -1) -> RacingLineProjection:
+func project_branch(
+	position: Vector3,
+	branch_id: int,
+	hint_index: int = -1,
+	previous_distance: float = -1.0
+) -> RacingLineProjection:
 	var branch := get_branch(branch_id)
 	if branch == null:
 		return RacingLineProjection.new()
-	return _project_samples(position, branch.samples, hint_index, false, branch_id)
+	return _project_samples(
+		position, branch.samples, hint_index, false, branch_id,
+		previous_distance, false
+	)
 
 
 func sample_at_distance(distance: float, branch_id: int = -1) -> RacingLineSample:
@@ -92,63 +108,109 @@ func _project_samples(
 	source: Array[RacingLineSample],
 	hint_index: int,
 	closed: bool,
-	branch_id: int
+	branch_id: int,
+	previous_distance: float,
+	allow_lap_wrap: bool
 ) -> RacingLineProjection:
 	var result := RacingLineProjection.new()
 	result.branch_id = branch_id
-	if source.is_empty():
+	if source.size() < 2:
 		return result
+	var segment_count := source.size() if closed else source.size() - 1
 	var candidates: Array[int] = []
 	if hint_index >= 0 and hint_index < source.size():
 		for offset in range(-LOCAL_SEARCH_RADIUS, LOCAL_SEARCH_RADIUS + 1):
 			var index := hint_index + offset
 			if closed:
-				index = posmod(index, source.size())
-			elif index < 0 or index >= source.size():
+				index = posmod(index, segment_count)
+			elif index < 0 or index >= segment_count:
 				continue
 			candidates.append(index)
 	else:
-		for index in range(0, source.size(), FALLBACK_SEARCH_STEP):
-			candidates.append(index)
-	var best_index := _closest_index(position, source, candidates)
+		candidates = _coarse_segment_candidates(segment_count)
+	var best := _closest_segment(position, source, candidates, closed)
 	var local_missed := (
 		hint_index >= 0
-		and best_index >= 0
-		and position.distance_squared_to(source[best_index].position) > 144.0
+		and best.sample_index >= 0
+		and best.distance_squared > 144.0
 	)
 	if hint_index < 0 or local_missed:
-		candidates.clear()
-		for index in range(0, source.size(), FALLBACK_SEARCH_STEP):
-			candidates.append(index)
-		best_index = _closest_index(position, source, candidates)
-	if best_index >= 0 and (hint_index < 0 or local_missed):
+		best = _closest_segment(
+			position, source, _coarse_segment_candidates(segment_count), closed
+		)
+	if best.sample_index >= 0 and (hint_index < 0 or local_missed):
 		candidates.clear()
 		for offset in range(-FALLBACK_SEARCH_STEP, FALLBACK_SEARCH_STEP + 1):
-			var index := best_index + offset
+			var index := best.sample_index + offset
 			if closed:
-				index = posmod(index, source.size())
-			elif index < 0 or index >= source.size():
+				index = posmod(index, segment_count)
+			elif index < 0 or index >= segment_count:
 				continue
 			candidates.append(index)
-		best_index = _closest_index(position, source, candidates)
-	if best_index < 0:
+		best = _closest_segment(position, source, candidates, closed)
+	if best.sample_index < 0:
 		return result
-	var sample := source[best_index]
-	var right := Vector3.UP.cross(sample.forward).normalized()
-	result.sample_index = best_index
-	result.distance = sample.distance
-	result.position = sample.position
-	result.lateral_error = (position - sample.position).dot(right)
-	result.distance_squared = position.distance_squared_to(sample.position)
-	return result
+	best.branch_id = branch_id
+	if previous_distance >= 0.0 and not allow_lap_wrap:
+		# A kart can briefly move sideways or backwards while escaping a wall,
+		# but the navigation target must not walk backwards with it. Recovery
+		# and the finish-line wrap explicitly reset this caller-owned guard.
+		var minimum_distance := previous_distance
+		if best.distance < minimum_distance:
+			best.distance = minimum_distance
+			best.progress_clamped = true
+	return best
 
 
-func _closest_index(position: Vector3, source: Array[RacingLineSample], candidates: Array[int]) -> int:
-	var best_index := -1
+func _coarse_segment_candidates(segment_count: int) -> Array[int]:
+	var candidates: Array[int] = []
+	for index in range(0, segment_count, FALLBACK_SEARCH_STEP):
+		candidates.append(index)
+	if not candidates.has(segment_count - 1):
+		candidates.append(segment_count - 1)
+	return candidates
+
+
+func _closest_segment(
+	position: Vector3,
+	source: Array[RacingLineSample],
+	candidates: Array[int],
+	closed: bool
+) -> RacingLineProjection:
+	var best := RacingLineProjection.new()
 	var best_distance := INF
+	var segment_count := source.size() if closed else source.size() - 1
 	for index in candidates:
-		var distance_squared := position.distance_squared_to(source[index].position)
-		if distance_squared < best_distance:
-			best_distance = distance_squared
-			best_index = index
-	return best_index
+		if index < 0 or index >= segment_count:
+			continue
+		var next_index := (index + 1) % source.size()
+		var start := source[index].position
+		var finish := source[next_index].position
+		var segment := finish - start
+		var segment_length_squared := segment.length_squared()
+		if segment_length_squared <= 0.000001:
+			continue
+		var weight := clampf((position - start).dot(segment) / segment_length_squared, 0.0, 1.0)
+		var closest := start.lerp(finish, weight)
+		var distance_squared := position.distance_squared_to(closest)
+		if distance_squared >= best_distance:
+			continue
+		var forward := segment
+		forward.y = 0.0
+		if forward.length_squared() <= 0.000001:
+			forward = source[index].forward
+			forward.y = 0.0
+		if forward.length_squared() <= 0.000001:
+			continue
+		forward = forward.normalized()
+		var right := forward.cross(Vector3.UP).normalized()
+		best.sample_index = index
+		var distance_span := source[next_index].distance - source[index].distance
+		if closed and next_index == 0:
+			distance_span = total_length - source[index].distance
+		best.distance = source[index].distance + maxf(distance_span, 0.0) * weight
+		best.position = closest
+		best.lateral_error = (position - closest).dot(right)
+		best.distance_squared = distance_squared
+		best_distance = distance_squared
+	return best

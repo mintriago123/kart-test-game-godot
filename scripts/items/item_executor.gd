@@ -154,7 +154,7 @@ func _register_network_entity(
 	entity.set_meta(&"lan_entity_kind", entity_kind)
 	entity.tree_exiting.connect(
 		func() -> void: item_entity_destroyed.emit(entity_id),
-		CONNECT_ONE_SHOT
+		CONNECT_ONE_SHOT as Object.ConnectFlags
 	)
 	item_entity_spawned.emit(entity_id, entity_kind, item, source_kart, entity)
 

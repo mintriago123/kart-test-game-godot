@@ -73,6 +73,8 @@ func start_game(
 	session.race_class = RaceClassDefinition.get_by_id(settings.selected_cc_id)
 	session.game_mode = game_mode
 	session.grid_size = 8
+	if game_mode == GameModeDefinition.RACE:
+		session.difficulty = PROGRESSION_CATALOG.difficulties.get_difficulty(selected_cup_difficulty_id)
 	if game_mode == GameModeDefinition.LOCAL_MULTIPLAYER:
 		var local_participants: Array = main_menu.get_multiplayer_participants() if main_menu != null else []
 		session.set_participants(_complete_multiplayer_grid(local_participants))
@@ -91,6 +93,10 @@ func _apply_active_gamepad(session: RaceSessionConfig) -> void:
 	if session == null or main_menu == null:
 		return
 	var gamepad_id := main_menu.get_active_gamepad_id()
+	if gamepad_id < 0:
+		var connected_gamepads := Input.get_connected_joypads()
+		if not connected_gamepads.is_empty():
+			gamepad_id = int(connected_gamepads.front())
 	if gamepad_id < 0:
 		return
 	for participant in session.participants:
@@ -125,13 +131,19 @@ func _start_session(session: RaceSessionConfig, should_play_intro: bool) -> void
 	if session == null:
 		push_error("Cannot start an empty race session.")
 		return
+	var is_lan_session := session.game_mode == GameModeDefinition.LAN_MULTIPLAYER
 	if race_world != null:
 		race_world.shutdown()
 		race_world.queue_free()
 		race_world = null
 	if main_menu != null:
-		main_menu.queue_free()
-		main_menu = null
+		if is_lan_session:
+			# Keep the LAN session in its original scene-tree path while the race
+			# is active. RPCs already in flight still address that path.
+			main_menu.hide()
+		else:
+			main_menu.queue_free()
+			main_menu = null
 	get_tree().paused = false
 	race_world = RaceWorld.new()
 	race_world.graphics_profile = settings.graphics_profile
@@ -162,21 +174,25 @@ func _start_session(session: RaceSessionConfig, should_play_intro: bool) -> void
 
 func _open_race_settings() -> void:
 	if race_world == null: return
-	var screen := SettingsScreen.new(); race_world.add_child(screen); screen.apply_snapshot(settings)
+	var screen := SettingsScreen.new(); race_world.open_pause_subscreen(screen); screen.apply_snapshot(settings)
 	screen.graphics_profile_changed.connect(_set_graphics_profile); screen.vibration_changed.connect(_set_vibration_enabled); screen.volume_changed.connect(_set_master_volume); screen.music_volume_changed.connect(_set_music_volume); screen.effects_volume_changed.connect(_set_effects_volume); screen.camera_motion_changed.connect(_set_camera_motion); screen.speed_lines_changed.connect(_set_speed_lines_enabled); screen.threat_indicators_changed.connect(_set_threat_indicators_enabled); screen.vibration_intensity_changed.connect(_set_vibration_intensity)
-	screen.reduced_motion_changed.connect(func(value: bool): settings.ui_reduced_motion = value; settings.save_to_disk())
+	screen.gamepad_family_changed.connect(_set_gamepad_family); screen.ghost_enabled_changed.connect(_set_ghost_enabled)
+	screen.controls_requested.connect(_open_race_controls)
 	screen.restore_defaults_requested.connect(_restore_presentation_defaults)
-	screen.back_requested.connect(screen.queue_free)
+	screen.back_requested.connect(race_world.close_pause_subscreen)
+	screen.call_deferred("focus_first_control")
 
 func _open_race_controls() -> void:
 	if race_world == null: return
-	var screen := ControlsScreen.new(); race_world.add_child(screen); screen.back_requested.connect(screen.queue_free)
+	var screen := ControlsScreen.new(); race_world.open_pause_subscreen(screen); screen.back_requested.connect(race_world.close_pause_subscreen)
+	screen.call_deferred("focus_first_control")
 
 
 func _show_main_menu() -> void:
 	if main_menu != null:
 		return
 	main_menu = MainMenu.new()
+	main_menu.name = "MainMenu"
 	main_menu.track_catalog = TRACK_CATALOG
 	main_menu.has_active_cup = not player_progress.active_cup.is_empty()
 	main_menu.progression_catalog = PROGRESSION_CATALOG
@@ -200,7 +216,6 @@ func _show_main_menu() -> void:
 	main_menu.abandon_cup_requested.connect(func(): cup_manager.abandon())
 	main_menu.equip_variant_requested.connect(_equip_variant)
 	main_menu.gamepad_family_changed.connect(_set_gamepad_family)
-	main_menu.reduced_motion_changed.connect(_set_reduced_motion)
 	main_menu.lan_race_requested.connect(_handle_lan_race_requested)
 	add_child(main_menu)
 	main_menu.apply_settings(
@@ -234,8 +249,8 @@ func _handle_lan_race_requested(value_session: LanSession, payload: Dictionary) 
 	if detached == null:
 		return
 	lan_session = detached
-	if lan_session.get_parent() != self:
-		add_child(lan_session)
+	# LanSession stays under the lobby so its NodePath remains stable for RPC
+	# packets already queued when the race starts.
 	if not lan_session.host_lost.is_connected(_handle_lan_host_lost):
 		lan_session.host_lost.connect(_handle_lan_host_lost)
 	var room: Dictionary = payload.get("settings", {})
@@ -250,7 +265,9 @@ func _handle_lan_race_requested(value_session: LanSession, payload: Dictionary) 
 	race_session.game_mode = GameModeDefinition.LAN_MULTIPLAYER
 	race_session.grid_size = LanProtocol.GRID_SIZE
 	race_session.items_enabled = bool(room.get("items_enabled", true))
-	race_session.set_participants(lan_session.build_participants())
+	var participants := lan_session.build_participants()
+	race_session.set_participants(participants)
+	race_session.grid_size = participants.size()
 	race_session.race_seed = int(payload.get("race_seed", randi()))
 	race_session.run_id = StringName("lan-%s-%s" % [lan_session.local_token.left(12), race_session.race_seed])
 	race_session.lan_session = lan_session
@@ -303,10 +320,14 @@ func _return_to_menu() -> void:
 		race_world = null
 	get_tree().paused = false
 	if lan_session != null:
-		lan_session.close()
-		lan_session.queue_free()
+		if is_instance_valid(lan_session):
+			lan_session.close()
 		lan_session = null
-	_show_main_menu()
+	if main_menu != null:
+		main_menu.show()
+		main_menu.restore_main_route()
+	else:
+		_show_main_menu()
 
 
 func _set_graphics_profile(profile: String) -> void:
@@ -473,10 +494,12 @@ func _exit_tree() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"pause") and race_world != null:
-		if get_tree().paused:
-			race_world._hud.request_resume()
-		else:
-			get_tree().paused = true
+		race_world.request_pause(event)
+		get_viewport().set_input_as_handled()
+		return
+	if race_world != null and race_world.handle_pause_input(event):
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed(&"reset_kart") and race_world != null and race_world.player_kart != null:
 		race_world.player_kart.reset_to_last_checkpoint()
 

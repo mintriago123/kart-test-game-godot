@@ -16,8 +16,13 @@ var _track_accent := UiTokens.ELECTRIC_YELLOW
 func _ready() -> void:
 	super._ready()
 	clip_contents = true
+	# The race HUD stays transparent so the track remains visible underneath.
 	background_color = Color.TRANSPARENT
 	grid_visible = false
+	# Do not show navigation/checkpoint hints in any race mode. Racers are
+	# represented only by their live markers below.
+	navigation_hints_visible = false
+	start_marker_visible = false
 	map_padding = 8.0
 	queue_redraw()
 

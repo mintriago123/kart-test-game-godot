@@ -42,10 +42,6 @@ func reset() -> void:
 	_landing_compression_remaining = 0.0
 
 
-func clear_effects() -> void:
-	reset()
-
-
 func is_stunned() -> bool:
 	return _stun_remaining > 0.0
 

@@ -7,15 +7,27 @@ const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
 static func create_chip(text: String, font_size: int) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.custom_minimum_size = Vector2(122.0, 58.0)
+	label.custom_minimum_size = Vector2(122.0, UiTokens.BUTTON_HEIGHT)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", UiTokens.WARM_WHITE)
 	label.add_theme_stylebox_override(
 		"normal",
-		style(Color(UiTokens.INK.r, UiTokens.INK.g, UiTokens.INK.b, 0.92), 14)
+		style(UiTokens.surface_alpha(UiTokens.INK, 3), 14)
 	)
+	return label
+
+
+static func create_hud_label(text: String, font_size: int, color: Color = UiTokens.WARM_WHITE) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_override("font", UiTokens.DISPLAY_FONT)
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_constant_override("outline_size", 3)
+	label.add_theme_color_override("font_outline_color", UiTokens.GRAPHITE)
+	label.add_theme_constant_override("line_spacing", -2)
 	return label
 
 
@@ -38,7 +50,7 @@ static func apply_button_style(button: Button, color: Color) -> void:
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		style(Color(0.23, 0.28, 0.31, 0.62), 16)
+		style(UiTokens.BUTTON_DISABLED_BG, 16)
 	)
 
 
@@ -59,8 +71,10 @@ static func style(
 		style_box.border_width_right = border_width
 		style_box.border_width_bottom = border_width
 		style_box.border_color = UiTokens.WARM_WHITE
-	style_box.content_margin_left = 14.0
-	style_box.content_margin_right = 14.0
+	style_box.content_margin_left = UiTokens.SPACE_3
+	style_box.content_margin_right = UiTokens.SPACE_3
+	style_box.content_margin_top = UiTokens.SPACE_2
+	style_box.content_margin_bottom = UiTokens.SPACE_2
 	return style_box
 
 

@@ -5,6 +5,7 @@ extends RefCounted
 const CATALOG_PATH := "res://levels/track_catalog.tres"
 const NEW_TRACKS_DIRECTORY := "res://levels/tracks"
 const RECOVERY_PATH := "user://coastal_karts_track_recovery.tscn"
+const RECOVERY_META_PATH := "user://coastal_karts_track_recovery.cfg"
 const ENVIRONMENT_MARGIN := 60.0
 const TEMPLATE_SPECS := {
 	&"small": {
@@ -59,24 +60,75 @@ var _last_recovery_msec := 0
 
 func _init(session: RefCounted) -> void:
 	_session_ref = weakref(session)
+	_cleanup_recovery_artifacts()
+
+
+func _clear_error() -> void:
+	_session.last_persistence_error = ""
+
+
+func _fail(error: Error, message: String) -> Error:
+	_session.last_persistence_error = "%s (%s)." % [
+		message,
+		error_string(error),
+	]
+	return error
+
+
+func _publish_failure(
+	error: Error,
+	reason: String,
+	previous_scene: PackedScene,
+	had_previous_scene: bool
+) -> Error:
+	var restore_error := _restore_scene_after_publish(
+		previous_scene,
+		had_previous_scene
+	)
+	var message := reason
+	if restore_error != OK:
+		message += " No se pudo recuperar la escena anterior: %s" % error_string(
+			restore_error
+		)
+	return _fail(error, message)
 
 
 func load_track(path: String) -> Error:
+	_clear_error()
 	if not ResourceLoader.exists(path):
-		return ERR_FILE_NOT_FOUND
-	var packed_scene := load(path) as PackedScene
+		return _fail(ERR_FILE_NOT_FOUND, "No se encontró la escena de la pista")
+	var packed_scene := ResourceLoader.load(
+		path,
+		"PackedScene",
+		ResourceLoader.CACHE_MODE_REPLACE
+	) as PackedScene
 	if packed_scene == null:
-		return ERR_FILE_CORRUPT
+		return _fail(ERR_FILE_CORRUPT, "La escena de la pista está dañada")
 	var loaded_track := packed_scene.instantiate() as TrackLevel
 	if loaded_track == null:
-		return ERR_INVALID_DATA
+		return _fail(ERR_INVALID_DATA, "La escena no contiene un TrackLevel válido")
 	_session._set_track(loaded_track, path)
-	_session.is_published = _catalog_contains(loaded_track.track_id)
+	var catalog_definition := _get_catalog_definition(loaded_track.track_id)
+	_session.is_published = catalog_definition != null
+	var loaded_laps := loaded_track.track_editor_laps
+	var loaded_description := loaded_track.track_editor_description
+	if loaded_laps <= 0 and catalog_definition != null:
+		loaded_laps = catalog_definition.laps
+	if loaded_description.is_empty() and catalog_definition != null:
+		loaded_description = catalog_definition.description
+	_session.set_editor_metadata(
+		loaded_laps if loaded_laps > 0 else 3,
+		loaded_description
+	)
 	var repair_counts: Dictionary = _session.migrate_legacy_anchors()
+	var surface_repair_counts: Dictionary = _session.migrate_legacy_surface_priorities()
+	for repair_key in surface_repair_counts:
+		repair_counts[repair_key] = surface_repair_counts[repair_key]
 	_session.last_repair_summary = _format_repair_summary(repair_counts)
 	if not _session.last_repair_summary.is_empty():
 		_session._set_dirty(true)
 		_session.route_changed.emit()
+	_session._observe_external_files()
 	return OK
 
 
@@ -142,44 +194,84 @@ func create_track(template_size: StringName, track_name: String) -> void:
 
 	_session._set_track(new_track, "")
 	_session.is_published = false
+	_session.set_editor_metadata(3, "")
+	_session._observe_external_files()
 	mark_dirty()
 
 
 func save() -> Error:
+	_clear_error()
 	if _session.track == null:
-		return ERR_DOES_NOT_EXIST
+		return _fail(ERR_DOES_NOT_EXIST, "No hay una pista cargada para guardar")
 	if _session.scene_path.is_empty():
 		var directory_error := DirAccess.make_dir_recursive_absolute(
 			ProjectSettings.globalize_path(_session.new_tracks_directory)
 		)
 		if directory_error != OK:
-			return directory_error
+			return _fail(
+				directory_error,
+				"No se pudo preparar la carpeta de la escena"
+			)
 		_session.scene_path = "%s/%s.tscn" % [
 			_session.new_tracks_directory,
 			_session.track.track_id,
 		]
 	var packed_scene := PackedScene.new()
+	_session.track.track_editor_laps = _session.laps
+	_session.track.track_editor_description = _session.description
 	var pack_error := packed_scene.pack(_session.track)
 	if pack_error != OK:
-		return pack_error
-	var save_error := ResourceSaver.save(packed_scene, _session.scene_path)
+		return _fail(pack_error, "No se pudo preparar la escena para guardar")
+	var save_error := _save_resource_atomically(packed_scene, _session.scene_path)
+	if save_error != OK:
+		return _fail(
+			save_error,
+			"La escritura atómica de la escena falló"
+		)
 	if save_error == OK:
 		_session._set_dirty(false)
+		_session._observe_external_files()
 	return save_error
 
 
 func publish(laps: int, description: String) -> Error:
-	if (
-		_session.track == null
-		or not _session.track.validate_track().is_empty()
-	):
-		return ERR_INVALID_DATA
+	_clear_error()
+	if _session.track == null or _session.has_blocking_validation_issues():
+		return _fail(
+			ERR_INVALID_DATA,
+			"La validación bloquea la publicación; no se escribieron archivos"
+		)
+	_session.set_editor_metadata(laps, description)
+	var previous_scene := (
+		ResourceLoader.load(
+			_session.scene_path,
+			"PackedScene",
+			ResourceLoader.CACHE_MODE_REPLACE
+		) as PackedScene
+		if not _session.scene_path.is_empty()
+		and FileAccess.file_exists(_session.scene_path)
+		else null
+	)
+	var had_previous_scene: bool = (
+		not _session.scene_path.is_empty()
+		and FileAccess.file_exists(_session.scene_path)
+	)
 	var save_error := save()
 	if save_error != OK:
 		return save_error
-	var catalog := load(_session.catalog_path) as TrackCatalog
+	var catalog := _load_catalog()
 	if catalog == null:
-		return ERR_FILE_CORRUPT
+		var catalog_reason := (
+			"El catálogo está ausente"
+			if not FileAccess.file_exists(_session.catalog_path)
+			else "El catálogo no se puede cargar"
+		)
+		return _publish_failure(
+			ERR_FILE_CORRUPT,
+			catalog_reason,
+			previous_scene,
+			had_previous_scene
+		)
 	var definition := catalog.get_track(_session.track.track_id)
 	if definition == null:
 		definition = TrackDefinition.new()
@@ -193,10 +285,22 @@ func publish(laps: int, description: String) -> Error:
 		"PackedScene",
 		ResourceLoader.CACHE_MODE_REPLACE
 	) as PackedScene
+	if definition.scene == null:
+		return _publish_failure(
+			ERR_FILE_CORRUPT,
+			"La escena publicada no se puede volver a cargar",
+			previous_scene,
+			had_previous_scene
+		)
 	definition.laps = clampi(laps, 1, 9)
 	definition.preview_map = TrackMinimapBuilder.build(_session.track)
 	if definition.preview_map == null:
-		return ERR_INVALID_DATA
+		return _publish_failure(
+			ERR_INVALID_DATA,
+			"No se pudo generar el plano de preview para el catálogo",
+			previous_scene,
+			had_previous_scene
+		)
 	definition.length_km = snappedf(definition.preview_map.length_meters / 1000.0, 0.1)
 	definition.shortcut_count = definition.preview_map.shortcut_count
 	definition.preview_color = (
@@ -206,10 +310,17 @@ func publish(laps: int, description: String) -> Error:
 	)
 	definition.music = _session.track.track_music
 	definition.difficulty = _session.track.difficulty
-	var catalog_error := ResourceSaver.save(catalog, _session.catalog_path)
+	var catalog_error := _save_resource_atomically(catalog, _session.catalog_path)
 	if catalog_error == OK:
 		_session.is_published = true
-	return catalog_error
+		_session._observe_external_files()
+		return OK
+	return _publish_failure(
+		catalog_error,
+		"La escritura atómica del catálogo falló",
+		previous_scene,
+		had_previous_scene
+	)
 
 
 func mark_dirty() -> void:
@@ -221,35 +332,264 @@ func mark_dirty() -> void:
 
 
 func clear_recovery() -> void:
-	if FileAccess.file_exists(RECOVERY_PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(RECOVERY_PATH))
+	for recovery_path in [RECOVERY_PATH, RECOVERY_META_PATH]:
+		if FileAccess.file_exists(recovery_path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(recovery_path))
+	_cleanup_recovery_artifacts()
+
+
+func has_recovery() -> bool:
+	return FileAccess.file_exists(RECOVERY_PATH)
+
+
+func get_recovery_info() -> Dictionary:
+	var info := {
+		"scene_path": "",
+		"track_id": "",
+		"laps": 3,
+		"description": "",
+	}
+	var config := ConfigFile.new()
+	if config.load(RECOVERY_META_PATH) == OK:
+		info.scene_path = str(config.get_value("recovery", "scene_path", ""))
+		info.track_id = str(config.get_value("recovery", "track_id", ""))
+		info.laps = clampi(int(config.get_value("recovery", "laps", 3)), 1, 9)
+		info.description = str(config.get_value("recovery", "description", ""))
+	return info
+
+
+func load_recovery() -> Error:
+	_clear_error()
+	if not FileAccess.file_exists(RECOVERY_PATH):
+		return _fail(ERR_FILE_NOT_FOUND, "No se encontró la escena de recuperación")
+	var packed_scene := ResourceLoader.load(
+		RECOVERY_PATH,
+		"PackedScene",
+		ResourceLoader.CACHE_MODE_REPLACE
+	) as PackedScene
+	if packed_scene == null:
+		return _fail(ERR_FILE_CORRUPT, "La escena de recuperación está dañada")
+	var recovered_track := packed_scene.instantiate() as TrackLevel
+	if recovered_track == null:
+		return _fail(
+			ERR_INVALID_DATA,
+			"La recuperación no contiene un TrackLevel válido"
+		)
+	var info := get_recovery_info()
+	_session._set_track(recovered_track, str(info.scene_path))
+	var recovery_laps := int(info.laps)
+	var recovery_description := str(info.description)
+	if recovery_laps <= 0:
+		recovery_laps = recovered_track.track_editor_laps
+	if recovery_description.is_empty():
+		recovery_description = recovered_track.track_editor_description
+	_session.set_editor_metadata(
+		recovery_laps if recovery_laps > 0 else 3,
+		recovery_description
+	)
+	var repair_counts: Dictionary = _session.migrate_legacy_anchors()
+	var surface_repair_counts: Dictionary = _session.migrate_legacy_surface_priorities()
+	for repair_key in surface_repair_counts:
+		repair_counts[repair_key] = surface_repair_counts[repair_key]
+	_session.last_repair_summary = _format_repair_summary(repair_counts)
+	_session.is_published = _catalog_contains(recovered_track.track_id)
+	_session._set_dirty(true)
+	return OK
 
 
 func _format_repair_summary(counts: Dictionary) -> String:
 	var shortcut_count := int(counts.get("shortcuts", 0))
 	var item_count := int(counts.get("items", 0))
-	if shortcut_count == 0 and item_count == 0:
+	var surface_count := int(counts.get("surface_priorities", 0))
+	if shortcut_count == 0 and item_count == 0 and surface_count == 0:
 		return ""
-	var shortcut_label := "atajo" if shortcut_count == 1 else "atajos"
-	var item_label := "caja" if item_count == 1 else "cajas"
-	return "%d %s y %d %s reparados" % [
-		shortcut_count,
-		shortcut_label,
-		item_count,
-		item_label,
+	var repaired_parts := PackedStringArray()
+	if shortcut_count > 0:
+		repaired_parts.append(
+			"%d %s" % [shortcut_count, "atajo" if shortcut_count == 1 else "atajos"]
+		)
+	if item_count > 0:
+		repaired_parts.append(
+			"%d %s" % [item_count, "caja" if item_count == 1 else "cajas"]
+		)
+	if surface_count > 0:
+		repaired_parts.append(
+			"%d %s" % [
+				surface_count,
+				"prioridad de superficie migrada"
+				if surface_count == 1
+				else "prioridades de superficie migradas",
+			]
+		)
+	var total_repairs := shortcut_count + item_count + surface_count
+	var repair_suffix := "reparados"
+	if total_repairs == 1:
+		repair_suffix = "reparada" if surface_count == 1 or item_count == 1 else "reparado"
+	return "%s %s" % [
+		" y ".join(repaired_parts),
+		repair_suffix,
 	]
 
 
 func _save_recovery() -> void:
 	if _session.track == null:
 		return
+	_session.track.track_editor_laps = _session.laps
+	_session.track.track_editor_description = _session.description
 	var packed_scene := PackedScene.new()
-	if packed_scene.pack(_session.track) == OK:
-		ResourceSaver.save(packed_scene, RECOVERY_PATH)
+	var pack_error := packed_scene.pack(_session.track)
+	if pack_error != OK:
+		push_warning(
+			"No se pudo preparar la escena de recuperación: %s"
+			% error_string(pack_error)
+		)
+		return
+	var save_error := _save_resource_atomically(packed_scene, RECOVERY_PATH)
+	if save_error != OK:
+		push_warning(
+			"No se pudo guardar la escena de recuperación: %s"
+			% error_string(save_error)
+		)
+		return
+	var config := ConfigFile.new()
+	config.set_value("recovery", "scene_path", _session.scene_path)
+	config.set_value("recovery", "track_id", _session.track.track_id)
+	config.set_value("recovery", "laps", _session.laps)
+	config.set_value("recovery", "description", _session.description)
+	var config_temp_path := "%s.tmp.%d.cfg" % [
+		RECOVERY_META_PATH.trim_suffix(".cfg"),
+		Time.get_ticks_usec(),
+	]
+	var config_error := config.save(config_temp_path)
+	if config_error == OK:
+		config_error = _replace_file_atomically(
+			config_temp_path,
+			RECOVERY_META_PATH
+		)
+	else:
+		_cleanup_atomic_artifacts(RECOVERY_META_PATH)
+	if config_error != OK:
+		push_warning(
+			"No se pudo guardar la metadata de recuperación: %s"
+			% error_string(config_error)
+		)
+
+
+func _get_catalog_definition(track_id: StringName) -> TrackDefinition:
+	var catalog := _load_catalog()
+	return catalog.get_track(track_id) if catalog != null else null
+
+
+func _load_catalog() -> TrackCatalog:
+	if not FileAccess.file_exists(_session.catalog_path):
+		return null
+	return ResourceLoader.load(
+		_session.catalog_path,
+		"TrackCatalog",
+		ResourceLoader.CACHE_MODE_REPLACE
+	) as TrackCatalog
+
+
+func _restore_scene_after_publish(
+	previous_scene: PackedScene,
+	had_previous_scene: bool
+) -> Error:
+	_session._set_dirty(true)
+	var restore_error := OK
+	if previous_scene != null:
+		restore_error = _save_resource_atomically(
+			previous_scene,
+			_session.scene_path
+		)
+	elif not had_previous_scene and FileAccess.file_exists(_session.scene_path):
+		restore_error = DirAccess.remove_absolute(
+			ProjectSettings.globalize_path(_session.scene_path)
+		)
+	_cleanup_atomic_artifacts(_session.scene_path)
+	_session._observe_external_files()
+	return restore_error
+
+
+func _save_resource_atomically(resource: Resource, path: String) -> Error:
+	_cleanup_atomic_artifacts(path)
+	var extension := path.get_extension()
+	var stem := path.trim_suffix("." + extension) if not extension.is_empty() else path
+	var temp_path := "%s.tmp.%d%s" % [
+		stem,
+		Time.get_ticks_usec(),
+		("." + extension) if not extension.is_empty() else "",
+	]
+	var temp_error := ResourceSaver.save(resource, temp_path)
+	if temp_error != OK:
+		_cleanup_atomic_artifacts(path)
+		return temp_error
+	var replace_error := _replace_file_atomically(temp_path, path)
+	_cleanup_atomic_artifacts(path)
+	return replace_error
+
+
+func _replace_file_atomically(source_path: String, target_path: String) -> Error:
+	var target_absolute := ProjectSettings.globalize_path(target_path)
+	var source_absolute := ProjectSettings.globalize_path(source_path)
+	var backup_path := target_path + ".bak"
+	var backup_absolute := ProjectSettings.globalize_path(backup_path)
+	var has_original := FileAccess.file_exists(target_path)
+	if FileAccess.file_exists(backup_path) and has_original:
+		DirAccess.remove_absolute(backup_absolute)
+	if has_original:
+		var backup_error := DirAccess.rename_absolute(
+			target_absolute,
+			backup_absolute
+		)
+		if backup_error != OK:
+			DirAccess.remove_absolute(source_absolute)
+			_cleanup_atomic_artifacts(target_path)
+			return backup_error
+	var replace_error := DirAccess.rename_absolute(
+		source_absolute,
+		target_absolute
+	)
+	if replace_error != OK:
+		if has_original:
+			DirAccess.rename_absolute(backup_absolute, target_absolute)
+		DirAccess.remove_absolute(source_absolute)
+		_cleanup_atomic_artifacts(target_path)
+		return replace_error
+	if FileAccess.file_exists(backup_path):
+		DirAccess.remove_absolute(backup_absolute)
+	return OK
+
+
+func _cleanup_atomic_artifacts(target_path: String) -> void:
+	var directory := DirAccess.open(target_path.get_base_dir())
+	if directory == null:
+		return
+	var target_name := target_path.get_file()
+	var extension := target_name.get_extension()
+	var stem := target_name.trim_suffix("." + extension) if not extension.is_empty() else target_name
+	for file_name in directory.get_files():
+		if (
+			file_name.begins_with(target_name + ".tmp.")
+			or file_name.begins_with(stem + ".tmp.")
+		):
+			directory.remove(file_name)
+		elif file_name == target_name + ".bak":
+			directory.remove(file_name)
+
+
+func _cleanup_recovery_artifacts() -> void:
+	var directory := DirAccess.open("user://")
+	if directory == null:
+		return
+	for file_name in directory.get_files():
+		if not file_name.begins_with("coastal_karts_track_recovery"):
+			continue
+		if ".tmp." in file_name or file_name.ends_with(".bak"):
+			directory.remove(file_name)
 
 
 func _catalog_contains(track_id: StringName) -> bool:
-	var catalog := load(_session.catalog_path) as TrackCatalog
+	var catalog := _load_catalog()
 	return catalog != null and catalog.get_track(track_id) != null
 
 

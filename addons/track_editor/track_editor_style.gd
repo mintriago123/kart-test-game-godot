@@ -50,12 +50,15 @@ static func create_theme() -> Theme:
 	workshop_theme.set_stylebox(
 		"disabled", "Button", style_box(DISABLED_BACKGROUND, BORDER)
 	)
-	for type_name in ["LineEdit", "TextEdit"]:
+	for type_name in ["LineEdit", "TextEdit", "OptionButton", "SpinBox"]:
 		workshop_theme.set_stylebox(
 			"normal", type_name, style_box(CANVAS_BACKGROUND, BORDER)
 		)
 		workshop_theme.set_stylebox(
 			"focus", type_name, style_box(CANVAS_BACKGROUND, FOCUS, 2)
+		)
+		workshop_theme.set_stylebox(
+			"disabled", type_name, style_box(DISABLED_BACKGROUND, BORDER)
 		)
 	workshop_theme.set_constant("separation", "VBoxContainer", 8)
 	workshop_theme.set_constant("separation", "HBoxContainer", 8)

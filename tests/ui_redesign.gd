@@ -15,6 +15,7 @@ func _run() -> void:
 	_test_binding_profiles()
 	await _test_input_prompts()
 	await _test_title_input_gate()
+	await _test_main_menu_hierarchy()
 	await _test_settings_screen()
 	await _test_pause_contract()
 	_test_reduced_motion_persistence()
@@ -107,11 +108,32 @@ func _test_title_input_gate() -> void:
 	await process_frame
 	await process_frame
 	_check(not menu._title_screen.visible and not started[0] and not menu._track_selector.visible, "Confirm opens only the main menu and cannot leak into Play.")
+	_check(
+		menu._landing != null
+		and menu._landing.play_button.kind == ActionButton.Kind.PRIMARY
+		and menu._landing._context_title.text != "",
+		"Main landing gives Play the primary focus and exposes current race context."
+	)
 	menu._router.navigate(MenuRoute.Id.GARAGE)
 	_check(menu._router.current_route == MenuRoute.Id.GARAGE and menu._garage_panel.visible, "Garage is a real routed screen.")
 	menu._router.navigate(MenuRoute.Id.SETTINGS)
 	menu._router.navigate(MenuRoute.Id.CONTROLS)
 	_check(menu._controls_panel.visible and menu._router.back() and menu._settings_panel.visible, "Settings and controls share router history.")
+	menu.queue_free()
+	await process_frame
+
+
+func _test_main_menu_hierarchy() -> void:
+	var menu := MainMenu.new()
+	menu.has_active_cup = true
+	root.add_child(menu)
+	await process_frame
+	_check(
+		menu._landing.continue_button != null
+		and menu._landing.continue_button.kind == ActionButton.Kind.PRIMARY
+		and menu._landing.play_button.kind == ActionButton.Kind.SECONDARY,
+		"An active cup promotes Continue and demotes the fresh Play action."
+	)
 	menu.queue_free()
 	await process_frame
 

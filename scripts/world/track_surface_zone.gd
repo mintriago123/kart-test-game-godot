@@ -12,6 +12,19 @@ enum PathKind { MAIN, SHORTCUT }
 @export_range(0.0, 1.0, 0.001) var end_progress := 0.1
 @export var lateral_offset := 0.0
 @export_range(0.25, 20.0, 0.25) var width := 3.0
+## Priority used when two surface zones overlap. Kept separate from the
+## Area3D priority property so physics and surface selection cannot drift.
+@export_range(0, 100, 1) var surface_priority := 0
+
+
+func migrate_legacy_surface_priority() -> bool:
+	# Older scenes stored this editor value in Area3D.priority. Only migrate a
+	# non-zero legacy value when the new field still has its default.
+	if surface_priority != 0 or is_zero_approx(priority):
+		return false
+	surface_priority = clampi(roundi(priority), 0, 100)
+	priority = 0.0
+	return true
 
 func _ready() -> void:
 	collision_layer = 0
@@ -19,6 +32,7 @@ func _ready() -> void:
 	body_entered.connect(_body_entered)
 	body_exited.connect(_body_exited)
 	if not Engine.is_editor_hint():
+		migrate_legacy_surface_priority()
 		_build_volume.call_deferred()
 
 func _build_volume() -> void:
@@ -67,13 +81,33 @@ func _body_exited(body: Node3D) -> void:
 		body.exit_surface_zone(self)
 
 func is_better_than(other: TrackSurfaceZone) -> bool:
-	return other == null or priority > other.priority or (priority == other.priority and String(id) < String(other.id))
+	return other == null or surface_priority > other.surface_priority or (
+		surface_priority == other.surface_priority and String(id) < String(other.id)
+	)
 
 func validate(road_width: float) -> PackedStringArray:
 	var errors := PackedStringArray()
 	if id.is_empty(): errors.append("La zona necesita un ID.")
 	if surface == null: errors.append("La zona necesita una superficie.")
-	if is_equal_approx(start_progress, end_progress): errors.append("La zona necesita longitud.")
+	if (
+		not is_finite(start_progress)
+		or not is_finite(end_progress)
+		or not is_finite(lateral_offset)
+		or not is_finite(width)
+	):
+		errors.append("La zona contiene valores numéricos inválidos.")
+	if (
+		start_progress < 0.0
+		or start_progress > 1.0
+		or end_progress < 0.0
+		or end_progress > 1.0
+	):
+		errors.append("El progreso de la zona debe estar entre 0 y 1.")
+	if end_progress <= start_progress:
+		errors.append("La zona necesita un orden de progreso válido.")
+	if width < 0.5: errors.append("La zona necesita al menos 0.5 m de ancho.")
+	if surface_priority < 0 or surface_priority > 100:
+		errors.append("La prioridad de la zona debe estar entre 0 y 100.")
 	if absf(lateral_offset) + width * 0.5 > road_width * 0.5:
 		errors.append("La zona excede el ancho transitable.")
 	if path_kind == PathKind.SHORTCUT and shortcut_id < 0:

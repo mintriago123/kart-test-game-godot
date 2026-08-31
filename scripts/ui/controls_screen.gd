@@ -71,6 +71,14 @@ func restore_all_defaults() -> void:
 func can_leave() -> bool:
 	return profile.is_valid()
 
+
+func focus_first_control() -> void:
+	for action in ACTIONS:
+		var button := _binding_buttons.get(action) as Control
+		if button != null and button.is_visible_in_tree() and button.focus_mode != Control.FOCUS_NONE:
+			button.grab_focus()
+			return
+
 func get_profile_path(guid: String, family: StringName) -> String:
 	var safe_guid := guid.validate_filename()
 	return "user://input_profiles/%s.tres" % (safe_guid if not safe_guid.is_empty() else str(family))

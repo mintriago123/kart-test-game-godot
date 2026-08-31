@@ -53,6 +53,7 @@ func setup(value: RaceSessionConfig) -> void:
 
 var _track: CoastalTrack
 var _hud: RaceHud
+var _pause_owner_hud: RaceHud
 var _sound: SoundManager
 var _follow_camera: FollowCamera
 var _intro_camera: RaceIntroCamera
@@ -74,6 +75,7 @@ var _split_viewports: Array[SubViewport] = []
 var _hud_by_kart: Dictionary = {}
 var _camera_by_kart: Dictionary = {}
 var _lan_synchronizer: LanRaceSynchronizer
+var _pause_submenu_layer: CanvasLayer
 
 
 func _ready() -> void:
@@ -120,8 +122,11 @@ func _build_environment() -> void:
 	)
 	environment.ambient_light_energy = 0.72
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	environment.glow_enabled = int(quality.glow) > 0
-	environment.glow_intensity = [0.0, 0.55, 0.85, 1.15][clampi(int(quality.glow), 0, 3)]
+	# Do not bloom the world environment: additive driving particles can bleed
+	# into the sky as a full-screen white flash on medium+ profiles. The quality
+	# budget still controls particle count and the screen-space speed feedback.
+	environment.glow_enabled = false
+	environment.glow_intensity = 0.0
 	world_environment.environment = environment
 	add_child(world_environment)
 
@@ -235,6 +240,22 @@ func _build_race() -> void:
 			effective_stats.grip *= kart.visual_variant.handling
 			effective_stats.weight = kart.visual_variant.weight
 			effective_stats.mini_turbo_duration_multiplier = kart.visual_variant.mini_turbo_duration_multiplier
+		if not kart.is_player and session != null and session.difficulty != null:
+			var stat_multiplier := session.difficulty.kart_stat_multiplier
+			if stat_multiplier > 1.0:
+				effective_stats.max_speed *= stat_multiplier
+				effective_stats.acceleration *= stat_multiplier
+				effective_stats.braking *= stat_multiplier
+			var handling_multiplier := session.difficulty.kart_handling_multiplier
+			if handling_multiplier > 1.0:
+				effective_stats.steering_speed *= handling_multiplier
+				effective_stats.grip *= handling_multiplier
+				effective_stats.boost_power *= handling_multiplier
+				effective_stats.mini_turbo_duration_multiplier *= handling_multiplier
+			effective_stats.overdrive_multiplier = maxf(
+				effective_stats.overdrive_multiplier,
+				session.difficulty.top_speed_bias
+			)
 		kart.configure_for_race(effective_stats, race_class, session.driving_tuning)
 		kart.item_catalog = item_catalog if _items_enabled() else null
 		kart.item_rng = _item_rng
@@ -279,7 +300,12 @@ func _build_race() -> void:
 			launch_rng.seed = ("%d|%s|launch" % [race_seed, racer.id]).hash()
 			var precision := racer.ai_profile.precision
 			var reaction := racer.ai_profile.reaction_time
-			var launch_time := -0.32 - reaction * 0.35 + launch_rng.randf_range(-0.28, 0.22) * (1.15 - precision * 0.55)
+			var launch_time := (
+				-0.32
+				- reaction * 0.35
+				+ launch_rng.randf_range(-0.28, 0.22) * (1.15 - precision * 0.55)
+				+ racer.ai_profile.buff.launch_aggression_bias
+			)
 			kart.register_launch_crossing(launch_time)
 			ai.set_physics_process(false)
 			_ai_drivers.append(ai)
@@ -302,10 +328,10 @@ func _build_race() -> void:
 
 	_build_local_huds(kart_count)
 	_hud = local_huds.front() if not local_huds.is_empty() else null
+	_pause_owner_hud = _hud
 	race_manager.countdown_changed.connect(_sound.play_countdown)
 	race_manager.lap_completed.connect(_handle_lap_completed)
 	race_manager.race_completed.connect(_handle_race_completed)
-	race_manager.player_finished.connect(_handle_player_finished)
 	race_manager.human_finished.connect(_handle_human_finished)
 	race_manager.racer_finished.connect(_handle_racer_finished)
 	race_manager.race_started.connect(_handle_race_started)
@@ -333,6 +359,17 @@ func _prepare_split_screen(player_count: int) -> void:
 	rows.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	rows.add_theme_constant_override("separation", 2)
 	_split_screen_layer.add_child(rows)
+	var divider := ColorRect.new()
+	divider.name = "SplitDivider"
+	divider.color = Color(0.96, 0.94, 0.88, 0.28)
+	divider.anchor_left = 0.0
+	divider.anchor_right = 1.0
+	divider.anchor_top = 0.5
+	divider.anchor_bottom = 0.5
+	divider.offset_top = -1.0
+	divider.offset_bottom = 1.0
+	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_split_screen_layer.add_child(divider)
 	for index in player_count:
 		var container := SubViewportContainer.new()
 		container.name = "Player%dView" % (index + 1)
@@ -344,7 +381,10 @@ func _prepare_split_screen(player_count: int) -> void:
 		viewport.name = "Viewport"
 		viewport.world_3d = get_viewport().world_3d
 		viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		viewport.handle_input_locally = false
+		# HUD controls live inside each split-screen viewport. Let each viewport
+		# receive keyboard/gamepad navigation so the focused player's pause menu
+		# can be controlled without relying on mouse coordinates.
+		viewport.handle_input_locally = true
 		viewport.msaa_3d = Viewport.MSAA_DISABLED
 		container.add_child(viewport)
 		_split_viewports.append(viewport)
@@ -387,6 +427,8 @@ func _build_local_huds(kart_count: int) -> void:
 		hud.configure_minimap(_track, race_manager.racers)
 		hud.set_game_mode(game_mode)
 		hud.set_compact_mode(local_player_karts.size() > 1, local_index == 0)
+		if local_player_karts.size() > 1:
+			hud.set_player_label(local_index + 1)
 		hud.update_race_info(1, race_manager.total_laps, race_manager.get_race_position(kart), kart_count, 0.0)
 		_bind_hud_actions(hud)
 		local_huds.append(hud)
@@ -413,6 +455,64 @@ func _bind_hud_actions(hud: RaceHud) -> void:
 	hud.settings_requested.connect(func() -> void: settings_requested.emit())
 	hud.controls_requested.connect(func() -> void: controls_requested.emit())
 	hud.intro_skip_requested.connect(_handle_intro_skip_requested)
+
+
+func request_pause(event: InputEvent) -> void:
+	if race_manager == null or race_manager.state == RaceManager.RaceState.FINISHED:
+		return
+	if get_tree().paused:
+		if _pause_owner_hud != null:
+			_pause_owner_hud.request_resume()
+		return
+	var owner_hud := _find_pause_hud(event)
+	if owner_hud == null:
+		owner_hud = _hud
+	if owner_hud == null:
+		return
+	for hud in local_huds:
+		hud.set_pause_menu_owner(hud == owner_hud)
+	_pause_owner_hud = owner_hud
+	owner_hud.request_pause()
+
+
+func handle_pause_input(event: InputEvent) -> bool:
+	if _pause_submenu_layer != null:
+		if event.is_action_pressed(&"ui_cancel"):
+			close_pause_subscreen()
+		return true
+	return get_tree().paused and _pause_owner_hud != null and _pause_owner_hud.handle_pause_input(event)
+
+
+func open_pause_subscreen(screen: Control) -> void:
+	if screen == null:
+		return
+	close_pause_subscreen()
+	_pause_submenu_layer = CanvasLayer.new()
+	_pause_submenu_layer.name = "PauseSubscreenLayer"
+	_pause_submenu_layer.layer = 30
+	_pause_submenu_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_pause_submenu_layer)
+	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	screen.process_mode = Node.PROCESS_MODE_ALWAYS
+	_pause_submenu_layer.add_child(screen)
+	if _pause_owner_hud != null:
+		_pause_owner_hud.set_pause_overlay_visible(false)
+
+
+func close_pause_subscreen() -> void:
+	if _pause_submenu_layer == null:
+		return
+	_pause_submenu_layer.queue_free()
+	_pause_submenu_layer = null
+	if _pause_owner_hud != null and get_tree().paused:
+		_pause_owner_hud.set_pause_overlay_visible(true)
+
+
+func _find_pause_hud(event: InputEvent) -> RaceHud:
+	for kart in local_player_karts:
+		if kart.input_source != null and kart.input_source.accepts_event(event):
+			return _hud_by_kart.get(kart) as RaceHud
+	return null
 
 
 func _start_pre_race() -> void:
@@ -499,10 +599,6 @@ func _handle_item_collected(kart: Node) -> void:
 	_sound.play_pickup()
 	if kart in local_player_karts and vibration_enabled:
 		_vibrate_local_kart(kart as Kart, 35, 0.35)
-
-
-func _handle_player_hit() -> void:
-	_handle_local_player_hit(player_kart)
 
 
 func _handle_local_player_hit(kart: Kart) -> void:
@@ -635,6 +731,7 @@ func _handle_retry_requested() -> void:
 
 
 func _handle_menu_requested() -> void:
+	get_tree().paused = false
 	shutdown()
 	menu_requested.emit()
 
@@ -675,11 +772,11 @@ func _handle_lap_completed(racer: Node, lap_number: int, lap_time: float) -> voi
 		hud.show_lap_split(lap_number, lap_time, previous_best_lap_time)
 
 
-func _handle_player_finished(_position: int, _time: float) -> void:
-	pass # Compatibility signal; per-human handling lives in _handle_human_finished.
-
-
 func _handle_human_finished(racer: Node, _position: int, _time: float) -> void:
+	call_deferred("_handle_human_finished_deferred", racer)
+
+
+func _handle_human_finished_deferred(_racer: Node) -> void:
 	if race_manager.state != RaceManager.RaceState.WAITING_FOR_RIVALS:
 		return
 	for hud in local_huds:
@@ -687,10 +784,7 @@ func _handle_human_finished(racer: Node, _position: int, _time: float) -> void:
 			race_manager.get_provisional_standings(),
 			race_manager.get_results_wait_remaining()
 		)
-	var camera := _camera_by_kart.get(racer) as FollowCamera
-	var active_racer := race_manager.get_best_active_racer() as Kart
-	if camera != null and active_racer != null:
-		camera.set_target(active_racer)
+	_follow_best_active_racer()
 
 
 func _handle_racer_finished(_racer: Node, _position: int, _time: float) -> void:
@@ -699,9 +793,14 @@ func _handle_racer_finished(_racer: Node, _position: int, _time: float) -> void:
 
 
 func _follow_best_active_racer() -> void:
+	if race_manager.state != RaceManager.RaceState.WAITING_FOR_RIVALS:
+		return
 	var racer := race_manager.get_best_active_racer() as Kart
-	if racer != null and _follow_camera != null:
-		_follow_camera.set_target(racer)
+	if racer == null:
+		return
+	for camera in local_cameras:
+		if camera != null and is_instance_valid(camera):
+			camera.set_target(racer, true)
 
 
 func _handle_race_completed(result: RaceResult) -> void:

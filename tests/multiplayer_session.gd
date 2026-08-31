@@ -16,6 +16,7 @@ func _run() -> void:
 			InputMap.add_action(action)
 	_test_catalog_and_modes()
 	_test_session_validation()
+	_test_lan_bot_policy()
 	_test_input_isolation()
 	_test_protocol_and_snapshots()
 	_test_multiplayer_telemetry()
@@ -33,7 +34,15 @@ func _test_catalog_and_modes() -> void:
 	_expect(GameModeDefinition.LAN_MULTIPLAYER in desktop_modes and GameModeDefinition.LOCAL_MULTIPLAYER in desktop_modes, "Desktop exposes both multiplayer modes.")
 	var export_config := ConfigFile.new()
 	var export_loaded := export_config.load("res://export_presets.cfg") == OK
-	_expect(export_loaded and bool(export_config.get_value("preset.0.options", "permissions/internet", false)), "The Android export enables network sockets for ENet and UDP discovery.")
+	var android_network_enabled := false
+	if export_loaded:
+		for section in export_config.get_sections():
+			if not section.begins_with("preset.") or not section.ends_with(".options"):
+				continue
+			var preset_section := section.trim_suffix(".options")
+			if str(export_config.get_value(preset_section, "platform", "")) == "Android":
+				android_network_enabled = bool(export_config.get_value(section, "permissions/internet", false))
+		_expect(export_loaded and android_network_enabled, "The Android export enables network sockets for ENet and UDP discovery.")
 	_expect(PROGRESSION.racers.racers.size() == 8, "The shared catalog contains eight racers.")
 	var expected := {
 		&"sol": ["f6c945", &"hatchback_sports"],
@@ -69,6 +78,35 @@ func _test_session_validation() -> void:
 	DirAccess.remove_absolute(progress.save_path)
 
 
+func _test_lan_bot_policy() -> void:
+	var lan := LanSession.new()
+	root.add_child(lan)
+	lan.configure(PROGRESSION, TRACKS)
+	lan.is_host = true
+	lan.room_settings = {"bots_enabled": true}
+	lan.slots[0] = _test_lan_slot(0, 1, &"marea", true, true)
+	_expect(lan.build_participants().size() == LanProtocol.GRID_SIZE, "LAN rooms keep an eight-racer grid with bots enabled.")
+	lan.room_settings = {"bots_enabled": false}
+	_expect(lan.build_participants().size() == 1 and not lan.can_host_start(), "LAN rooms without bots require a second human before starting.")
+	lan.slots[1] = _test_lan_slot(1, 2, &"lima", true, true)
+	_expect(lan.build_participants().size() == 2 and lan.can_host_start(), "LAN rooms without bots build only connected humans and start with two ready players.")
+	lan.free()
+
+
+func _test_lan_slot(slot_id: int, peer_id: int, racer_id: StringName, connected: bool, ready: bool) -> Dictionary:
+	return {
+		"slot_id": slot_id,
+		"peer_id": peer_id,
+		"token": "test-token-%d" % slot_id,
+		"name": "Test %d" % slot_id,
+		"racer_id": racer_id,
+		"vehicle_id": &"sedan",
+		"ready": ready,
+		"connected": connected,
+		"last_input_sequence": -1,
+	}
+
+
 func _test_input_isolation() -> void:
 	var keyboard := RacerInputSource.new()
 	keyboard.device_type = RaceParticipantConfig.DEVICE_KEYBOARD
@@ -96,6 +134,9 @@ func _test_protocol_and_snapshots() -> void:
 	var fingerprint := LanProtocol.calculate_catalog_fingerprint(PROGRESSION, TRACKS)
 	var valid := {"protocol": 1, "catalog_fingerprint": fingerprint, "racer_id": &"marea", "vehicle_id": &"sedan", "track_id": &"coastal"}
 	_expect(LanProtocol.validate_handshake(valid, fingerprint, PROGRESSION, TRACKS).is_empty(), "Compatible LAN handshakes pass before room entry.")
+	var incompatible := valid.duplicate(true)
+	incompatible.catalog_fingerprint = LanProtocol.calculate_catalog_fingerprint(PROGRESSION, TRACKS, "different-build")
+	_expect("build o catálogo incompatible" in LanProtocol.validate_handshake(incompatible, fingerprint, PROGRESSION, TRACKS), "Build changes reject LAN handshakes with a clear compatibility message.")
 	valid.protocol = 99
 	_expect("Versión LAN incompatible" in LanProtocol.validate_handshake(valid, fingerprint, PROGRESSION, TRACKS), "Protocol mismatches return an explicit message.")
 	var discovery := LanDiscoveryService.new()

@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="AiTuning" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ai_tuning.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+enable_telemetry_recording = true
+telemetry_flush_interval = 30
+throttle_deadband = 0.4
+brake_deadband = 0.4
+steering_target_response_hz = 8.0
+steering_straight_curvature_max = 0.015
+steering_straight_sensor_min = 0.38
+steering_straight_sign_deadband = 0.05
+steering_lateral_recovery_start_ratio = 0.58
+steering_lateral_recovery_end_ratio = 0.9
+steering_lateral_recovery_gain = 0.65
+target_speed_deceleration_rate = 60.0
+target_speed_acceleration_rate = 12.0
+sensor_front_transition_start = 0.22
+sensor_front_transition_end = 0.38
+barrier_threat_front_start = 0.30
+drift_curvature_commit = 0.025
+drift_curvature_cancel = 0.005
+drift_steer_commit = 0.40
+drift_steer_cancel = 0.08
+drift_lock_frames = 12
+drift_min_hold_frames = 6
+drift_extreme_front_min = 0.08
+drift_extreme_side_min = 0.05
+drift_extreme_lateral_error_ratio = 0.95

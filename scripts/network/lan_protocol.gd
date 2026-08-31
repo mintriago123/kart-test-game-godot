@@ -1,6 +1,8 @@
 class_name LanProtocol
 extends RefCounted
 
+const LanBuildIdentityScript = preload("res://scripts/network/lan_build_identity.gd")
+
 const LAN_PROTOCOL_VERSION := 1
 const RACE_PORT := 7777
 const DISCOVERY_PORT := 7778
@@ -19,9 +21,16 @@ const CHANNEL_SNAPSHOT := 2
 
 static func calculate_catalog_fingerprint(
 	progression: ProgressionCatalog,
-	tracks: TrackCatalog
+	tracks: TrackCatalog,
+	build_id := ""
 ) -> String:
-	var rows := PackedStringArray(["lan-protocol:%d" % LAN_PROTOCOL_VERSION])
+	var identity := str(build_id)
+	if identity.is_empty():
+		identity = LanBuildIdentityScript.current_id()
+	var rows := PackedStringArray([
+		"lan-protocol:%d" % LAN_PROTOCOL_VERSION,
+		"lan-build:%s" % identity,
+	])
 	if progression != null and progression.racers != null:
 		var racer_rows := PackedStringArray()
 		for racer in progression.racers.racers:
@@ -58,7 +67,7 @@ static func validate_handshake(
 	if int(payload.get("protocol", -1)) != LAN_PROTOCOL_VERSION:
 		return "Versión LAN incompatible (se requiere protocolo %d)." % LAN_PROTOCOL_VERSION
 	if str(payload.get("catalog_fingerprint", "")) != expected_fingerprint:
-		return "Catálogo incompatible: ambos equipos deben usar la misma versión del juego."
+		return "Rechazado: build o catálogo incompatible; ambos equipos deben usar la misma build y catálogo del juego."
 	var racer_id := StringName(payload.get("racer_id", &""))
 	if progression == null or progression.racers == null or progression.racers.get_racer(racer_id) == null:
 		return "Piloto incompatible o inexistente: %s." % racer_id

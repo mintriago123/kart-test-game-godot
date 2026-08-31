@@ -11,11 +11,18 @@ var _vehicle_options: Array[OptionButton] = []
 var _device_options: Array[OptionButton] = []
 var _ready_toggles: Array[CheckButton] = []
 var _portraits: Array[RacerPortrait] = []
+var _pilot_names: Array[Label] = []
+var _player_summaries: Array[Label] = []
+var _ready_badges: Array[Label] = []
 var _status: Label
 var _start: ActionButton
 var _gamepad_ids: Array[int] = []
 var _mock_gamepads := false
 var _page: Control
+var _actions: HBoxContainer
+var _cards: GridContainer
+var _card_scroll: ScrollContainer
+var _title: Label
 
 
 func _ready() -> void:
@@ -26,10 +33,11 @@ func _ready() -> void:
 	add_child(background)
 	var page := VBoxContainer.new()
 	_page = page
-	page.set_anchors_preset(Control.PRESET_CENTER)
-	page.position = Vector2(-520, -300)
-	page.size = Vector2(1040, 600)
-	page.pivot_offset = page.size * 0.5
+	page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	page.offset_left = 24.0
+	page.offset_top = 18.0
+	page.offset_right = -24.0
+	page.offset_bottom = -104.0
 	page.add_theme_constant_override("separation", UiTokens.SPACE_4)
 	add_child(page)
 	var eyebrow := Label.new()
@@ -38,15 +46,25 @@ func _ready() -> void:
 	eyebrow.add_theme_color_override("font_color", UiTokens.CYAN)
 	page.add_child(eyebrow)
 	var title := Label.new()
+	_title = title
 	title.text = "DOS JUGADORES, UNA PANTALLA"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 42)
 	page.add_child(title)
-	var cards := HBoxContainer.new()
-	cards.alignment = BoxContainer.ALIGNMENT_CENTER
-	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cards.add_theme_constant_override("separation", UiTokens.SPACE_6)
-	page.add_child(cards)
+	_card_scroll = ScrollContainer.new()
+	_card_scroll.name = "PlayersScroll"
+	_card_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_card_scroll.follow_focus = true
+	_card_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.add_child(_card_scroll)
+	var cards := GridContainer.new()
+	_cards = cards
+	cards.columns = 2
+	cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cards.add_theme_constant_override("h_separation", UiTokens.SPACE_6)
+	cards.add_theme_constant_override("v_separation", UiTokens.SPACE_4)
+	_card_scroll.add_child(cards)
 	for index in 2:
 		cards.add_child(_build_player_card(index))
 	_status = Label.new()
@@ -54,8 +72,10 @@ func _ready() -> void:
 	_status.add_theme_color_override("font_color", UiTokens.MUTED)
 	page.add_child(_status)
 	var actions := HBoxContainer.new()
+	_actions = actions
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
-	page.add_child(actions)
+	_set_action_bar(actions)
+	add_child(actions)
 	var back := ActionButton.new()
 	back.text = "VOLVER"
 	back.pressed.connect(func() -> void: back_requested.emit())
@@ -65,6 +85,8 @@ func _ready() -> void:
 	_start.text = "ELEGIR CIRCUITO"
 	_start.pressed.connect(_confirm)
 	actions.add_child(_start)
+	# The first player selector is the useful entry point for both keyboard and pad.
+	_device_options[0].grab_focus.call_deferred()
 	if not Input.joy_connection_changed.is_connected(_on_joy_connection_changed):
 		Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	_refresh_gamepads()
@@ -122,11 +144,33 @@ func _build_player_card(index: int) -> PanelContainer:
 	heading.add_theme_font_size_override("font_size", 28)
 	heading.add_theme_color_override("font_color", UiTokens.CYAN if index == 0 else UiTokens.CORAL)
 	column.add_child(heading)
+	var hero := HBoxContainer.new()
+	hero.add_theme_constant_override("separation", UiTokens.SPACE_4)
+	column.add_child(hero)
 	var portrait := RacerPortrait.new()
 	portrait.name = "Portrait"
-	portrait.custom_minimum_size = Vector2(72, 72)
-	column.add_child(portrait)
+	portrait.custom_minimum_size = Vector2(88, 88)
+	hero.add_child(portrait)
 	_portraits.append(portrait)
+	var identity := VBoxContainer.new()
+	identity.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	identity.alignment = BoxContainer.ALIGNMENT_CENTER
+	hero.add_child(identity)
+	var pilot_name := Label.new()
+	pilot_name.name = "PilotName"
+	pilot_name.text = "PILOTO SIN ELEGIR"
+	pilot_name.add_theme_font_size_override("font_size", 22)
+	pilot_name.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY)
+	pilot_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	identity.add_child(pilot_name)
+	_pilot_names.append(pilot_name)
+	var summary := Label.new()
+	summary.name = "SelectionSummary"
+	summary.add_theme_font_size_override("font_size", UiTokens.FONT_BODY)
+	summary.add_theme_color_override("font_color", UiTokens.MUTED)
+	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	identity.add_child(summary)
+	_player_summaries.append(summary)
 	_add_field_label(column, "DISPOSITIVO")
 	var device := OptionButton.new()
 	device.custom_minimum_size.y = UiTokens.TOUCH_TARGET
@@ -149,8 +193,15 @@ func _build_player_card(index: int) -> PanelContainer:
 	ready.text = "LISTO PARA CORRER"
 	ready.custom_minimum_size.y = UiTokens.TOUCH_TARGET
 	ready.toggled.connect(func(_value: bool) -> void: _refresh_state())
-	column.add_child(ready)
+	var ready_row := HBoxContainer.new()
+	ready_row.add_theme_constant_override("separation", UiTokens.SPACE_3)
+	ready_row.add_child(ready)
+	var ready_badge := _status_badge("FALTA", UiTokens.CORAL)
+	ready_badge.size_flags_horizontal = Control.SIZE_SHRINK_END
+	ready_row.add_child(ready_badge)
+	column.add_child(ready_row)
 	_ready_toggles.append(ready)
+	_ready_badges.append(ready_badge)
 	return card
 
 
@@ -234,9 +285,17 @@ func _refresh_state() -> void:
 		return
 	var errors := _get_errors()
 	_refresh_portraits()
+	for index in 2:
+		var racer_text := _option_text(_racer_options[index], "PILOTO SIN ELEGIR")
+		var vehicle_text := _option_text(_vehicle_options[index], "VEHÍCULO SIN ELEGIR")
+		var device_text := _option_text(_device_options[index], "DISPOSITIVO SIN ELEGIR")
+		_pilot_names[index].text = racer_text
+		_player_summaries[index].text = "%s\n%s · %s" % [racer_text, device_text, vehicle_text]
+		_style_status_badge(_ready_badges[index], "LISTO" if _ready_toggles[index].button_pressed else "FALTA", UiTokens.SUCCESS if _ready_toggles[index].button_pressed else UiTokens.CORAL)
 	_start.disabled = not errors.is_empty()
 	_status.text = "PARRILLA LISTA · 2 HUMANOS + 6 IA" if errors.is_empty() else errors[0]
 	_status.add_theme_color_override("font_color", UiTokens.SUCCESS if errors.is_empty() else UiTokens.CORAL)
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 func _refresh_portraits() -> void:
 	if catalog == null or _portraits.size() < 2: return
@@ -281,8 +340,44 @@ func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
 func _update_layout() -> void:
 	if _page == null:
 		return
-	var factor := minf(1.0, minf(
-		(size.x - 32.0) / 1040.0,
-		(size.y - 32.0) / 600.0
-	))
-	_page.scale = Vector2.ONE * maxf(factor, 0.5)
+	var compact := size.x < 980.0 or size.y < 620.0
+	_cards.columns = 1 if compact else 2
+	var available_width := maxf(280.0, size.x - 48.0)
+	var content_width := minf(1160.0, available_width)
+	_cards.custom_minimum_size.x = content_width
+	_cards.size.x = content_width
+	var width := content_width if compact else (content_width - UiTokens.SPACE_6) / 2.0
+	_title.add_theme_font_size_override("font_size", 32 if compact else 42)
+	for child in _cards.get_children():
+		(child as Control).custom_minimum_size = Vector2(width, 350.0 if compact else 370.0)
+		(child as Control).size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_set_action_bar(_actions)
+
+
+func _option_text(option: OptionButton, fallback: String) -> String:
+	return option.get_item_text(option.selected) if option.item_count > 0 and option.selected >= 0 else fallback
+
+
+func _status_badge(text: String, color: Color) -> Label:
+	var badge := Label.new()
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	badge.custom_minimum_size = Vector2(72, UiTokens.TOUCH_TARGET)
+	_style_status_badge(badge, text, color)
+	return badge
+
+
+func _style_status_badge(badge: Label, text: String, color: Color) -> void:
+	badge.text = text
+	badge.add_theme_font_size_override("font_size", UiTokens.FONT_CAPTION)
+	badge.add_theme_color_override("font_color", color)
+	badge.add_theme_stylebox_override("normal", UiTokens.panel(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL, color))
+
+
+func _set_action_bar(actions: Control) -> void:
+	actions.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	actions.offset_left = UiTokens.SPACE_4
+	actions.offset_right = -UiTokens.SPACE_4
+	actions.offset_top = -UiTokens.BUTTON_HEIGHT_LARGE - UiTokens.SPACE_3
+	actions.offset_bottom = -UiTokens.SPACE_3

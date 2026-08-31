@@ -109,7 +109,7 @@ func apply_air_drive(delta: float, steer: float, hop_started: bool) -> void:
 
 
 func apply_soft_speed_limit(horizontal_velocity: Vector3, delta: float) -> Vector3:
-	var speed_limit := kart.stats.max_speed
+	var speed_limit := kart.stats.max_speed * (1.0 + kart.stats.overdrive_multiplier)
 	if kart._boost_controller.is_active():
 		speed_limit += kart._boost_controller.get_power()
 	var forward := -kart.global_transform.basis.z.normalized()

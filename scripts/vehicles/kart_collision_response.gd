@@ -22,6 +22,8 @@ func reset() -> void:
 func process(incoming_velocity: Vector3) -> void:
 	var strongest_incident_ratio := -1.0
 	var strongest_normal := Vector3.ZERO
+	var drivable_edge_contact := false
+	var drivable_edge_normal := Vector3.ZERO
 	var horizontal_incoming := Vector3(incoming_velocity.x, 0.0, incoming_velocity.z)
 	if horizontal_incoming.is_zero_approx():
 		return
@@ -29,9 +31,32 @@ func process(incoming_velocity: Vector3) -> void:
 	for collision_index in kart.get_slide_collision_count():
 		var collision := kart.get_slide_collision(collision_index)
 		var collider := collision.get_collider() as CollisionObject3D
-		if collider == null or (collider.collision_layer & PhysicsLayers.BARRIERS) == 0:
+		if collider == null:
 			continue
 		var collision_normal := collision.get_normal()
+		var surface_horizontal_normal := Vector2(
+			collision_normal.x,
+			collision_normal.z
+		).length()
+		if (
+			(collider.collision_layer & PhysicsLayers.BARRIERS) == 0
+			and surface_horizontal_normal > 0.25
+			and _is_drivable_surface(collider)
+		):
+			# The road is a triangulated surface, so a CharacterBody can briefly
+			# touch a triangle boundary with a wall-like normal. It is not a track
+			# barrier; preserving the incoming drive vector lets the body cross the
+			# seam instead of turning that contact into a visible hop or full stop.
+			drivable_edge_contact = true
+			if surface_horizontal_normal > drivable_edge_normal.length():
+				drivable_edge_normal = Vector3(
+					collision_normal.x,
+					0.0,
+					collision_normal.z
+				).normalized()
+			continue
+		if (collider.collision_layer & PhysicsLayers.BARRIERS) == 0:
+			continue
 		if absf(collision_normal.y) > 0.45:
 			continue
 		var wall_normal := Vector3(collision_normal.x, 0.0, collision_normal.z).normalized()
@@ -40,6 +65,18 @@ func process(incoming_velocity: Vector3) -> void:
 			strongest_incident_ratio = incident_ratio
 			strongest_normal = collision_normal
 	if strongest_incident_ratio < 0.0:
+		if drivable_edge_contact:
+			kart.velocity.x = horizontal_incoming.x
+			kart.velocity.z = horizontal_incoming.z
+			# A zero-thickness triangle seam can leave the body resting exactly on
+			# the same edge on the next physics tick. Nudge away from the wall-like
+			# normal, with a little forward bias, so it crosses the seam instead of
+			# repeating the contact.
+			var escape_direction := (
+				drivable_edge_normal * 0.7
+				+ horizontal_incoming.normalized() * 0.3
+			).normalized()
+			kart.global_position += escape_direction * 0.18
 		return
 	var normalized_wall := Vector3(strongest_normal.x, 0.0, strongest_normal.z).normalized()
 	var continuing := _contact_remaining > 0.0 and normalized_wall.dot(_last_normal) > 0.82
@@ -69,6 +106,15 @@ func process(incoming_velocity: Vector3) -> void:
 	_last_normal = normalized_wall
 	_contact_remaining = Kart.BARRIER_CONTACT_MEMORY
 	kart.barrier_contact.emit(normalized_wall, strongest_incident_ratio, continuing)
+
+
+func _is_drivable_surface(collider: CollisionObject3D) -> bool:
+	var collider_name := String(collider.name)
+	return (
+		collider_name == "MainRoadCollision"
+		or collider_name.begins_with("Shortcut")
+		or collider_name.contains("Junction")
+	)
 
 
 func _align_with_tangent(weight: float) -> void:

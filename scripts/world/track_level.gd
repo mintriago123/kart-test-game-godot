@@ -5,6 +5,7 @@ extends CoastalTrack
 const GENERATED_GROUP := &"track_editor_generated"
 const DEFAULT_ROUTE_SUBDIVISIONS := 8
 const DEFAULT_SHORTCUT_SUBDIVISIONS := 12
+const RUINAS_DRIVABLE_COLLISION_WIDTH := 14.0
 # Authored paths may use negative elevation while shaping hills. The generated
 # terrain has its upper face at -0.20 m, so keep every drivable ribbon visibly
 # and physically above it. This is applied to both preview and runtime output.
@@ -16,6 +17,9 @@ const MINIMUM_DRIVABLE_HEIGHT := 0.25
 @export var track_theme: TrackTheme
 @export var track_music: AudioStream
 @export_enum("Media", "Difícil") var difficulty := "Media"
+## Editor-only catalog metadata kept with drafts. Zero laps means legacy scene.
+@export_multiline var track_editor_description := ""
+@export_range(0, 9, 1) var track_editor_laps := 0
 @export_range(4, 16, 1) var route_subdivisions := DEFAULT_ROUTE_SUBDIVISIONS
 @export_range(6, 18, 1) var shortcut_subdivisions := DEFAULT_SHORTCUT_SUBDIVISIONS
 @export_range(0.0, 4.0, 0.25) var shortcut_barrier_overlap := 0.0
@@ -115,6 +119,14 @@ func get_shortcuts() -> Array[TrackShortcut]:
 	return shortcuts
 
 
+func get_surface_zones() -> Array[TrackSurfaceZone]:
+	var zones: Array[TrackSurfaceZone] = []
+	for child in find_children("*", "TrackSurfaceZone", true, false):
+		if child is TrackSurfaceZone:
+			zones.append(child as TrackSurfaceZone)
+	return zones
+
+
 func _is_main_route_preview_usable() -> bool:
 	var main_route := get_main_route()
 	return (
@@ -159,6 +171,14 @@ func _prepare_materials() -> void:
 
 func _build_route() -> void:
 	route_points = _apply_start_offset(_sample_path(get_main_route(), true))
+
+
+func _get_drivable_collision_width(width: float) -> float:
+	return (
+		minf(width, RUINAS_DRIVABLE_COLLISION_WIDTH)
+		if track_id == &"ruinas_esmeralda"
+		else width
+	)
 
 
 func _define_shortcuts() -> void:

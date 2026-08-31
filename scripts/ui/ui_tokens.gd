@@ -16,7 +16,34 @@ const CYAN := Color("#61D8C0")
 const SUCCESS := Color("#75C995")
 const WARNING := Color("#E9A84A")
 const DANGER := CORAL
+const SPEED_NORMAL := WARM_WHITE
+const SPEED_MAX := ELECTRIC_YELLOW
+const SPEED_TURBO := CYAN
+const SPEED_HIT := CORAL
+const SPEED_DANGER := WARNING
+const HUD_GRAPHITE := Color(0.043, 0.067, 0.09, 0.94)
+const HUD_GRAPHITE_SOFT := Color(0.043, 0.067, 0.09, 0.78)
 const SCRIM := Color(0.02, 0.035, 0.05, 0.9)
+const SHIELD_SURFACE := Color(0.03, 0.16, 0.18)
+const SHIELD_FILL := Color("#77d9df")
+const SHIELD_TEXT := Color("#e9fffa")
+const SHIELD_TRACK := Color(0.01, 0.08, 0.1)
+const SPLIT_SURFACE := Color(0.02, 0.12, 0.14)
+const BUTTON_DISABLED_BG := Color(0.23, 0.28, 0.31, 0.62)
+
+const SURFACE_ALPHA_1 := 0.80
+const SURFACE_ALPHA_2 := 0.88
+const SURFACE_ALPHA_3 := 0.92
+const SURFACE_ALPHA_4 := 0.94
+
+const FONT_CAPTION := 12
+const FONT_BODY := 15
+const FONT_LABEL := 18
+const FONT_H3 := 22
+const FONT_H2 := 28
+const FONT_H1 := 36
+const FONT_DISPLAY := 48
+const FONT_HERO := 72
 
 const SPACE_1 := 4
 const SPACE_2 := 8
@@ -28,11 +55,23 @@ const RADIUS_SMALL := 8
 const RADIUS_MEDIUM := 14
 const RADIUS_LARGE := 22
 const TOUCH_TARGET := 48
+const BUTTON_HEIGHT := 56
+const BUTTON_HEIGHT_LARGE := 64
 const PRESS_DURATION := 0.12
 const ENTER_DURATION := 0.18
 const EXIT_DURATION := 0.12
 const BODY_FONT = preload("res://assets/fonts/Inter.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/BarlowCondensed-SemiBold.ttf")
+
+
+static func surface_alpha(color: Color, level: int) -> Color:
+	var alpha := SURFACE_ALPHA_2
+	match level:
+		1: alpha = SURFACE_ALPHA_1
+		2: alpha = SURFACE_ALPHA_2
+		3: alpha = SURFACE_ALPHA_3
+		4: alpha = SURFACE_ALPHA_4
+	return Color(color.r, color.g, color.b, alpha)
 
 
 static func panel(color := INK, radius := RADIUS_MEDIUM, border_color := Color.TRANSPARENT) -> StyleBoxFlat:
@@ -50,6 +89,48 @@ static func panel(color := INK, radius := RADIUS_MEDIUM, border_color := Color.T
 		box.set_border_width_all(2)
 		box.border_color = border_color
 	return box
+
+
+static func room_row() -> StyleBoxFlat:
+	return panel(INK, RADIUS_SMALL, Color(1, 1, 1, 0.07))
+
+
+static func participant_row() -> StyleBoxFlat:
+	return panel(GRAPHITE, RADIUS_SMALL, Color(1, 1, 1, 0.06))
+
+
+static func status_badge(color: Color) -> StyleBoxFlat:
+	var box := panel(color.darkened(0.58), RADIUS_SMALL)
+	box.content_margin_left = SPACE_2
+	box.content_margin_right = SPACE_2
+	box.content_margin_top = SPACE_1
+	box.content_margin_bottom = SPACE_1
+	return box
+
+
+static func kicker(color := CYAN) -> LabelSettings:
+	var settings := LabelSettings.new()
+	settings.font = DISPLAY_FONT
+	settings.font_size = FONT_CAPTION
+	settings.font_color = color
+	return settings
+
+
+static func wordmark(width: float, height: float, font_size := FONT_HERO) -> Control:
+	# Keep the title and landing mark on the same glyph-based implementation.
+	var result := HBoxContainer.new()
+	result.custom_minimum_size = Vector2(width, height)
+	result.alignment = BoxContainer.ALIGNMENT_CENTER
+	result.add_theme_constant_override("separation", 0)
+	for part in [["MICH", ELECTRIC_YELLOW], ["I", CORAL], ["KART", WARM_WHITE], [" XD", ELECTRIC_YELLOW]]:
+		var label := Label.new()
+		label.text = part[0]
+		label.add_theme_font_override("font", DISPLAY_FONT)
+		label.add_theme_font_size_override("font_size", font_size)
+		label.add_theme_color_override("font_color", part[1])
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		result.add_child(label)
+	return result
 
 
 static func create_theme() -> Theme:

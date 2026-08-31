@@ -70,18 +70,32 @@ func can_redo() -> bool:
 func _capture_track_state() -> Dictionary:
 	var state := {
 		"is_dirty": _session.is_dirty,
+		"laps": _session.laps,
+		"description": _session.description,
+		"display_name": "",
+		"start_banner_text": "",
+		"track_theme": null,
+		"track_music": null,
+		"difficulty": "Media",
 		"route_curve": null,
 		"start_point_index": 0,
 		"collections": {},
+		"surface_zones": [],
 	}
 	if _session.track == null:
 		return state
+	state.display_name = _session.track.display_name
+	state.start_banner_text = _session.track.start_banner_text
+	state.track_theme = _session.track.track_theme
+	state.track_music = _session.track.track_music
+	state.difficulty = _session.track.difficulty
 	var route: Path3D = _session.track.get_main_route()
 	if route != null and route.curve != null:
 		state.route_curve = route.curve.duplicate(true) as Curve3D
 	state.start_point_index = _session.track.start_point_index
-	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props", &"Surfaces"]:
+	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props"]:
 		state.collections[container_name] = _capture_collection(container_name)
+	state.surface_zones = _capture_surface_zones()
 	return state
 
 
@@ -95,12 +109,28 @@ func _restore_track_state(state: Dictionary) -> void:
 	_session.track.start_point_index = int(
 		state.get("start_point_index", 0)
 	)
+	_session.track.display_name = str(
+		state.get("display_name", _session.track.display_name)
+	)
+	_session.track.start_banner_text = str(
+		state.get("start_banner_text", _session.track.start_banner_text)
+	)
+	_session.track.track_theme = state.get("track_theme") as TrackTheme
+	_session.track.track_music = state.get("track_music") as AudioStream
+	_session.track.difficulty = str(
+		state.get("difficulty", _session.track.difficulty)
+	)
+	_session.set_editor_metadata(
+		int(state.get("laps", 3)),
+		str(state.get("description", ""))
+	)
 	var collections: Dictionary = state.get("collections", {})
-	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props", &"Surfaces"]:
+	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props"]:
 		_restore_collection(
 			container_name,
 			collections.get(container_name, []) as Array
 		)
+	_restore_surface_zones(state.get("surface_zones", []) as Array)
 	_session._set_dirty(bool(state.get("is_dirty", true)))
 
 
@@ -119,6 +149,56 @@ func _capture_collection(container_name: StringName) -> Array[Dictionary]:
 				"snapshot": packed,
 			})
 	return result
+
+
+func _capture_surface_zones() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if _session.track == null:
+		return result
+	for zone in _session.track.get_surface_zones():
+		var packed := PackedScene.new()
+		if packed.pack(zone) != OK:
+			continue
+		var parent: Node = zone.get_parent()
+		result.append({
+			"name": zone.name,
+			"parent_path": String(_session.track.get_path_to(parent)) if parent != _session.track else ".",
+			"snapshot": packed,
+		})
+	return result
+
+
+func _restore_surface_zones(states: Array) -> void:
+	if _session.track == null:
+		return
+	var desired: Dictionary = {}
+	for state in states:
+		desired["%s|%s" % [state.get("parent_path", "."), state.get("name", "")]] = true
+	for zone in _session.track.get_surface_zones():
+		var parent: Node = zone.get_parent()
+		var parent_path: String = "." if parent == _session.track else String(_session.track.get_path_to(parent))
+		var key := "%s|%s" % [parent_path, zone.name]
+		if not desired.has(key):
+			parent.remove_child(zone)
+			zone.free()
+	for state in states:
+		var parent_path := NodePath(str(state.get("parent_path", ".")))
+		var parent: Node = _session.track if str(parent_path) == "." else _session.track.get_node_or_null(parent_path)
+		if parent == null:
+			continue
+		var packed := state.get("snapshot") as PackedScene
+		if packed == null:
+			continue
+		var snapshot := packed.instantiate() as Node3D
+		if snapshot == null:
+			continue
+		var existing := parent.get_node_or_null(NodePath(str(state.get("name", "")))) as Node3D
+		if existing is TrackSurfaceZone and snapshot is TrackSurfaceZone:
+			_restore_node_from_snapshot(existing, snapshot)
+			snapshot.free()
+			continue
+		parent.add_child(snapshot)
+		snapshot.owner = _session.track
 
 
 func _restore_collection(
@@ -173,6 +253,19 @@ func _restore_node_from_snapshot(node: Node3D, snapshot: Node3D) -> void:
 			if saved_shortcut.curve != null
 			else null
 		)
+	if node is TrackSurfaceZone and snapshot is TrackSurfaceZone:
+		var zone := node as TrackSurfaceZone
+		var saved_zone := snapshot as TrackSurfaceZone
+		zone.id = saved_zone.id
+		zone.surface = saved_zone.surface
+		zone.path_kind = saved_zone.path_kind
+		zone.shortcut_id = saved_zone.shortcut_id
+		zone.start_progress = saved_zone.start_progress
+		zone.end_progress = saved_zone.end_progress
+		zone.lateral_offset = saved_zone.lateral_offset
+		zone.width = saved_zone.width
+		zone.surface_priority = saved_zone.surface_priority
+		zone.priority = saved_zone.priority
 	_restore_anchor_metadata(node, snapshot)
 
 

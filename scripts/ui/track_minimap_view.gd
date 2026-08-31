@@ -20,6 +20,8 @@ var minimap_data: TrackMinimapData
 var background_color := BACKGROUND_COLOR
 var grid_visible := true
 var direction_arrows_visible := true
+var navigation_hints_visible := true
+var start_marker_visible := true
 var map_padding := MAP_PADDING
 
 var _map_bounds := Rect2(
@@ -80,9 +82,10 @@ func _draw() -> void:
 			true
 		)
 
-	if direction_arrows_visible:
+	if direction_arrows_visible and navigation_hints_visible:
 		_draw_direction_arrows(route_points)
-	_draw_finish_line()
+	if start_marker_visible:
+		_draw_finish_line()
 
 
 func _draw_grid() -> void:

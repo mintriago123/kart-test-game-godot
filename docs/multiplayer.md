@@ -33,10 +33,13 @@ ordenado; el anfitrión publica snapshots a 20 Hz. Los rivales se interpolan con
 100 ms de buffer y el kart local reconcilia correcciones gradualmente. Sala,
 ready, inicio, objetos, vueltas y resultados usan entrega fiable.
 
-La entrada valida `LAN_PROTOCOL_VERSION = 1`, fingerprint de catálogo, pista,
-piloto y vehículo. Una incompatibilidad se rechaza con texto explícito. Cada
-cliente conserva un token de sesión: al desconectarse, la IA toma su kart y el
-slot queda reservado; al volver con el token recupera el control. Si cae el
+La entrada valida `LAN_PROTOCOL_VERSION = 1`, la identidad de build, fingerprint
+de catálogo, pista, piloto y vehículo. La identidad se genera automáticamente
+al exportar desde el editor o la línea de comandos y se guarda dentro del
+artefacto como `.lan_build_id`; una ejecución directa desde el editor usa
+`editor-dev`. Una incompatibilidad se rechaza con texto explícito. Cada cliente
+conserva un token de sesión: al desconectarse, la IA toma su kart y el slot
+queda reservado; al volver con el token recupera el control. Si cae el
 anfitrión, la carrera termina y no se migra el host.
 
 LAN no incluye cifrado, cuentas, chat, UPnP, matchmaking ni servicios externos.
@@ -46,11 +49,11 @@ nuevos durante una carrera ni combinaciones LAN + pantalla dividida.
 ## Pruebas
 
 `tools/run_tests.sh quick` incluye catálogo, sesiones, aislamiento de input,
-migración de progreso, un mundo local 2+6 y un loopback real con un host y tres
-clientes. Ese loopback certifica descubrimiento UDP, entrada por IP, ready,
-inicio, inputs numerados, snapshots, eventos fiables y reconexión de un slot
-reservado. Puede ejecutarse solo con `tools/run_lan_loopback.sh`; necesita
-permiso para abrir sockets UDP locales.
+migración de progreso y un mundo local 2+6. La prueba de loopback real con un
+host y tres clientes se ejecuta separadamente con `tools/run_tests.sh lan`.
+Certifica descubrimiento UDP, entrada por IP, ready, inicio, inputs numerados,
+snapshots, eventos fiables y reconexión de un slot reservado; necesita permiso
+para abrir sockets UDP locales.
 `exhaustive` añade la matriz completa de pistas/CC y carreras largas; la
 certificación previa a distribución debe incluir combinaciones de Android,
 Windows y Linux, además de hot-plug y mandos Xbox, PlayStation y genéricos.

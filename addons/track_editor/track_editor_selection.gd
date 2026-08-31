@@ -14,6 +14,7 @@ enum Kind {
 	SHORTCUT_EXIT_TANGENT,
 	SHORTCUT_MIDPOINT_IN_TANGENT,
 	SHORTCUT_MIDPOINT_OUT_TANGENT,
+	SURFACE,
 }
 
 var kind := Kind.NONE
@@ -67,6 +68,8 @@ func workflow_step() -> int:
 			return 2
 		Kind.ITEM, Kind.PROP:
 			return 3
+		Kind.SURFACE:
+			return 4
 		_:
 			return -1
 

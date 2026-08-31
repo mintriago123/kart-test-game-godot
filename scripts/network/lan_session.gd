@@ -1,6 +1,8 @@
 class_name LanSession
 extends Node
 
+const LanBuildIdentityScript = preload("res://scripts/network/lan_build_identity.gd")
+
 static var reconnect_token_cache := ""
 
 signal connection_state_changed(state: StringName, message: String)
@@ -16,6 +18,7 @@ signal host_lost(message: String)
 
 var progression: ProgressionCatalog
 var tracks: TrackCatalog
+var build_id := ""
 var catalog_fingerprint := ""
 var peer: ENetMultiplayerPeer
 var is_host := false
@@ -35,7 +38,8 @@ var _last_snapshot_ms := -1
 func configure(value_progression: ProgressionCatalog, value_tracks: TrackCatalog) -> void:
 	progression = value_progression
 	tracks = value_tracks
-	catalog_fingerprint = LanProtocol.calculate_catalog_fingerprint(progression, tracks)
+	build_id = LanBuildIdentityScript.current_id()
+	catalog_fingerprint = LanProtocol.calculate_catalog_fingerprint(progression, tracks, build_id)
 
 
 func host_room(profile: Dictionary, settings: Dictionary, port := LanProtocol.RACE_PORT) -> Error:
@@ -43,7 +47,9 @@ func host_room(profile: Dictionary, settings: Dictionary, port := LanProtocol.RA
 	if not _is_valid_local_profile(profile):
 		return ERR_INVALID_PARAMETER
 	peer = ENetMultiplayerPeer.new()
-	var error := peer.create_server(port, LanProtocol.MAX_HUMANS - 1, 3)
+	# The third server argument is bandwidth in bytes per second, not the
+	# channel count used by clients. Keep it unlimited for real LAN links.
+	var error := peer.create_server(port, LanProtocol.MAX_HUMANS - 1)
 	if error != OK:
 		peer = null
 		connection_state_changed.emit(&"error", "No se pudo crear la sala LAN: %s" % error_string(error))
@@ -114,6 +120,8 @@ func host_update_room_settings(settings: Dictionary) -> bool:
 func can_host_start() -> bool:
 	if not is_host or race_active or slots.is_empty():
 		return false
+	if not bool(room_settings.get("bots_enabled", true)) and _connected_human_count() < 2:
+		return false
 	for slot in slots.values():
 		if bool(slot.get("connected", false)) and not bool(slot.get("ready", false)):
 			return false
@@ -181,7 +189,10 @@ func build_participants() -> Array[RaceParticipantConfig]:
 	var participants: Array[RaceParticipantConfig] = []
 	var selected := {}
 	var local_peer_id := multiplayer.get_unique_id() if multiplayer != null else 1
+	var bots_enabled := bool(room_settings.get("bots_enabled", true))
 	for slot in get_slots():
+		if not bots_enabled and not bool(slot.get("connected", false)):
+			continue
 		var racer := progression.racers.get_racer(StringName(slot.racer_id))
 		var vehicle := progression.unlocks.get_variant(StringName(slot.vehicle_id))
 		var slot_peer := int(slot.peer_id)
@@ -194,6 +205,8 @@ func build_participants() -> Array[RaceParticipantConfig]:
 		participant.session_token = str(slot.token)
 		participants.append(participant)
 		selected[racer.id] = true
+	if not bots_enabled:
+		return participants
 	for racer in progression.racers.racers:
 		if participants.size() >= LanProtocol.GRID_SIZE:
 			break
@@ -283,6 +296,11 @@ func _on_connection_failed() -> void:
 
 
 func _on_server_disconnected() -> void:
+	# ENet can deliver a queued disconnect from a peer that was already
+	# replaced (for example when reopening a room). Do not report that stale
+	# event as a disconnect from the newly connected host.
+	if peer == null or is_host or multiplayer.multiplayer_peer != peer:
+		return
 	var message := "El anfitrión abandonó la partida. No hay migración de host."
 	host_lost.emit(message)
 	connection_state_changed.emit(&"host_lost", message)
@@ -361,7 +379,10 @@ func _join_denied(message: String) -> void:
 	join_rejected.emit(message)
 	connection_state_changed.emit(&"rejected", message)
 	if peer != null:
-		peer.close()
+		# This is a local, intentional shutdown. Closing only ENet leaves the
+		# peer installed long enough for server_disconnected to be delivered and
+		# incorrectly reported as a host loss.
+		close()
 
 
 @rpc("any_peer", "call_remote", "reliable", 0)
@@ -466,6 +487,7 @@ func _sanitize_room_settings(settings: Dictionary) -> Dictionary:
 		"track_id": track_id,
 		"cc_id": RaceClassDefinition.get_by_id(StringName(settings.get("cc_id", &"150"))).id,
 		"items_enabled": bool(settings.get("items_enabled", true)),
+		"bots_enabled": bool(settings.get("bots_enabled", true)),
 		"port": clampi(int(settings.get("port", LanProtocol.RACE_PORT)), 1, 65535),
 		"room_name": str(settings.get("room_name", "Sala MichiKart")).left(32),
 	}
