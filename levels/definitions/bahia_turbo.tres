@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://4rdkup4ywfp8" path="res://scripts/data/track_definition.gd" id="1"]
 [ext_resource type="Script" uid="uid://cblvdeuhqe2kn" path="res://scripts/data/track_minimap_data.gd" id="1_qe0em"]
-[ext_resource type="PackedScene" uid="uid://bl67vg0foee13" path="res://levels/tracks/bahia_turbo.tscn" id="2"]
+[ext_resource type="PackedScene" uid="uid://cphxgyr6r2cg0" path="res://levels/tracks/bahia_turbo.tscn" id="2"]
 
 [sub_resource type="Resource" id="Resource_kapro"]
 script = ExtResource("1_qe0em")
