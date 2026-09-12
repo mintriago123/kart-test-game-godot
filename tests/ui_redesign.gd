@@ -134,6 +134,8 @@ func _test_main_menu_hierarchy() -> void:
 		and menu._landing.play_button.kind == ActionButton.Kind.SECONDARY,
 		"An active cup promotes Continue and demotes the fresh Play action."
 	)
+	var menu_settings := menu._settings_panel as SettingsScreen
+	_check(menu_settings != null and (menu_settings._controls.profile as OptionButton).get_item_text(0) == "ULTRA BAJA", "Main menu settings expose the ultra-low graphics profile.")
 	menu.queue_free()
 	await process_frame
 
@@ -165,9 +167,10 @@ func _test_settings_screen() -> void:
 	await process_frame
 	var settings := GameSettings.new()
 	settings.ui_reduced_motion = true
+	settings.graphics_profile = "ultra_low"
 	screen.apply_snapshot(settings)
 	_check(screen._controls.size() == 10, "Reusable settings screen exposes every settings group.")
-	_check((screen._controls.reduced_motion as CheckButton).button_pressed, "Settings snapshot includes reduced motion.")
+	_check((screen._controls.reduced_motion as CheckButton).button_pressed and (screen._controls.profile as OptionButton).selected == 0 and (screen._controls.profile as OptionButton).get_item_text(0) == "ULTRA BAJA", "Settings snapshot includes reduced motion and the ultra-low profile.")
 	var emitted := [false]
 	screen.reduced_motion_changed.connect(func(_enabled: bool) -> void: emitted[0] = true)
 	(screen._controls.reduced_motion as CheckButton).toggled.emit(false)
@@ -205,11 +208,12 @@ func _test_reduced_motion_persistence() -> void:
 	var settings := GameSettings.new()
 	settings.settings_path = path
 	settings.ui_reduced_motion = true
+	settings.graphics_profile = "ultra_low"
 	settings.save_to_disk()
 	var loaded := GameSettings.new()
 	loaded.settings_path = path
 	loaded.load_from_disk()
-	_check(loaded.ui_reduced_motion, "Reduced motion persists in GameSettings.")
+	_check(loaded.ui_reduced_motion and loaded.graphics_profile == "ultra_low", "Reduced motion and the ultra-low graphics profile persist in GameSettings.")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 func _test_shared_components_and_flow() -> void:

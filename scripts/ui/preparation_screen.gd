@@ -83,6 +83,11 @@ func configure(value: Dictionary, track: TrackDefinition, variant: KartVariantDe
 	else: summary.text = "%s\nVEHÍCULO · %s\nOBJETOS %s" % [event_name, vehicle_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
 	start_button.text = "SIGUIENTE CARRERA" if locked else ("INICIAR CONTRARRELOJ" if mode == GameModeDefinition.TIME_TRIAL else ("INICIAR COPA" if mode == GameModeDefinition.CUP else "INICIAR CARRERA")); _update_focus_order(); _focus_first_available(); _update_layout(); call_deferred("_update_layout")
 
+
+func set_graphics_profile(profile: String) -> void:
+	if _showroom != null:
+		_showroom.set_quality(profile)
+
 func _select_cc(id: StringName, update_payload := true) -> void:
 	if update_payload: payload["cc_id"] = id
 	var focus_target: Button = null

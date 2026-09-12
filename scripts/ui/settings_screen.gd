@@ -46,7 +46,7 @@ func _ready() -> void:
 func apply_snapshot(settings: GameSettings) -> void:
 	if settings == null or _controls.is_empty(): return
 	_suppress_changes = true
-	(_controls.profile as OptionButton).select(["low", "medium", "high", "ultra"].find(settings.graphics_profile))
+	(_controls.profile as OptionButton).select(PresentationQuality.VALID_PROFILES.find(settings.graphics_profile))
 	(_controls.vibration as CheckButton).set_pressed_no_signal(settings.vibration_enabled)
 	(_controls.master as HSlider).set_value_no_signal(settings.master_volume)
 	(_controls.music as HSlider).set_value_no_signal(settings.music_volume)
@@ -69,7 +69,7 @@ func has_pending_changes() -> bool:
 func apply_pending_changes() -> void:
 	if not _pending: return
 	_pending = false; _snapshot = _read_deferred_values(); _update_pending_actions()
-	graphics_profile_changed.emit(["low", "medium", "high", "ultra"][_controls.profile.selected])
+	graphics_profile_changed.emit(PresentationQuality.VALID_PROFILES[_controls.profile.selected])
 	camera_motion_changed.emit(["reduced", "full", "off"][_controls.camera.selected])
 	speed_lines_changed.emit(_controls.speed_lines.button_pressed)
 	threat_indicators_changed.emit(_controls.threats.button_pressed)
@@ -114,7 +114,7 @@ func _build_gameplay(page: VBoxContainer) -> void:
 
 func _build_graphics(page: VBoxContainer) -> void:
 	_add_heading(page, "GRÁFICOS", "La pista responde a tu equipo.")
-	_controls.profile = _option(page, "CALIDAD", ["BAJA", "MEDIA", "ALTA", "ULTRA"], func(_index: int) -> void: _mark_pending()); _track_control(1, _controls.profile)
+	_controls.profile = _option(page, "CALIDAD", PresentationQuality.PROFILE_LABELS, func(_index: int) -> void: _mark_pending()); _track_control(1, _controls.profile)
 	_controls.speed_lines = _toggle(page, "Líneas de velocidad", true, func(_value: bool) -> void: _mark_pending()); _track_control(1, _controls.speed_lines)
 
 func _build_audio(page: VBoxContainer) -> void:

@@ -119,14 +119,15 @@ func apply_settings(
 	gamepad_family: StringName = &"automatic",
 	reduced_motion: bool = false
 ) -> void:
-	graphics_profile = profile
+	graphics_profile = PresentationQuality.sanitize(profile)
 	_refresh_quality_buttons()
+	_apply_graphics_profile_to_showrooms()
 	_best_times = best_times.duplicate(true)
 	_select_track(selected_track_id, false)
 	_select_cc(selected_cc_id, false)
 	_select_game_mode(selected_game_mode, false)
 	if _profile_value != null:
-		_profile_value.text = "ACTUAL: " + profile.to_upper()
+		_profile_value.text = "ACTUAL: " + graphics_profile.to_upper()
 	if _vibration_toggle != null:
 		_vibration_toggle.set_pressed_no_signal(vibration)
 	if _volume_slider != null:
@@ -157,7 +158,7 @@ func apply_settings(
 		_vehicle_gallery.showroom.reduced_motion = reduced_motion
 	if _settings_panel is SettingsScreen:
 		var snapshot := GameSettings.new()
-		snapshot.graphics_profile = profile
+		snapshot.graphics_profile = graphics_profile
 		snapshot.vibration_enabled = vibration
 		snapshot.master_volume = volume
 		snapshot.music_volume = music_volume
@@ -279,7 +280,7 @@ func _build_interface() -> void:
 
 	_settings_panel = SettingsScreen.new()
 	root.add_child(_settings_panel)
-	_settings_panel.graphics_profile_changed.connect(func(value: String) -> void: graphics_profile_changed.emit(value))
+	_settings_panel.graphics_profile_changed.connect(func(value: String) -> void: _set_graphics_profile(value))
 	_settings_panel.vibration_changed.connect(func(value: bool) -> void: vibration_changed.emit(value))
 	_settings_panel.volume_changed.connect(func(value: float) -> void: volume_changed.emit(value))
 	_settings_panel.music_volume_changed.connect(func(value: float) -> void: music_volume_changed.emit(value))
@@ -1012,15 +1013,20 @@ func _build_settings_panel() -> Control:
 	graphics_section.add_child(_profile_value)
 
 	var profile_row := GridContainer.new()
-	profile_row.columns = 4
+	profile_row.columns = 5
 	profile_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	profile_row.add_theme_constant_override("separation", 12)
 	graphics_section.add_child(profile_row)
-	_first_settings_button = _create_button("BAJA", UiTokens.CYAN, Vector2(150.0, 64.0))
-	_first_settings_button.pressed.connect(func() -> void: _set_graphics_profile("low"))
-	_quality_buttons[&"low"] = _first_settings_button
+	_first_settings_button = _create_button("ULTRA BAJA", UiTokens.CYAN, Vector2(110.0, 64.0))
+	_first_settings_button.tooltip_text = "Máximo rendimiento para equipos muy débiles"
+	_first_settings_button.pressed.connect(func() -> void: _set_graphics_profile("ultra_low"))
+	_quality_buttons[&"ultra_low"] = _first_settings_button
 	profile_row.add_child(_first_settings_button)
-	var medium := _create_button("MEDIA", UiTokens.INK_RAISED, Vector2(150.0, 64.0))
+	var low := _create_button("BAJA", UiTokens.INK_RAISED, Vector2(110.0, 64.0))
+	low.pressed.connect(func() -> void: _set_graphics_profile("low"))
+	_quality_buttons[&"low"] = low
+	profile_row.add_child(low)
+	var medium := _create_button("MEDIA", UiTokens.INK_RAISED, Vector2(110.0, 64.0))
 	medium.pressed.connect(func() -> void: _set_graphics_profile("medium"))
 	_quality_buttons[&"medium"] = medium
 	profile_row.add_child(medium)
@@ -1088,7 +1094,7 @@ func _build_settings_panel() -> Control:
 		card_panel.offset_right = half_width
 		card_panel.offset_top = 12.0 if overlay.size.y < 500.0 else 24.0
 		card_panel.offset_bottom = -12.0 if overlay.size.y < 500.0 else -24.0
-		profile_row.columns = 2 if overlay.size.x < 760.0 else 4
+		profile_row.columns = 2 if overlay.size.x < 760.0 else (3 if overlay.size.x < 900.0 else 5)
 		sections.custom_minimum_size.y = maxf(260.0, minf(420.0, overlay.size.y - 170.0))
 	overlay.resized.connect(update_settings_layout)
 	update_settings_layout.call_deferred()
@@ -1125,6 +1131,9 @@ func _add_volume_control(parent: VBoxContainer, label_text: String, initial: flo
 func _confirm_restore_defaults() -> void:
 	if _settings_panel is SettingsScreen:
 		restore_defaults_requested.emit()
+		graphics_profile = "medium"
+		_refresh_quality_buttons()
+		_apply_graphics_profile_to_showrooms()
 		var current := GameSettings.new()
 		current.graphics_profile = "medium"
 		current.vibration_enabled = true
@@ -1204,10 +1213,22 @@ func _bind_ui_feedback() -> void:
 
 
 func _set_graphics_profile(profile: String) -> void:
-	graphics_profile = profile
-	_profile_value.text = "ACTUAL: " + profile.to_upper()
+	graphics_profile = PresentationQuality.sanitize(profile)
+	if _profile_value != null:
+		_profile_value.text = "ACTUAL: " + graphics_profile.to_upper()
 	_refresh_quality_buttons()
-	graphics_profile_changed.emit(profile)
+	_apply_graphics_profile_to_showrooms()
+	graphics_profile_changed.emit(graphics_profile)
+
+
+func _apply_graphics_profile_to_showrooms() -> void:
+	for showroom in [_showroom, _garage_showroom]:
+		if showroom != null:
+			showroom.set_quality(graphics_profile)
+	if _vehicle_gallery != null and _vehicle_gallery.showroom != null:
+		_vehicle_gallery.showroom.set_quality(graphics_profile)
+	if _preparation_screen != null:
+		_preparation_screen.set_graphics_profile(graphics_profile)
 
 func _refresh_quality_buttons() -> void:
 	if _profile_value != null:

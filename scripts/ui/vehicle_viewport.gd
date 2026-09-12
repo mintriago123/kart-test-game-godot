@@ -13,6 +13,7 @@ var camera: Camera3D
 var model: Node3D
 var framing := Framing.MENU
 var reduced_motion := false
+var quality_profile := "medium"
 ## Capture-only options. The normal showroom keeps the driver hidden.
 var show_driver := false
 var driver_color := Color.WHITE
@@ -98,16 +99,18 @@ func set_framing(value: Framing) -> void:
 	camera.position = Vector3(0, 2.2, distance); camera.look_at(Vector3(0, 0.6, 0))
 
 func set_quality(profile: String) -> void:
-	if viewport == null: return
-	var scale := 0.6 if profile == "low" else (0.8 if profile == "medium" else 1.0)
-	viewport.size = Vector2i(Vector2(size) * scale).max(Vector2i(320, 180))
+	quality_profile = PresentationQuality.sanitize(profile)
+	_resize_viewport()
 
 func _process(delta: float) -> void:
 	if model != null and visible and not reduced_motion: model.rotate_y(delta * 0.25)
 	if viewport != null: viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE if is_visible_in_tree() else SubViewport.UPDATE_DISABLED
 
 func _resize_viewport() -> void:
-	if viewport != null: viewport.size = Vector2i(size).max(Vector2i(320, 180))
+	if viewport != null:
+		var scale := float(PresentationQuality.get_budget(quality_profile).showroom_scale)
+		viewport.size = Vector2i(size).max(Vector2i(320, 180))
+		viewport.scaling_3d_scale = scale
 
 func _apply_colormap(root: Node3D) -> void:
 	for child in root.find_children("*", "MeshInstance3D", true, false):

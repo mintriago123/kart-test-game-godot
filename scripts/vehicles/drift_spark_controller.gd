@@ -2,8 +2,11 @@ class_name DriftSparkController
 extends Node3D
 
 var _emitters: Array[GPUParticles3D] = []
+var _sparks_enabled := true
 
 func setup(kart: Kart, profile := "medium") -> void:
+	profile = PresentationQuality.sanitize(profile)
+	_sparks_enabled = profile != "ultra_low"
 	var particle_scale := float(PresentationQuality.get_budget(profile).particle_scale)
 	for x in [-0.62, 0.62]:
 		var particles := GPUParticles3D.new()
@@ -24,7 +27,7 @@ func setup(kart: Kart, profile := "medium") -> void:
 		visual_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		visual_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		visual_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		visual_material.emission_enabled = profile != "low"
+		visual_material.emission_enabled = profile not in ["low", "ultra_low"]
 		mesh.material = visual_material
 		particles.draw_pass_1 = mesh
 		add_child(particles)
@@ -34,7 +37,7 @@ func setup(kart: Kart, profile := "medium") -> void:
 func _update_sparks(level: int, ratio: float, quality: float) -> void:
 	var colors := [Color("#39e8ff"), Color("#ff982e"), Color("#ff48c8")]
 	for emitter in _emitters:
-		emitter.emitting = level > 0 or ratio > 0.15
+		emitter.emitting = _sparks_enabled and (level > 0 or ratio > 0.15)
 		emitter.amount_ratio = clampf((0.25 + ratio * 0.75) * (0.35 if quality < 0.25 else 1.0), 0.0, 1.0)
 		var material := emitter.process_material as ParticleProcessMaterial
 		material.color = colors[clampi(level, 0, 2)]

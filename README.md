@@ -218,6 +218,7 @@ comerciales no forman parte de esta beta.
 
 - El perfil **Medio** activa sombras y glow.
 - El perfil **Bajo** desactiva ambos efectos.
+- El perfil **Ultra baja** desactiva sombras, MSAA, líneas de velocidad y bursts de partículas, además de reducir la escala interna de renderizado 3D.
 - Pantalla dividida aplica automáticamente ese presupuesto a sus dos vistas sin
   cambiar el perfil guardado.
 - El objetivo es 60 FPS en un dispositivo Android de gama media.

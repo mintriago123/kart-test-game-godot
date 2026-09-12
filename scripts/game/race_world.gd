@@ -99,8 +99,9 @@ func _ready() -> void:
 func _build_environment() -> void:
 	# Split-screen applies a temporary render budget without changing the saved
 	# graphics profile. Two 3D views are substantially more expensive than one.
-	var effective_profile := "low" if game_mode == GameModeDefinition.LOCAL_MULTIPLAYER else graphics_profile
+	var effective_profile := _get_effective_graphics_profile()
 	var quality := PresentationQuality.get_budget(effective_profile)
+	get_viewport().scaling_3d_scale = float(quality.render_scale)
 	match int(quality.msaa):
 		4: get_viewport().msaa_3d = Viewport.MSAA_4X
 		2: get_viewport().msaa_3d = Viewport.MSAA_2X
@@ -137,6 +138,12 @@ func _build_environment() -> void:
 	sun.shadow_enabled = bool(quality.shadows)
 	sun.directional_shadow_max_distance = float(quality.shadow_distance)
 	add_child(sun)
+
+
+func _get_effective_graphics_profile() -> String:
+	if game_mode == GameModeDefinition.LOCAL_MULTIPLAYER:
+		return "ultra_low" if PresentationQuality.sanitize(graphics_profile) == "ultra_low" else "low"
+	return PresentationQuality.sanitize(graphics_profile)
 
 
 func _build_track() -> void:
@@ -386,6 +393,7 @@ func _prepare_split_screen(player_count: int) -> void:
 		# can be controlled without relying on mouse coordinates.
 		viewport.handle_input_locally = true
 		viewport.msaa_3d = Viewport.MSAA_DISABLED
+		viewport.scaling_3d_scale = float(PresentationQuality.get_budget(_get_effective_graphics_profile()).render_scale)
 		container.add_child(viewport)
 		_split_viewports.append(viewport)
 
