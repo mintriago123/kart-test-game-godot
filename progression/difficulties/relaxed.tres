@@ -11,3 +11,4 @@ precision_multiplier = 0.82
 reaction_time_multiplier = 1.3
 risk_multiplier = 0.85
 item_efficiency_multiplier = 0.8
+allow_blocking = false

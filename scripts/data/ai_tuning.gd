@@ -141,6 +141,25 @@ extends Resource
 @export_group("Racer detection helpers")
 @export var racer_ahead_behind_dot := -0.55
 
+@export_group("Rubber banding")
+@export var rubber_band_gap_assist_full := 3.0
+@export var rubber_band_gap_penalty_full := 3.0
+@export var rubber_band_bias_rate := 0.05
+
+@export_group("Racecraft")
+@export var racecraft_forward_alignment := 0.75
+@export var racecraft_draft_min_distance := 4.0
+@export var racecraft_draft_max_distance := 9.0
+@export var racecraft_draft_alignment := 0.85
+@export var racecraft_draft_rate := 2.0
+@export var racecraft_overtake_rate := 3.0
+@export var racecraft_overtake_weight_ceiling := 1.0
+@export var racecraft_overtake_speed_bias := 0.02
+@export_range(0.0, 1.0) var racecraft_block_min_aggression := 0.55
+@export var racecraft_block_distance := 6.0
+@export var racecraft_block_max_offset := 1.2
+@export var racecraft_block_rate := 2.5
+
 @export_group("Debug")
 @export var enable_debug_logging := false
 @export var debug_log_interval := 1.0

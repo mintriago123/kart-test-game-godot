@@ -18,6 +18,9 @@ extends Resource
 @export var wall_recovery_speed_ratio := 0.3
 @export var launch_aggression_bias := 0.0
 @export var avoidance_weight_max := 0.9
+@export_range(0.0, 0.15) var rubber_band_assist_max := 0.03
+@export_range(0.0, 0.15) var rubber_band_penalty_max := 0.02
+@export var allow_blocking := true
 @export_range(1, 3, 1) var progress_multiplier := 1
 @export var sort_order := 0
 
@@ -42,4 +45,7 @@ func apply_to(base: AiProfile) -> AiProfile:
 	profile.buff.wall_recovery_speed_ratio = wall_recovery_speed_ratio
 	profile.buff.launch_aggression_bias = launch_aggression_bias
 	profile.buff.avoidance_weight_max = avoidance_weight_max
+	profile.buff.rubber_band_assist_max = rubber_band_assist_max
+	profile.buff.rubber_band_penalty_max = rubber_band_penalty_max
+	profile.buff.allow_blocking = allow_blocking
 	return profile

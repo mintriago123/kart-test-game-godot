@@ -52,7 +52,7 @@ var _track_selector: TrackSelectScreen
 var has_active_cup := false
 var progression_catalog: ProgressionCatalog
 var player_progress: PlayerProgress
-var _device_coordinator: InputDeviceCoordinator
+var device_coordinator: InputDeviceCoordinator
 var _router: MenuRouter
 var _title_screen: Control
 var _title_dismissing := false
@@ -88,8 +88,12 @@ var _landing: MainMenuLanding
 
 func _ready() -> void:
 	layer = 30
-	_device_coordinator = InputDeviceCoordinator.new()
-	add_child(_device_coordinator)
+	if device_coordinator == null:
+		# Fallback for a MainMenu created without a shared coordinator (e.g. in
+		# isolation/tests). Normally main.gd injects one that outlives the menu,
+		# so gamepad/keyboard icon detection keeps working during a race.
+		device_coordinator = InputDeviceCoordinator.new()
+		add_child(device_coordinator)
 	_router = MenuRouter.new()
 	_router.name = "MenuRouter"
 	add_child(_router)
@@ -146,8 +150,8 @@ func apply_settings(
 		_vibration_intensity_slider.set_value_no_signal(vibration_intensity)
 	if _ghost_toggle != null:
 		_ghost_toggle.set_pressed_no_signal(ghost_enabled)
-	if _device_coordinator != null:
-		_device_coordinator.set_manual_family(gamepad_family)
+	if device_coordinator != null:
+		device_coordinator.set_manual_family(gamepad_family)
 	if _reduced_motion_toggle != null:
 		_reduced_motion_toggle.set_pressed_no_signal(reduced_motion)
 	if _router != null:
@@ -176,9 +180,9 @@ func apply_settings(
 
 
 func get_active_gamepad_id() -> int:
-	if _device_coordinator == null or _device_coordinator.mode != &"gamepad":
+	if device_coordinator == null or device_coordinator.mode != &"gamepad":
 		return -1
-	return _device_coordinator.device_id
+	return device_coordinator.device_id
 
 
 func _build_interface() -> void:
@@ -977,7 +981,7 @@ func _build_settings_panel() -> Control:
 	family.custom_minimum_size.y = UiTokens.TOUCH_TARGET
 	family.item_selected.connect(func(index: int) -> void:
 		var selected_family: StringName = [&"automatic", &"xbox", &"playstation", &"nintendo"][index]
-		_device_coordinator.set_manual_family(selected_family)
+		device_coordinator.set_manual_family(selected_family)
 		gamepad_family_changed.emit(selected_family)
 	)
 	controls_section.add_child(family)

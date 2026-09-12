@@ -16,8 +16,6 @@ enum Id {
 	PROFILE,
 	SETTINGS,
 	CONTROLS,
-	PAUSE,
-	RESULTS,
 }
 
 const NAMES := {
@@ -35,8 +33,6 @@ const NAMES := {
 	Id.PROFILE: &"profile",
 	Id.SETTINGS: &"settings",
 	Id.CONTROLS: &"controls",
-	Id.PAUSE: &"pause",
-	Id.RESULTS: &"results",
 }
 
 static func is_valid(route: int) -> bool:

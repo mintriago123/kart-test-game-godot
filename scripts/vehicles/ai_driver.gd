@@ -18,6 +18,8 @@ var _shortcut: AiShortcutPlanner
 var _items: AiItemDecision
 var _recovery: AiRecoveryState
 var _sensors: AiSensors
+var _rubber_band: AiRubberBand
+var _racecraft: AiRacecraft
 
 var _item_cooldown := 2.0
 var _last_checkpoint_index := -1
@@ -132,6 +134,12 @@ func setup(
 	_sensors.tuning = _tuning
 	_sensors.kart = kart
 
+	_rubber_band = AiRubberBand.new()
+	_rubber_band.tuning = _tuning
+
+	_racecraft = AiRacecraft.new()
+	_racecraft.tuning = _tuning
+
 	if kart != null:
 		kart.recovered.connect(_handle_recovery)
 		kart.hit_received.connect(_handle_impact)
@@ -181,6 +189,44 @@ func _physics_process(delta: float) -> void:
 func _run_strategy() -> void:
 	_update_shortcut_choice()
 	_update_section_variation()
+	_update_rubber_band()
+	_update_racecraft()
+
+
+func _update_racecraft() -> void:
+	if race_manager == null:
+		_racecraft.reset()
+		return
+	var strategy_tick := 1.0 / maxf(_tuning.strategy_tick_hz, 1.0)
+	_racecraft.update(kart, race_manager, _personality, _buff.allow_blocking, strategy_tick)
+
+
+func _update_rubber_band() -> void:
+	if race_manager == null or not GameModeDefinition.has_rivals(race_manager.game_mode):
+		_rubber_band.reset()
+		return
+	var target := _find_rubber_band_target()
+	if target == null:
+		_rubber_band.reset()
+		return
+	var gap := race_manager.get_racer_progress(kart) - race_manager.get_racer_progress(target)
+	var strategy_tick := 1.0 / maxf(_tuning.strategy_tick_hz, 1.0)
+	_rubber_band.update(gap, _buff.rubber_band_assist_max, _buff.rubber_band_penalty_max, strategy_tick)
+
+
+func _find_rubber_band_target() -> Node:
+	if race_manager.player_kart != null and race_manager.player_kart != kart:
+		return race_manager.player_kart
+	var best: Node = null
+	var best_progress := -INF
+	for candidate in race_manager.human_karts:
+		if candidate == kart:
+			continue
+		var progress := race_manager.get_racer_progress(candidate)
+		if progress > best_progress:
+			best_progress = progress
+			best = candidate
+	return best
 
 
 func _perceive_frame() -> PerceivedFrame:
@@ -274,6 +320,14 @@ func _decide(frame: PerceivedFrame, delta: float) -> AiDecision:
 		-available_variation,
 		available_variation
 	) * (1.0 - correction_factor)
+	# Tuck in behind a leader instead of wandering the personality offset, and
+	# nudge toward whichever side a chasing human is closing from.
+	section_offset *= (1.0 - _racecraft.draft_focus)
+	section_offset = clampf(
+		section_offset + _racecraft.block_offset * (1.0 - correction_factor),
+		-available_variation,
+		available_variation
+	)
 	if _recovery.state != AiRecoveryState.DriveState.DRIVING:
 		section_offset = 0.0
 	var target := target_sample.position + right * section_offset
@@ -294,7 +348,7 @@ func _decide(frame: PerceivedFrame, delta: float) -> AiDecision:
 	var raw_target_speed := _speed_planner.compute_target_speed(
 		safe_speed,
 		_personality.aggression,
-		_buff.top_speed_bias,
+		_buff.top_speed_bias + _rubber_band.bias + _racecraft.overtake_commit * _tuning.racecraft_overtake_speed_bias,
 		_recovery.state == AiRecoveryState.DriveState.WALL_RECOVERY,
 		kart.stats.max_speed,
 		_buff.wall_recovery_speed_ratio
@@ -336,9 +390,12 @@ func _decide(frame: PerceivedFrame, delta: float) -> AiDecision:
 		_steering_target = steer
 		_smoothed_steer = steer
 	else:
+		var avoidance_weight := lerpf(
+			_buff.avoidance_weight_max, _tuning.racecraft_overtake_weight_ceiling, _racecraft.overtake_commit
+		)
 		steer = _steering.apply_racer_avoidance(
 			steer, forward, race_manager.racers, kart.participant_slot,
-			_buff.avoidance_weight_max
+			avoidance_weight
 		)
 		steer = _steering.stabilize_straight_target(
 			steer, _steering_target, target_sample.curvature, frame.sensors
@@ -523,6 +580,7 @@ func _update_section_variation_for(section_id: int) -> void:
 func _handle_recovery() -> void:
 	_recovery.notify_recovery(_tuning.recovery_correction_seconds)
 	_drift.reset()
+	_racecraft.reset()
 	_active_branch_id = -1
 	_branch_projection_hint = -1
 	_last_branch_projection_distance = -1.0
