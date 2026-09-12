@@ -14,6 +14,10 @@ const ROUTE_MAX_GRADE_CHANGE_WARNING := 0.20
 const ROUTE_MINIMUM_TURN_RADIUS_WARNING := 4.0
 const SURFACE_MIN_WIDTH := 0.5
 const SURFACE_MIN_PROGRESS := 0.001
+const RACING_LINE_NARROW_WIDTH := 0.55
+const RACING_LINE_NARROW_RATIO_WARNING := 0.15
+const RACING_LINE_SHARP_SPEED_RATIO := 0.33
+const RACING_LINE_SHARP_RATIO_WARNING := 0.20
 
 
 static func inspect(track) -> Array[TrackValidationIssue]:
@@ -1015,3 +1019,58 @@ static func _point_to_segment_distance_2d(
 		1.0
 	)
 	return point.distance_to(segment_start + segment * weight)
+
+
+# Separate from inspect() because it forces a full track.rebuild_track() to
+# get fresh route_points/shortcut definitions -- rebuild_preview() is deferred
+# and only runs while the 3D preview tab is visible, so it can't be relied on
+# here. Call this at deliberate checkpoints (review/publish), not on every
+# edit like inspect() is.
+static func inspect_racing_line(track: TrackLevel) -> Array[TrackValidationIssue]:
+	var issues: Array[TrackValidationIssue] = []
+	if track == null:
+		return issues
+	var rebuild_errors := track.rebuild_track()
+	if not rebuild_errors.is_empty() or track.route_points.size() < 3:
+		# The track doesn't produce valid output at all; inspect() already
+		# explains why, so there's nothing meaningful to build a line from.
+		return issues
+	var racing_line := RacingLineBuilder.build(
+		track.route_points,
+		track.get_navigation_shortcut_definitions()
+	)
+	if not racing_line.is_valid():
+		_append_warning_issue(
+			issues,
+			&"racing_line_unbuildable",
+			"No se pudo generar una trazada de IA para esta pista; los rivales usarán navegación de respaldo con peor comportamiento.",
+			NodePath("MainRoute")
+		)
+		return issues
+	if racing_line.samples.is_empty():
+		return issues
+	var narrow_count := 0
+	var sharp_count := 0
+	for sample in racing_line.samples:
+		if sample.available_width <= RACING_LINE_NARROW_WIDTH:
+			narrow_count += 1
+		if sample.recommended_speed_ratio <= RACING_LINE_SHARP_SPEED_RATIO:
+			sharp_count += 1
+	var sample_count := racing_line.samples.size()
+	var narrow_ratio := float(narrow_count) / float(sample_count)
+	var sharp_ratio := float(sharp_count) / float(sample_count)
+	if narrow_ratio > RACING_LINE_NARROW_RATIO_WARNING:
+		_append_warning_issue(
+			issues,
+			&"racing_line_narrow",
+			"La trazada de IA queda muy angosta en %d%% del recorrido; los rivales pueden chocar seguido contra las barreras ahí." % roundi(narrow_ratio * 100.0),
+			NodePath("MainRoute")
+		)
+	if sharp_ratio > RACING_LINE_SHARP_RATIO_WARNING:
+		_append_warning_issue(
+			issues,
+			&"racing_line_sharp",
+			"La trazada de IA está al límite de velocidad segura en %d%% del recorrido; revisa si esas curvas son intencionalmente extremas." % roundi(sharp_ratio * 100.0),
+			NodePath("MainRoute")
+		)
+	return issues
