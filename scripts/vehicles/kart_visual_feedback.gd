@@ -66,7 +66,7 @@ func setup(value: Kart, quality_profile: String, lines_enabled := true) -> void:
 	profile = PresentationQuality.sanitize(quality_profile)
 	speed_lines_enabled = lines_enabled
 	var budget := PresentationQuality.get_budget(profile)
-	speed_lines = _make_particles(int(budget.speed_lines), Vector2(0.025, 1.4), Color(0.45, 0.95, 1.0, 0.72), Vector3(8, 5, 12))
+	speed_lines = _make_particles(maxi(1, int(budget.speed_lines)), Vector2(0.025, 1.4), Color(0.45, 0.95, 1.0, 0.72), Vector3(8, 5, 12))
 	speed_lines.lifetime = 0.42
 	speed_lines.emitting = false
 	speed_lines.visible = false # Compatibility node; screen-space overlay renders the streaks.
@@ -86,9 +86,10 @@ func setup(value: Kart, quality_profile: String, lines_enabled := true) -> void:
 	speed_line_overlay = SpeedLineOverlay.new()
 	speed_line_overlay.line_count = int(budget.speed_lines)
 	speed_line_overlay.glow_strength = float(budget.glow) / 3.0
-	speed_line_overlay.visibility_gain = {"low": 0.48, "medium": 0.9, "high": 1.12, "ultra": 1.3}[profile]
+	speed_line_overlay.visibility_gain = {"ultra_low": 0.0, "low": 0.48, "medium": 0.9, "high": 1.12, "ultra": 1.3}[profile]
+	speed_line_overlay.visible = budget.speed_lines > 0
 	speed_line_layer.add_child(speed_line_overlay)
-	flash_particles = _make_particles(maxi(4, roundi(18.0 * float(budget.particle_scale))), Vector2(0.14, 0.5), Color("#65f6ff"), Vector3(4, 3, 4))
+	flash_particles = _make_particles(maxi(1, roundi(18.0 * float(budget.particle_scale))), Vector2(0.14, 0.5), Color("#65f6ff"), Vector3(4, 3, 4))
 	flash_particles.one_shot = true
 	flash_particles.explosiveness = 0.92
 	flash_particles.lifetime = 0.3
@@ -96,7 +97,12 @@ func setup(value: Kart, quality_profile: String, lines_enabled := true) -> void:
 	add_child(flash_particles)
 	kart.presentation_boost_started.connect(func(power: float) -> void: _burst(Color("#65f6ff"), power))
 	kart.mini_turbo_released.connect(func(level: int) -> void: _burst([Color("#48ddff"), Color("#ff9a35"), Color("#ff48c8")][clampi(level - 1, 0, 2)], 0.55 + level * 0.15))
-	kart.presentation_landed.connect(func(intensity: float) -> void: _burst(kart.get_surface_particle_color(), intensity))
+	kart.presentation_landed.connect(func(intensity: float) -> void:
+		# Minor floor-snap catches on the triangulated track ribbon report tiny
+		# landings constantly while driving on the ground; only a real drop
+		# deserves the burst.
+		if intensity >= 0.1:
+			_burst(kart.get_surface_particle_color(), intensity))
 	kart.presentation_launch_bogged.connect(func() -> void: _burst(Color("#77706c"), 0.7))
 	kart.hit_blocked.connect(func(_threat: Node) -> void: _burst(Color("#b58cff"), 1.0))
 
@@ -110,7 +116,7 @@ func _process(_delta: float) -> void:
 	if kart == null: return
 	var speed_ratio := kart.get_horizontal_speed() / maxf(kart.stats.max_speed, 0.1)
 	var strength := maxf(inverse_lerp(0.92, 1.18, speed_ratio), kart.get_boost_power_ratio())
-	var active := speed_lines_enabled and (kart.is_boost_active() or speed_ratio >= 0.92)
+	var active := speed_lines_enabled and speed_line_overlay.visible and (kart.is_boost_active() or speed_ratio >= 0.92)
 	speed_lines.emitting = false
 	speed_lines.amount_ratio = clampf(strength, 0.12 if profile == "low" and active else 0.0, 1.0)
 	speed_line_overlay.intensity = clampf(strength, 0.12 if profile == "low" and active else 0.0, 1.0) if active else 0.0
@@ -133,6 +139,8 @@ func animate_vehicle(root: Node3D, delta: float, steer: float, drifting: bool, l
 		root.rotation.y = lerp_angle(root.rotation.y, 0.0, delta * 10.0)
 
 func _burst(color: Color, intensity: float) -> void:
+	if profile == "ultra_low":
+		return
 	var material := flash_particles.draw_pass_1.surface_get_material(0) as StandardMaterial3D
 	material.albedo_color = color
 	material.emission = color
@@ -155,7 +163,7 @@ func _make_particles(amount: int, dimensions: Vector2, color: Color, bounds: Vec
 	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	material.albedo_color = color
-	material.emission_enabled = profile != "low"
+	material.emission_enabled = profile not in ["low", "ultra_low"]
 	material.emission = color
 	material.emission_energy_multiplier = 0.65 if profile == "medium" else (1.5 if profile == "ultra" else 1.0)
 	quad.material = material

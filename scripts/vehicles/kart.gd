@@ -195,7 +195,7 @@ func get_surface_audio_volume() -> float:
 	return current_surface.audio_volume if current_surface != null else 0.75
 
 func get_surface_particle_color() -> Color:
-	return current_surface.particle_color if current_surface != null else Color.WHITE
+	return current_surface.particle_color if current_surface != null else Color(0.72, 0.76, 0.78, 1)
 
 
 static func get_steering_factor(speed: float, maximum_speed: float) -> float:
@@ -338,7 +338,7 @@ func is_boosting_for_ghost() -> bool:
 
 
 func get_speed_kph() -> int:
-	return roundi(Vector3(velocity.x, 0.0, velocity.z).length() * 7.2)
+	return roundi(Vector3(velocity.x, 0.0, velocity.z).length() * 3.6)
 
 
 func _activate_boost(duration: float, power: float) -> void:
