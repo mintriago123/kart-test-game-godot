@@ -122,13 +122,14 @@ func _build_interface() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var scrim := ColorRect.new(); scrim.color = UiTokens.SCRIM; scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); add_child(scrim)
 	var panel := PanelContainer.new(); panel.set_anchors_preset(Control.PRESET_CENTER); panel.position = Vector2(-340, -300); panel.size = Vector2(680, 600); panel.theme = UiTokens.create_theme(); scrim.add_child(panel)
+	var scroll := ScrollContainer.new(); panel.add_child(scroll)
+	var content := VBoxContainer.new(); content.custom_minimum_size.x = 620; scroll.add_child(content)
+	var title := Label.new(); title.text = "CONTROLES"; content.add_child(title)
 	resized.connect(func() -> void:
 		panel.size = Vector2(minf(680.0, size.x - 32.0), minf(600.0, size.y - 32.0))
 		panel.position = -panel.size * 0.5
+		title.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if size.x < UiTokens.BREAKPOINT_SHELL_WIDTH else UiTokens.FONT_TITLE_WIDE)
 	)
-	var scroll := ScrollContainer.new(); panel.add_child(scroll)
-	var content := VBoxContainer.new(); content.custom_minimum_size.x = 620; scroll.add_child(content)
-	var title := Label.new(); title.text = "CONTROLES"; title.add_theme_font_size_override("font_size", 38); content.add_child(title)
 	var device := Label.new(); device.text = "TECLADO Y MANDO · SELECCIONA UNA ACCIÓN PARA REASIGNAR"; device.add_theme_color_override("font_color", UiTokens.CYAN); content.add_child(device)
 	for action in ACTIONS:
 		var row := HBoxContainer.new(); row.custom_minimum_size.y = UiTokens.TOUCH_TARGET; content.add_child(row)

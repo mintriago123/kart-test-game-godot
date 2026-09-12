@@ -34,7 +34,7 @@ func _ready() -> void:
 	right_button = Button.new(); right_button.text = "›"; right_button.add_theme_font_size_override("font_size", 28); right_button.custom_minimum_size = Vector2(56, UiTokens.BUTTON_HEIGHT_LARGE); right_button.set_anchors_preset(Control.PRESET_CENTER); right_button.anchor_left = 0.7; right_button.anchor_right = 0.7; right_button.position = Vector2(-78, -32); right_button.tooltip_text = "Vehículo siguiente"; right_button.pressed.connect(_move.bind(1)); add_child(right_button)
 	details_panel = VBoxContainer.new(); details_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE); details_panel.anchor_left = 0.7; details_panel.offset_left = 12; details_panel.offset_right = -24; details_panel.offset_top = 28; details_panel.offset_bottom = -158; details_panel.add_theme_constant_override("separation", 8); add_child(details_panel)
 	var panel := details_panel
-	title_label = Label.new(); title_label.add_theme_font_size_override("font_size", 32); panel.add_child(title_label)
+	title_label = Label.new(); panel.add_child(title_label)
 	status_badge = UiBadge.new(); panel.add_child(status_badge)
 	status_label = Label.new(); status_label.add_theme_font_size_override("font_size", 18); status_label.visible = false; panel.add_child(status_label)
 	requirement_label = Label.new(); requirement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; panel.add_child(requirement_label)
@@ -86,8 +86,9 @@ func _refresh_gallery_spacing() -> void:
 
 func _update_layout() -> void:
 	if showroom == null or details_panel == null or card_scroll == null: return
-	var compact_width := size.x < 900.0
-	var compact_height := size.y < 500.0
+	var compact_width := size.x < UiTokens.BREAKPOINT_TWO_PANEL_WIDTH
+	var compact_height := size.y < UiTokens.BREAKPOINT_SHELL_HEIGHT
+	title_label.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if compact_width else UiTokens.FONT_TITLE_WIDE)
 	var split := 0.5 if compact_width else 0.7
 	showroom.anchor_right = split
 	details_panel.anchor_left = split

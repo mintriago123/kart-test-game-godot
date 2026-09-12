@@ -558,7 +558,7 @@ func _refresh_profile_cups() -> void:
 
 func _update_profile_layout() -> void:
 	if _profile_panel == null or _profile_sidebar == null: return
-	var compact := _profile_panel.size.x < 900.0
+	var compact := _profile_panel.size.x < UiTokens.BREAKPOINT_TWO_PANEL_WIDTH
 	_profile_sidebar.custom_minimum_size.x = 168.0 if compact else 210.0
 	if _profile_content_host != null:
 		_profile_content_host.custom_minimum_size.x = maxf(300.0, _profile_panel.size.x - (260.0 if compact else 300.0))
@@ -584,7 +584,7 @@ func _build_garage_panel() -> Control:
 	scroll.size = Vector2(660.0, 580.0)
 	overlay.add_child(scroll)
 	overlay.resized.connect(func() -> void:
-		var compact := overlay.size.x < 1100.0
+		var compact := overlay.size.x < UiTokens.BREAKPOINT_SHOWROOM_WIDTH
 		_garage_showroom.visible = not compact
 		scroll.size = Vector2(minf(660.0, overlay.size.x - 32.0), minf(580.0, overlay.size.y - 32.0))
 		scroll.position = Vector2((overlay.size.x - scroll.size.x) * 0.5 if compact else 32.0, -scroll.size.y * 0.5)
@@ -1088,13 +1088,13 @@ func _build_settings_panel() -> Control:
 	close.pressed.connect(_toggle_settings)
 	content.add_child(close)
 	var update_settings_layout := func() -> void:
-		var horizontal_margin := 12.0 if overlay.size.x < 800.0 else 24.0
+		var horizontal_margin := 12.0 if overlay.size.x < UiTokens.BREAKPOINT_SHELL_WIDTH else 24.0
 		var half_width := maxf(0.0, (overlay.size.x - horizontal_margin * 2.0) * 0.5)
 		card_panel.offset_left = -half_width
 		card_panel.offset_right = half_width
-		card_panel.offset_top = 12.0 if overlay.size.y < 500.0 else 24.0
-		card_panel.offset_bottom = -12.0 if overlay.size.y < 500.0 else -24.0
-		profile_row.columns = 2 if overlay.size.x < 760.0 else (3 if overlay.size.x < 900.0 else 5)
+		card_panel.offset_top = 12.0 if overlay.size.y < UiTokens.BREAKPOINT_SHELL_HEIGHT else 24.0
+		card_panel.offset_bottom = -12.0 if overlay.size.y < UiTokens.BREAKPOINT_SHELL_HEIGHT else -24.0
+		profile_row.columns = 2 if overlay.size.x < UiTokens.BREAKPOINT_FOCUSED_WIDTH else (3 if overlay.size.x < UiTokens.BREAKPOINT_TWO_PANEL_WIDTH else 5)
 		sections.custom_minimum_size.y = maxf(260.0, minf(420.0, overlay.size.y - 170.0))
 	overlay.resized.connect(update_settings_layout)
 	update_settings_layout.call_deferred()

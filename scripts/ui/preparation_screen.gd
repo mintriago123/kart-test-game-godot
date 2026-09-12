@@ -204,5 +204,5 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _update_layout() -> void:
 	if _grid == null: return
-	var layout_size := size if size.x > 1.0 and size.y > 1.0 else get_viewport_rect().size; var compact := layout_size.x < 1050.0 or layout_size.y < 600.0; _grid.columns = 1 if compact else 3; _scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO if compact else ScrollContainer.SCROLL_MODE_DISABLED
+	var layout_size := size if size.x > 1.0 and size.y > 1.0 else get_viewport_rect().size; var compact := layout_size.x < UiTokens.BREAKPOINT_COLUMNS_WIDTH or layout_size.y < UiTokens.BREAKPOINT_COLUMNS_HEIGHT; _grid.columns = 1 if compact else 3; _scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO if compact else ScrollContainer.SCROLL_MODE_DISABLED
 	_showroom.custom_minimum_size = Vector2(maxf(300.0, layout_size.x - 96.0), clampf(layout_size.y * 0.42, 230.0, 340.0)) if compact else Vector2(400.0, 280.0 if layout_size.y < 800.0 else 360.0)

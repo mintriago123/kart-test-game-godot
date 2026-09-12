@@ -86,7 +86,7 @@ func _build() -> void:
 	var card := PanelContainer.new(); card.set_anchors_preset(Control.PRESET_CENTER); card.size = Vector2(600, 330); card.position = -card.size * 0.5; card.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK, UiTokens.RADIUS_LARGE)); add_child(card)
 	var outer := VBoxContainer.new(); outer.add_theme_constant_override("separation", UiTokens.SPACE_3); card.add_child(outer)
 	var heading := HBoxContainer.new(); outer.add_child(heading)
-	var title := Label.new(); title.text = "AJUSTES"; title.add_theme_font_size_override("font_size", 34); title.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY); heading.add_child(title)
+	var title := Label.new(); title.text = "AJUSTES"; title.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY); heading.add_child(title)
 	var pending_label := Label.new(); pending_label.name = "PendingLabel"; pending_label.text = "CAMBIOS PENDIENTES"; pending_label.visible = false; pending_label.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW); pending_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL; pending_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT; heading.add_child(pending_label)
 	var body := HBoxContainer.new(); body.size_flags_vertical = Control.SIZE_EXPAND_FILL; body.add_theme_constant_override("separation", UiTokens.SPACE_3); outer.add_child(body)
 	var nav := VBoxContainer.new(); nav.custom_minimum_size.x = 190; nav.add_theme_constant_override("separation", 6); body.add_child(nav)
@@ -106,7 +106,10 @@ func _build() -> void:
 		if not controls.is_empty():
 			(controls.back() as Control).focus_neighbor_bottom = _back_button.get_path()
 	_back_button.focus_neighbor_top = (_page_controls[0].back() as Control).get_path()
-	resized.connect(func() -> void: card.size = Vector2(minf(940.0, size.x - 28.0), minf(620.0, size.y - 28.0)); card.position = -card.size * 0.5)
+	resized.connect(func() -> void:
+		card.size = Vector2(minf(940.0, size.x - 28.0), minf(620.0, size.y - 28.0)); card.position = -card.size * 0.5
+		title.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if size.x < UiTokens.BREAKPOINT_SHELL_WIDTH else UiTokens.FONT_TITLE_WIDE)
+	)
 
 func _build_gameplay(page: VBoxContainer) -> void:
 	_add_heading(page, "JUEGO", "Ajustes que se sienten al volante.")

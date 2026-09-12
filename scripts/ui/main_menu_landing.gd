@@ -153,7 +153,7 @@ func _style_secondary_action(button: ActionButton) -> void:
 
 func _update_layout() -> void:
 	var layout_size := size if size.x > 1.0 and size.y > 1.0 else get_viewport_rect().size
-	compact = layout_size.x < 900.0 or layout_size.y < 560.0
+	compact = layout_size.x < UiTokens.BREAKPOINT_TWO_PANEL_WIDTH or layout_size.y < UiTokens.BREAKPOINT_TWO_PANEL_HEIGHT
 	var button_height := UiTokens.TOUCH_TARGET if compact else UiTokens.BUTTON_HEIGHT
 	main_actions.add_theme_constant_override("separation", UiTokens.SPACE_2 if compact else UiTokens.SPACE_3)
 	for button in main_actions.get_children():

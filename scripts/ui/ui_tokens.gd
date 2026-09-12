@@ -44,6 +44,11 @@ const FONT_H2 := 28
 const FONT_H1 := 36
 const FONT_DISPLAY := 48
 const FONT_HERO := 72
+# Responsive screen-title pair: shrink to FONT_TITLE_COMPACT below the
+# screen's own compact breakpoint, FONT_TITLE_WIDE otherwise. Introduced
+# from the pattern local/lan multiplayer lobby already used.
+const FONT_TITLE_COMPACT := 32
+const FONT_TITLE_WIDE := 42
 
 const SPACE_1 := 4
 const SPACE_2 := 8
@@ -55,6 +60,24 @@ const RADIUS_SMALL := 8
 const RADIUS_MEDIUM := 14
 const RADIUS_LARGE := 22
 const TOUCH_TARGET := 48
+
+# Shared responsive breakpoints (viewport size, px). Named by the layout
+# tier they represent so screens with equivalent needs share one constant
+# instead of a fresh magic number; a screen whose layout genuinely needs
+# more or less room before collapsing uses a different tier on purpose.
+const BREAKPOINT_FOCUSED_WIDTH := 760    # single carousel/list (cup select)
+const BREAKPOINT_SHELL_WIDTH := 800      # MenuShell default (landing, most routed screens)
+const BREAKPOINT_SHELL_HEIGHT := 500
+const BREAKPOINT_TWO_PANEL_WIDTH := 900  # two side-by-side regions (mode select, vehicle gallery)
+const BREAKPOINT_TWO_PANEL_HEIGHT := 560
+const BREAKPOINT_ROSTER_WIDTH := 980     # local multiplayer roster + settings
+const BREAKPOINT_ROSTER_HEIGHT := 620
+const BREAKPOINT_COLUMNS_WIDTH := 1050   # preparation's 3-column grid
+const BREAKPOINT_COLUMNS_HEIGHT := 600
+const BREAKPOINT_NETWORK_WIDTH := 1120   # LAN lobby (host/join + room list + slots)
+const BREAKPOINT_NETWORK_HEIGHT := 680
+const BREAKPOINT_SHOWROOM_WIDTH := 1100  # garage overlay: hide the 3D showroom column
+const BREAKPOINT_WIDE_WIDTH := 1600      # extra breathing room (MenuShell wide tier)
 const BUTTON_HEIGHT := 56
 const BUTTON_HEIGHT_LARGE := 64
 const PRESS_DURATION := 0.12

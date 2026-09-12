@@ -787,7 +787,7 @@ func _back() -> void:
 func _update_layout() -> void:
 	if _page == null:
 		return
-	var compact := size.x < 1120.0 or size.y < 680.0
+	var compact := size.x < UiTokens.BREAKPOINT_NETWORK_WIDTH or size.y < UiTokens.BREAKPOINT_NETWORK_HEIGHT
 	_columns.vertical = compact
 	var visible_panels := 0
 	for child in _columns.get_children():
@@ -803,7 +803,7 @@ func _update_layout() -> void:
 	var width := maxf(280.0, (available_width - (UiTokens.SPACE_4 * 2.0 if not compact else 0.0)) / (1.0 if compact else 3.0))
 	if single_stage and not compact:
 		width = minf(840.0, available_width * 0.72)
-	_title.add_theme_font_size_override("font_size", 32 if compact else 42)
+	_title.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if compact else UiTokens.FONT_TITLE_WIDE)
 	for child in _columns.get_children():
 		var panel := child as Control
 		panel.custom_minimum_size.x = width

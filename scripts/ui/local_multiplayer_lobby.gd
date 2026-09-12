@@ -340,14 +340,14 @@ func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
 func _update_layout() -> void:
 	if _page == null:
 		return
-	var compact := size.x < 980.0 or size.y < 620.0
+	var compact := size.x < UiTokens.BREAKPOINT_ROSTER_WIDTH or size.y < UiTokens.BREAKPOINT_ROSTER_HEIGHT
 	_cards.columns = 1 if compact else 2
 	var available_width := maxf(280.0, size.x - 48.0)
 	var content_width := minf(1160.0, available_width)
 	_cards.custom_minimum_size.x = content_width
 	_cards.size.x = content_width
 	var width := content_width if compact else (content_width - UiTokens.SPACE_6) / 2.0
-	_title.add_theme_font_size_override("font_size", 32 if compact else 42)
+	_title.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if compact else UiTokens.FONT_TITLE_WIDE)
 	for child in _cards.get_children():
 		(child as Control).custom_minimum_size = Vector2(width, 350.0 if compact else 370.0)
 		(child as Control).size_flags_horizontal = Control.SIZE_SHRINK_CENTER

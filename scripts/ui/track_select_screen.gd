@@ -20,6 +20,7 @@ var _selected_game_mode := GameModeDefinition.RACE
 var game_mode_buttons: Dictionary = {}
 var difficulty_buttons: Dictionary = {}
 var _selected_difficulty_id: StringName = &"competitive"
+var _page_title: Label
 var _title_label: Label
 var _description_label: Label
 var _details_label: Label
@@ -41,6 +42,12 @@ var _context_payload: Dictionary = {}
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_interface()
+	resized.connect(_update_page_title_size)
+	_update_page_title_size()
+
+
+func _update_page_title_size() -> void:
+	_page_title.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if size.x < UiTokens.BREAKPOINT_SHELL_WIDTH else UiTokens.FONT_TITLE_WIDE)
 
 
 func configure(
@@ -210,11 +217,10 @@ func _build_interface() -> void:
 	eyebrow.add_theme_font_size_override("font_size", 15)
 	eyebrow.add_theme_color_override("font_color", UiTokens.CYAN)
 	heading.add_child(eyebrow)
-	var page_title := Label.new()
-	page_title.text = "SELECCIONA PISTA"
-	page_title.add_theme_font_size_override("font_size", 36)
-	page_title.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY)
-	heading.add_child(page_title)
+	_page_title = Label.new()
+	_page_title.text = "SELECCIONA PISTA"
+	_page_title.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY)
+	heading.add_child(_page_title)
 	_mode_label = Label.new()
 	_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_mode_label.add_theme_font_size_override("font_size", 18)

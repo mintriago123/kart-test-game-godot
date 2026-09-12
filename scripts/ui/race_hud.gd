@@ -309,7 +309,7 @@ func _update_responsive_layout() -> void:
 	if _minimap == null or _flow_overlay == null:
 		return
 	var viewport_size := get_viewport().get_visible_rect().size
-	var compact := viewport_size.x < 900.0 or viewport_size.y < 500.0
+	var compact := viewport_size.x < UiTokens.BREAKPOINT_TWO_PANEL_WIDTH or viewport_size.y < UiTokens.BREAKPOINT_SHELL_HEIGHT
 	var map_size := Vector2(150.0, 106.0) if compact else Vector2(220.0, 156.0)
 	_minimap.offset_left = -map_size.x - 16.0 if compact else -map_size.x - 24.0
 	_minimap.offset_right = -16.0 if compact else -24.0

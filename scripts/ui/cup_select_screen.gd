@@ -13,6 +13,7 @@ var progress: PlayerProgress
 var selected_cup_id: StringName
 var payload: Dictionary = {}
 var cup_buttons: Dictionary = {}
+var _heading: Label
 var _title: Label
 var _details: Label # Compatibility reference; visual details now live in _content.
 var _continue: ActionButton
@@ -29,7 +30,8 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var background := ColorRect.new(); background.color = UiTokens.INK; background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); add_child(background)
 	var page := VBoxContainer.new(); page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); page.offset_left = 24; page.offset_top = 16; page.offset_right = -24; page.offset_bottom = -16; page.add_theme_constant_override("separation", 10); add_child(page)
-	var heading := Label.new(); heading.text = "SELECCIONA COPA"; heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; heading.add_theme_font_size_override("font_size", 36); page.add_child(heading)
+	_heading = Label.new(); _heading.text = "SELECCIONA COPA"; _heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; page.add_child(_heading)
+	resized.connect(_update_heading_size); _update_heading_size()
 	var carousel := ScrollContainer.new(); carousel.custom_minimum_size.y = 74; carousel.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; page.add_child(carousel)
 	_list = HBoxContainer.new(); _list.alignment = BoxContainer.ALIGNMENT_CENTER; _list.size_flags_horizontal = Control.SIZE_EXPAND_FILL; _list.add_theme_constant_override("separation", 14); carousel.add_child(_list)
 	_active_banner = Label.new(); _active_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; _active_banner.add_theme_color_override("font_color", UiTokens.SUCCESS); page.add_child(_active_banner)
@@ -114,9 +116,14 @@ func _cup_progress_text(cup: CupDefinition) -> String:
 	var race_index := int(progress.active_cup.get("current_race_index", 0)) + 1 if active else 0
 	return "MEJOR MEDALLA · %s   ·   %s" % [["SIN MEDALLA", "BRONCE", "PLATA", "ORO"][best], "%d/3 CARRERAS" % race_index if active else "LISTA PARA EMPEZAR"]
 
+func _update_heading_size() -> void:
+	var compact := size.x < UiTokens.BREAKPOINT_FOCUSED_WIDTH
+	_heading.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if compact else UiTokens.FONT_TITLE_WIDE)
+
+
 func _add_track_cards(cup: CupDefinition) -> void:
 	var row := HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER; _content.add_child(row)
-	var compact := size.x < 760.0
+	var compact := size.x < UiTokens.BREAKPOINT_FOCUSED_WIDTH
 	for index in cup.tracks.size():
 		var panel := PanelContainer.new(); panel.custom_minimum_size = Vector2(170 if compact else 210, 148); panel.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_MEDIUM)); row.add_child(panel)
 		var box := VBoxContainer.new(); panel.add_child(box)
@@ -155,7 +162,7 @@ func _style_difficulty(button: Button, selected: bool) -> void:
 
 func _add_rewards(cup: CupDefinition) -> void:
 	var grid := GridContainer.new(); grid.columns = 3; grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; _content.add_child(grid)
-	var card_width := 170 if size.x < 760.0 else 210
+	var card_width := 170 if size.x < UiTokens.BREAKPOINT_FOCUSED_WIDTH else 210
 	for medal in range(1, 4):
 		var unlock: UnlockDefinition
 		for candidate in cup.unlocks:

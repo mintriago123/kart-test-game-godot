@@ -5,6 +5,7 @@ signal mode_selected(mode: int)
 signal back_requested
 var last_focused_mode := GameModeDefinition.RACE
 var _page: Control
+var _title: Label
 var _cards: GridContainer
 var _back: Button
 var _visible_modes: Array[int] = []
@@ -40,7 +41,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var background := ColorRect.new(); background.color = UiTokens.GRAPHITE; background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); add_child(background)
 	var page := VBoxContainer.new(); _page = page; page.set_anchors_preset(Control.PRESET_CENTER); page.position = Vector2(-600, -270); page.size = Vector2(1200, 540); page.pivot_offset = page.size * 0.5; add_child(page)
-	var title := Label.new(); title.text = "ELIGE CÓMO CORRER"; title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; title.add_theme_font_size_override("font_size", 42); page.add_child(title)
+	_title = Label.new(); _title.text = "ELIGE CÓMO CORRER"; _title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; page.add_child(_title)
 	var cards := GridContainer.new(); _cards = cards; cards.columns = 2; cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL; page.add_child(cards)
 	_visible_modes = available_modes_for_platform(OS.has_feature("android"), OS.has_feature("ios"))
 	for mode in _visible_modes:
@@ -64,7 +65,8 @@ func _remember_focus(mode: int) -> void:
 func _update_layout() -> void:
 	if _page == null: return
 	var viewport := size if size.x > 1.0 else get_viewport_rect().size
-	var compact := viewport.x < 900.0 or viewport.y < 560.0
+	var compact := viewport.x < UiTokens.BREAKPOINT_TWO_PANEL_WIDTH or viewport.y < UiTokens.BREAKPOINT_TWO_PANEL_HEIGHT
+	_title.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if compact else UiTokens.FONT_TITLE_WIDE)
 	_page.size = Vector2(clampf(viewport.x - 32.0, 320.0, 1180.0), maxf(320.0, viewport.y - 28.0))
 	_page.position = (viewport - _page.size) * 0.5
 	_page.pivot_offset = _page.size * 0.5

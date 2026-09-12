@@ -65,10 +65,10 @@ func _build() -> void:
 	page.add_child(prompt_bar)
 
 func _update_layout() -> void:
-	if size.x < 800 or size.y < 500:
+	if size.x < UiTokens.BREAKPOINT_SHELL_WIDTH or size.y < UiTokens.BREAKPOINT_SHELL_HEIGHT:
 		layout = Layout.COMPACT
 		safe_margin = 16
-	elif size.x >= 1600:
+	elif size.x >= UiTokens.BREAKPOINT_WIDE_WIDTH:
 		layout = Layout.WIDE
 		safe_margin = 48
 	else:
