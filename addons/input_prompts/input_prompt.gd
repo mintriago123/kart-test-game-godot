@@ -26,6 +26,13 @@ enum Icons {
 func _init():
 	texture = null
 	stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# Without this, Godot's default EXPAND_KEEP_SIZE makes the control's
+	# minimum size match the texture's native pixel size, overriding whatever
+	# custom_minimum_size a screen sets. Harmless while the icon set was
+	# 16x16 (smaller than every custom_minimum_size in the game), but it
+	# inflates every prompt to the texture's full size now that the icons are
+	# 100x100.
+	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 
 
 func _update_icon():

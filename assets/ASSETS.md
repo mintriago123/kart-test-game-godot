@@ -127,3 +127,20 @@ han incorporado copias renombradas ni audio de procedencia incierta: el selector
 del editor guarda el `AudioStream` elegido directamente en cada definición.
 Su decoración temática reutiliza los modelos CC0 de Nature Kit y Starter Kit
 Racing enumerados arriba, con paletas, escala y distribución propias por pista.
+
+## Xelu's Free Controller & Key Prompts
+
+- Autor: Nicolae "Xelu" Berbece (Those Awesome Guys)
+- Fuente: <https://thoseawesomeguys.com/prompts/>
+- Licencia: CC0 1.0 (atribución no obligatoria)
+- Distribución consultada: 12 de septiembre de 2026
+- Reemplaza los íconos de 16×16 px que traía por defecto el addon
+  `addons/input_prompts` (mismas rutas y nombres de archivo, solo se
+  sustituyó el contenido de los PNG por versiones de 100×100 px) en
+  `addons/input_prompts/icons/{xbox,sony,nintendo,mouse,keyboard}/`.
+- Sin reemplazo por no existir un ícono equivalente en el pack: el botón guía
+  de Xbox (`xbox/xbox.png`), el botón del logo de PlayStation (`sony/ps.png`),
+  las flechas de dirección de los sticks analógicos (`generic/*_stick_*.png`),
+  la rueda del mouse (`mouse/wheel_*.png`) y varias teclas de puntuación poco
+  usadas (backslash, pipe, guion bajo, etc.) — todos conservan el ícono
+  original del addon.

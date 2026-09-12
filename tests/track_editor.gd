@@ -1563,7 +1563,7 @@ func _test_guided_screen() -> void:
 	)
 	var drag_counts := {"started": 0}
 	map_view.edit_started.connect(
-		func() -> void: drag_counts.started = int(drag_counts.started) + 1
+		func(_selection: RefCounted) -> void: drag_counts.started = int(drag_counts.started) + 1
 	)
 	var drag_press := InputEventMouseButton.new()
 	drag_press.button_index = MOUSE_BUTTON_LEFT

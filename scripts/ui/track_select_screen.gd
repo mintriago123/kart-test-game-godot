@@ -280,10 +280,17 @@ func _build_interface() -> void:
 	track_list.add_theme_constant_override("separation", 10)
 	scroll.add_child(track_list)
 
+	var detail_scroll := TouchScrollContainer.new()
+	detail_scroll.name = "DetailScroll"
+	detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	detail_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	detail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_child(detail_scroll)
 	var detail_panel := VBoxContainer.new()
 	detail_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	detail_panel.add_theme_constant_override("separation", 8)
-	body.add_child(detail_panel)
+	detail_scroll.add_child(detail_panel)
 
 	_preview_panel = PanelContainer.new()
 	_preview_panel.custom_minimum_size = Vector2(0.0, 150.0)
@@ -405,12 +412,19 @@ func _build_interface() -> void:
 	)
 	detail_panel.add_child(_race_class_description_label)
 
+	# Fixed action row below `body`, outside the scrollable detail panel, so
+	# CONTINUAR always stays within the viewport instead of being pushed off
+	# the bottom on short viewports (720p/1080p) once the CC/difficulty rows
+	# and items toggle add enough height to overflow a plain VBoxContainer.
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_END
+	page.add_child(actions)
 	_race_button = _create_button("CONTINUAR", UiTokens.ELECTRIC_YELLOW, Vector2(240.0, 64.0))
 	_race_button.pressed.connect(func() -> void:
 		if not _selected_track_id.is_empty():
 			race_requested.emit(_selected_track_id, _selected_cc_id, _selected_game_mode, _selected_difficulty_id, is_toggle_enabled())
 	)
-	detail_panel.add_child(_race_button)
+	actions.add_child(_race_button)
 
 
 func _build_track_list() -> void:
