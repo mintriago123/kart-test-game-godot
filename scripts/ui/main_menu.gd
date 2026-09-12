@@ -31,18 +31,6 @@ var track_catalog: TrackCatalog
 var _settings_panel: Control
 var _play_button: Button
 var _main_actions: Control
-var _first_settings_button: Button
-var _profile_value: Label
-var _vibration_toggle: CheckButton
-var _volume_slider: HSlider
-var _music_volume_slider: HSlider
-var _effects_volume_slider: HSlider
-var _camera_motion_selector: OptionButton
-var _speed_lines_toggle: CheckButton
-var _threat_toggle: CheckButton
-var _vibration_intensity_slider: HSlider
-var _ghost_toggle: CheckButton
-var _percentage_labels: Dictionary = {}
 var _track_buttons: Dictionary = {}
 var _best_times: Dictionary = {}
 var _selected_track_id: StringName = &"coastal"
@@ -52,28 +40,17 @@ var _track_selector: TrackSelectScreen
 var has_active_cup := false
 var progression_catalog: ProgressionCatalog
 var player_progress: PlayerProgress
-var _device_coordinator: InputDeviceCoordinator
+var device_coordinator: InputDeviceCoordinator
 var _router: MenuRouter
 var _title_screen: Control
 var _title_dismissing := false
 var _showroom: VehicleViewport
 var _mode_screen: ModeSelectScreen
-var _configuration_screen: RaceConfigurationScreen
 var _preparation_screen: PreparationScreen
 var _garage_panel: Control
 var _vehicle_gallery: VehicleGalleryScreen
 var _cup_selector: CupSelectScreen
-var _profile_panel: Control
-var _profile_card: VBoxContainer
-var _profile_main_grid: GridContainer
-var _profile_cup_list: VBoxContainer
-var _profile_filter_buttons: Dictionary = {}
-var _profile_cup_filter := &"all"
-var _profile_content_host: VBoxContainer
-var _profile_sidebar: PanelContainer
-var _profile_nav_buttons: Dictionary = {}
-var _profile_mobile_nav: HBoxContainer
-var _profile_active_section := &"summary"
+var _profile_panel: ProfileScreen
 var _controls_panel: ControlsScreen
 var _reduced_motion_toggle: CheckButton
 var _quality_buttons: Dictionary = {}
@@ -83,13 +60,18 @@ var _local_lobby: LocalMultiplayerLobby
 var _pending_multiplayer_participants: Array[RaceParticipantConfig] = []
 var _lan_lobby: LanMultiplayerLobby
 var _active_play_payload: Dictionary = {}
+var _pending_vehicle_pick: Dictionary = {}
 var _landing: MainMenuLanding
 
 
 func _ready() -> void:
 	layer = 30
-	_device_coordinator = InputDeviceCoordinator.new()
-	add_child(_device_coordinator)
+	if device_coordinator == null:
+		# Fallback for a MainMenu created without a shared coordinator (e.g. in
+		# isolation/tests). Normally main.gd injects one that outlives the menu,
+		# so gamepad/keyboard icon detection keeps working during a race.
+		device_coordinator = InputDeviceCoordinator.new()
+		add_child(device_coordinator)
 	_router = MenuRouter.new()
 	_router.name = "MenuRouter"
 	add_child(_router)
@@ -119,34 +101,17 @@ func apply_settings(
 	gamepad_family: StringName = &"automatic",
 	reduced_motion: bool = false
 ) -> void:
-	graphics_profile = profile
+	graphics_profile = PresentationQuality.sanitize(profile)
 	_refresh_quality_buttons()
+	_apply_graphics_profile_to_showrooms()
 	_best_times = best_times.duplicate(true)
+	if _profile_panel != null:
+		_profile_panel.configure(progression_catalog, player_progress, _best_times)
 	_select_track(selected_track_id, false)
 	_select_cc(selected_cc_id, false)
 	_select_game_mode(selected_game_mode, false)
-	if _profile_value != null:
-		_profile_value.text = "ACTUAL: " + profile.to_upper()
-	if _vibration_toggle != null:
-		_vibration_toggle.set_pressed_no_signal(vibration)
-	if _volume_slider != null:
-		_volume_slider.set_value_no_signal(volume)
-	if _music_volume_slider != null:
-		_music_volume_slider.set_value_no_signal(music_volume)
-	if _effects_volume_slider != null:
-		_effects_volume_slider.set_value_no_signal(effects_volume)
-	if _camera_motion_selector != null:
-		_camera_motion_selector.select(["reduced", "full", "off"].find(camera_motion))
-	if _speed_lines_toggle != null:
-		_speed_lines_toggle.set_pressed_no_signal(speed_lines)
-	if _threat_toggle != null:
-		_threat_toggle.set_pressed_no_signal(threat_indicators)
-	if _vibration_intensity_slider != null:
-		_vibration_intensity_slider.set_value_no_signal(vibration_intensity)
-	if _ghost_toggle != null:
-		_ghost_toggle.set_pressed_no_signal(ghost_enabled)
-	if _device_coordinator != null:
-		_device_coordinator.set_manual_family(gamepad_family)
+	if device_coordinator != null:
+		device_coordinator.set_manual_family(gamepad_family)
 	if _reduced_motion_toggle != null:
 		_reduced_motion_toggle.set_pressed_no_signal(reduced_motion)
 	if _router != null:
@@ -157,7 +122,7 @@ func apply_settings(
 		_vehicle_gallery.showroom.reduced_motion = reduced_motion
 	if _settings_panel is SettingsScreen:
 		var snapshot := GameSettings.new()
-		snapshot.graphics_profile = profile
+		snapshot.graphics_profile = graphics_profile
 		snapshot.vibration_enabled = vibration
 		snapshot.master_volume = volume
 		snapshot.music_volume = music_volume
@@ -175,9 +140,9 @@ func apply_settings(
 
 
 func get_active_gamepad_id() -> int:
-	if _device_coordinator == null or _device_coordinator.mode != &"gamepad":
+	if device_coordinator == null or device_coordinator.mode != &"gamepad":
 		return -1
-	return _device_coordinator.device_id
+	return device_coordinator.device_id
 
 
 func _build_interface() -> void:
@@ -190,6 +155,7 @@ func _build_interface() -> void:
 	_landing.name = "MainLanding"
 	_landing.has_active_cup = has_active_cup
 	_landing.play_requested.connect(_show_mode_selector)
+	_landing.quick_race_requested.connect(func() -> void: _handle_mode_card_selected(GameModeDefinition.RACE))
 	_landing.continue_requested.connect(_open_active_cup_flow)
 	_landing.garage_requested.connect(_open_standalone_garage)
 	_landing.profile_requested.connect(func() -> void: _router.navigate(MenuRoute.Id.PROFILE))
@@ -205,8 +171,12 @@ func _build_interface() -> void:
 	_vehicle_gallery.back_requested.connect(func() -> void: _router.back())
 	_garage_panel = _vehicle_gallery
 	root.add_child(_garage_panel)
-	_profile_panel = _build_profile_panel()
+	_profile_panel = ProfileScreen.new()
+	_profile_panel.visible = false
 	root.add_child(_profile_panel)
+	_profile_panel.configure(progression_catalog, player_progress, _best_times)
+	_profile_panel.back_requested.connect(func() -> void: _router.back())
+	_profile_panel.open_garage_requested.connect(_open_standalone_garage)
 	_showroom.show_variant(_get_equipped_variant())
 
 	_track_selector = TrackSelectScreen.new()
@@ -220,13 +190,17 @@ func _build_interface() -> void:
 		, _selected_game_mode
 	)
 	_track_selector.race_requested.connect(
-		func(track_id: StringName, cc_id: StringName, game_mode: int, difficulty_id: StringName) -> void:
+		func(track_id: StringName, cc_id: StringName, game_mode: int, difficulty_id: StringName, toggle_enabled: bool) -> void:
 			_selected_game_mode = game_mode
 			var value := _active_play_payload.duplicate(true)
 			value["track_id"] = track_id
 			value["cc_id"] = cc_id
 			value["mode"] = game_mode
 			value["difficulty_id"] = difficulty_id
+			if game_mode == GameModeDefinition.TIME_TRIAL:
+				value["ghost_enabled"] = toggle_enabled
+			else:
+				value["items_enabled"] = toggle_enabled
 			value["variant_id"] = player_progress.equipped_kart_variant_id if player_progress else value.get("variant_id", &"")
 			value["source"] = "play"
 			value["cup_id"] = value.get("cup_id", &"")
@@ -246,11 +220,6 @@ func _build_interface() -> void:
 	root.add_child(_mode_screen)
 	_mode_screen.mode_selected.connect(_handle_mode_card_selected)
 	_mode_screen.back_requested.connect(_back_to_main)
-	_configuration_screen = RaceConfigurationScreen.new()
-	_configuration_screen.visible = false
-	root.add_child(_configuration_screen)
-	_configuration_screen.configuration_confirmed.connect(_handle_configuration_confirmed)
-	_configuration_screen.back_requested.connect(func() -> void: _router.back())
 	_cup_selector = CupSelectScreen.new()
 	_cup_selector.visible = false
 	root.add_child(_cup_selector)
@@ -263,12 +232,16 @@ func _build_interface() -> void:
 	_preparation_screen.start_requested.connect(func(track_id: StringName, cc_id: StringName, mode: int, difficulty: StringName) -> void: play_requested.emit(track_id, cc_id, mode, difficulty))
 	_preparation_screen.back_requested.connect(func() -> void: _router.back())
 	_preparation_screen.change_vehicle_requested.connect(_show_play_vehicle)
+	_preparation_screen.change_configuration_requested.connect(_show_track_selector)
 	_local_lobby = LocalMultiplayerLobby.new()
 	_local_lobby.visible = false
 	root.add_child(_local_lobby)
 	_local_lobby.configure(progression_catalog, player_progress)
 	_local_lobby.participants_confirmed.connect(_handle_local_participants_confirmed)
 	_local_lobby.back_requested.connect(func() -> void: _router.back())
+	_local_lobby.vehicle_pick_requested.connect(
+		func(slot: int, current_variant_id: StringName) -> void: _open_vehicle_picker("local", slot, current_variant_id)
+	)
 	_lan_lobby = LanMultiplayerLobby.new()
 	_lan_lobby.name = "LanLobby"
 	_lan_lobby.visible = false
@@ -276,10 +249,13 @@ func _build_interface() -> void:
 	_lan_lobby.configure(progression_catalog, track_catalog, player_progress)
 	_lan_lobby.race_requested.connect(func(value_session: LanSession, value_payload: Dictionary) -> void: lan_race_requested.emit(value_session, value_payload))
 	_lan_lobby.back_requested.connect(func() -> void: _router.back())
+	_lan_lobby.vehicle_pick_requested.connect(
+		func(current_variant_id: StringName) -> void: _open_vehicle_picker("lan", -1, current_variant_id)
+	)
 
 	_settings_panel = SettingsScreen.new()
 	root.add_child(_settings_panel)
-	_settings_panel.graphics_profile_changed.connect(func(value: String) -> void: graphics_profile_changed.emit(value))
+	_settings_panel.graphics_profile_changed.connect(func(value: String) -> void: _set_graphics_profile(value))
 	_settings_panel.vibration_changed.connect(func(value: bool) -> void: vibration_changed.emit(value))
 	_settings_panel.volume_changed.connect(func(value: float) -> void: volume_changed.emit(value))
 	_settings_panel.music_volume_changed.connect(func(value: float) -> void: music_volume_changed.emit(value))
@@ -302,7 +278,6 @@ func _build_interface() -> void:
 	root.add_child(_title_screen)
 	_router.register_screen(MenuRoute.Id.TITLE, _title_screen)
 	_router.register_screen(MenuRoute.Id.PLAY_MODE, _mode_screen)
-	_router.register_screen(MenuRoute.Id.PLAY_CONFIG, _configuration_screen)
 	_router.register_screen(MenuRoute.Id.PLAY_TRACK, _track_selector)
 	_router.register_screen(MenuRoute.Id.PLAY_CUP, _cup_selector)
 	_router.register_screen(MenuRoute.Id.PLAY_VEHICLE, _vehicle_gallery)
@@ -389,256 +364,6 @@ func _dismiss_title() -> void:
 	_play_button.grab_focus.call_deferred()
 
 
-func _build_profile_panel() -> Control:
-	var overlay := ColorRect.new()
-	overlay.color = UiTokens.SCRIM
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.visible = false
-	var margin := MarginContainer.new(); margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); margin.add_theme_constant_override("margin_left", 24); margin.add_theme_constant_override("margin_top", 20); margin.add_theme_constant_override("margin_right", 24); margin.add_theme_constant_override("margin_bottom", 20); overlay.add_child(margin)
-	var shell := HBoxContainer.new(); shell.name = "ProfileShell"; shell.add_theme_constant_override("separation", UiTokens.SPACE_4); margin.add_child(shell)
-	var sidebar := PanelContainer.new(); _profile_sidebar = sidebar; sidebar.name = "ProfileNavigation"; sidebar.custom_minimum_size.x = 210; sidebar.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK, UiTokens.RADIUS_LARGE)); shell.add_child(sidebar)
-	var nav := VBoxContainer.new(); nav.add_theme_constant_override("separation", UiTokens.SPACE_2); sidebar.add_child(nav)
-	var eyebrow := _profile_value_label("PILOTO", UiTokens.CYAN, UiTokens.FONT_CAPTION); nav.add_child(eyebrow)
-	var nav_title := _profile_value_label("PASAPORTE\nCOMPETICIÓN", UiTokens.WARM_WHITE, UiTokens.FONT_H3); nav.add_child(nav_title)
-	for section_data in [["RESUMEN", &"summary"], ["COPAS", &"cups"], ["RÉCORDS", &"records"], ["MULTIJUGADOR", &"multiplayer"], ["COLECCIÓN", &"collection"]]:
-		var nav_button := _create_button(section_data[0], UiTokens.INK_RAISED, Vector2(0, UiTokens.TOUCH_TARGET)); nav_button.name = "ProfileNav_%s" % section_data[1]; nav_button.alignment = HORIZONTAL_ALIGNMENT_LEFT; nav_button.pressed.connect(_show_profile_section.bind(section_data[1])); nav.add_child(nav_button); _profile_nav_buttons[section_data[1]] = nav_button
-	var spacer := Control.new(); spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL; nav.add_child(spacer)
-	var close := _create_button("VOLVER", UiTokens.CORAL, Vector2(0, UiTokens.BUTTON_HEIGHT)); close.pressed.connect(func() -> void: _router.back()); nav.add_child(close)
-	_profile_mobile_nav = HBoxContainer.new(); _profile_mobile_nav.add_theme_constant_override("separation", UiTokens.SPACE_2); _profile_mobile_nav.visible = false; nav.add_child(_profile_mobile_nav)
-
-	var content_panel := PanelContainer.new(); content_panel.name = "ProfileContent"; content_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL; content_panel.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.GRAPHITE, UiTokens.RADIUS_LARGE)); shell.add_child(content_panel)
-	var content_scroll := ScrollContainer.new(); content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; content_panel.add_child(content_scroll)
-	_profile_content_host = VBoxContainer.new(); _profile_content_host.name = "ProfileContentHost"; _profile_content_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL; _profile_content_host.add_theme_constant_override("separation", UiTokens.SPACE_4); content_scroll.add_child(_profile_content_host)
-	overlay.resized.connect(_update_profile_layout)
-	_update_profile_layout()
-	_show_profile_section(_profile_active_section)
-	return overlay
-
-
-func _profile_section(title: String) -> PanelContainer:
-	var panel := PanelContainer.new(); panel.custom_minimum_size.y = 116; panel.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK, UiTokens.RADIUS_MEDIUM))
-	var section := VBoxContainer.new(); section.add_theme_constant_override("separation", UiTokens.SPACE_2); panel.add_child(section)
-	var heading := Label.new(); heading.text = title; heading.add_theme_font_size_override("font_size", UiTokens.FONT_CAPTION); heading.add_theme_color_override("font_color", UiTokens.MUTED); section.add_child(heading)
-	return panel
-
-
-func _profile_section_content(panel: PanelContainer) -> VBoxContainer:
-	return panel.get_child(0) as VBoxContainer
-
-
-func _show_profile_section(section_id: StringName) -> void:
-	if _profile_content_host == null: return
-	_profile_active_section = section_id
-	for child in _profile_content_host.get_children(): child.queue_free()
-	for id in _profile_nav_buttons:
-		var button := _profile_nav_buttons[id] as Button
-		var active: bool = id == section_id
-		button.add_theme_stylebox_override("normal", _style(UiTokens.ELECTRIC_YELLOW if active else UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL))
-		button.add_theme_color_override("font_color", UiTokens.GRAPHITE if active else UiTokens.TEXT_PRIMARY)
-	var heading := _profile_value_label(_profile_section_title(section_id), UiTokens.WARM_WHITE, UiTokens.FONT_H1)
-	heading.name = "ProfileSectionTitle"; _profile_content_host.add_child(heading)
-	var intro := _profile_value_label(_profile_section_intro(section_id), UiTokens.TEXT_TERTIARY, UiTokens.FONT_BODY); _profile_content_host.add_child(intro)
-	match section_id:
-		&"summary": _build_profile_summary()
-		&"cups": _build_profile_cups()
-		&"records": _build_profile_records()
-		&"multiplayer": _build_profile_multiplayer()
-		&"collection": _build_profile_collection()
-	_profile_nav_buttons[section_id].grab_focus.call_deferred()
-
-
-func _profile_section_title(section_id: StringName) -> String:
-	return {&"summary": "RESUMEN", &"cups": "PALMARÉS", &"records": "RÉCORDS DE PISTA", &"multiplayer": "MULTIJUGADOR", &"collection": "COLECCIÓN"}.get(section_id, "PERFIL")
-
-
-func _profile_section_intro(section_id: StringName) -> String:
-	return {&"summary": "Tu rendimiento en una sola mirada.", &"cups": "Medallas conseguidas por dificultad.", &"records": "Las marcas que definen tu vuelta más rápida.", &"multiplayer": "Resultados separados por tipo de partida.", &"collection": "Tus vehículos, recompensas y progreso de garaje."}.get(section_id, "")
-
-
-func _build_profile_summary() -> void:
-	var grid := GridContainer.new(); grid.columns = 2; grid.add_theme_constant_override("h_separation", UiTokens.SPACE_3); grid.add_theme_constant_override("v_separation", UiTokens.SPACE_3); grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL; _profile_content_host.add_child(grid)
-	_profile_add_metric(grid, str(player_progress.victories if player_progress else 0), "VICTORIAS", UiTokens.ELECTRIC_YELLOW)
-	_profile_add_metric(grid, str(player_progress.podiums if player_progress else 0), "PODIOS", UiTokens.CYAN)
-	_profile_add_metric(grid, str(player_progress.races_played if player_progress else 0), "CARRERAS", UiTokens.WARM_WHITE)
-	_profile_add_metric(grid, str(player_progress.best_finish_position if player_progress and player_progress.best_finish_position > 0 else "—"), "MEJOR POSICIÓN", UiTokens.SUCCESS)
-	var career_points := player_progress.get_career_points(progression_catalog) if player_progress != null and progression_catalog != null else 0
-	var career_max := player_progress.get_max_career_points(progression_catalog) if player_progress != null and progression_catalog != null else 0
-	var next_reward: UnlockDefinition = player_progress.get_next_career_reward(progression_catalog) if player_progress != null and progression_catalog != null else null
-	var progression := _profile_section("PROGRESIÓN"); var progression_content := _profile_section_content(progression); _profile_content_host.add_child(progression)
-	progression_content.add_child(_profile_value_label("%d / %d PUNTOS DE CARRERA\n%s" % [career_points, career_max, "%d PTOS · %s" % [next_reward.required_points, next_reward.display_name.to_upper()] if next_reward != null else "TODOS LOS HITOS CONSEGUIDOS"], UiTokens.ELECTRIC_YELLOW, UiTokens.FONT_LABEL))
-	var bar := ProgressBar.new(); bar.max_value = maxf(1.0, career_max); bar.value = career_points; bar.show_percentage = false; bar.custom_minimum_size.y = UiTokens.SPACE_3; bar.add_theme_stylebox_override("background", UiTokens.panel(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL)); bar.add_theme_stylebox_override("fill", UiTokens.panel(UiTokens.ELECTRIC_YELLOW, UiTokens.RADIUS_SMALL)); progression_content.add_child(bar)
-
-
-func _build_profile_cups() -> void:
-	var header := HBoxContainer.new(); header.add_theme_constant_override("separation", UiTokens.SPACE_2); _profile_content_host.add_child(header)
-	var label := _profile_value_label("FILTRAR POR MEDALLA", UiTokens.MUTED, UiTokens.FONT_CAPTION); label.size_flags_horizontal = Control.SIZE_EXPAND_FILL; header.add_child(label)
-	_profile_filter_buttons.clear()
-	for filter_data in [["TODAS", &"all"], ["BRONCE", &"bronze"], ["PLATA", &"silver"], ["ORO", &"gold"]]:
-		var filter := _create_button(filter_data[0], UiTokens.INK_RAISED, Vector2(88, UiTokens.TOUCH_TARGET)); filter.name = "CupFilter_%s" % filter_data[1]; filter.add_theme_font_size_override("font_size", UiTokens.FONT_CAPTION); filter.pressed.connect(_set_profile_cup_filter.bind(filter_data[1])); header.add_child(filter); _profile_filter_buttons[filter_data[1]] = filter
-	_profile_cup_list = VBoxContainer.new(); _profile_cup_list.add_theme_constant_override("separation", UiTokens.SPACE_2); _profile_content_host.add_child(_profile_cup_list); _refresh_profile_cups()
-
-
-func _build_profile_records() -> void:
-	var panel := _profile_section("RÉCORDS GLOBALES"); var content := _profile_section_content(panel); _profile_content_host.add_child(panel)
-	var best_time: float = float(_best_times.values().min()) if not _best_times.is_empty() else 0.0
-	content.add_child(_profile_value_label("MEJOR TIEMPO   %s\nTIEMPO CONDUCIDO   %s\nATAJOS   %d\nRECUPERACIONES   %d" % [_format_duration(best_time), _format_duration(player_progress.driving_time_seconds if player_progress else 0.0), player_progress.shortcuts_used if player_progress else 0, player_progress.recoveries if player_progress else 0], UiTokens.TEXT_PRIMARY, UiTokens.FONT_LABEL))
-	var tracks := _profile_section("MEJORES TIEMPOS POR PISTA"); var track_content := _profile_section_content(tracks); _profile_content_host.add_child(tracks)
-	if _best_times.is_empty(): track_content.add_child(_profile_value_label("AÚN NO HAY TIEMPOS REGISTRADOS", UiTokens.TEXT_TERTIARY, UiTokens.FONT_BODY))
-	else:
-		for track_id in _best_times:
-			track_content.add_child(_profile_value_label("%s    %s" % [str(track_id).to_upper(), _format_duration(_best_times[track_id])], UiTokens.TEXT_SECONDARY, UiTokens.FONT_BODY))
-
-
-func _build_profile_multiplayer() -> void:
-	for data in [["LOCAL", player_progress.local_multiplayer if player_progress else MultiplayerStatistics.new()], ["LAN", player_progress.lan_multiplayer if player_progress else MultiplayerStatistics.new()]]:
-		var panel := _profile_section(data[0]); var content := _profile_section_content(panel); _profile_content_host.add_child(panel); var stats: MultiplayerStatistics = data[1]
-		content.add_child(_profile_value_label("%d CARRERAS\n%d VICTORIAS   ·   %d PODIOS\nMEJOR POSICIÓN   %s" % [stats.races_played, stats.victories, stats.podiums, str(stats.best_finish_position) if stats.best_finish_position > 0 else "—"], UiTokens.CYAN, UiTokens.FONT_LABEL))
-
-
-func _build_profile_collection() -> void:
-	var unlocked := player_progress.get_unlocked_variant_count(progression_catalog.unlocks) if player_progress != null and progression_catalog != null else 0
-	var total := progression_catalog.unlocks.variants.size() if progression_catalog != null else 0
-	var equipped_name := "—"
-	if progression_catalog != null and player_progress != null:
-		var equipped := progression_catalog.unlocks.get_variant(player_progress.equipped_kart_variant_id)
-		if equipped != null: equipped_name = equipped.display_name
-	var panel := _profile_section("ESTADO DEL GARAJE"); var content := _profile_section_content(panel); _profile_content_host.add_child(panel)
-	content.add_child(_profile_value_label("COLECCIÓN   %d / %d\nEQUIPADO   %s\nNUEVOS   %d" % [unlocked, total, equipped_name.to_upper(), player_progress.get_new_reward_count() if player_progress else 0], UiTokens.TEXT_PRIMARY, UiTokens.FONT_LABEL))
-	var garage := _create_button("ABRIR GARAJE", UiTokens.ELECTRIC_YELLOW, Vector2(240, UiTokens.BUTTON_HEIGHT)); garage.pressed.connect(_open_standalone_garage); garage.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; _profile_content_host.add_child(garage)
-
-
-func _profile_value_label(text: String, color: Color, font_size: int) -> Label:
-	var label := Label.new(); label.text = text; label.add_theme_font_size_override("font_size", font_size); label.add_theme_color_override("font_color", color); label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	return label
-
-
-func _profile_add_metric(parent: GridContainer, value: String, label_text: String, color: Color) -> void:
-	var metric := VBoxContainer.new(); metric.custom_minimum_size.x = 132.0; metric.size_flags_horizontal = Control.SIZE_EXPAND_FILL; metric.add_theme_constant_override("separation", 0)
-	var value_label := _profile_value_label(value, color, UiTokens.FONT_DISPLAY); value_label.add_theme_color_override("font_color", color); metric.add_child(value_label)
-	var caption := _profile_value_label(label_text, UiTokens.MUTED, UiTokens.FONT_CAPTION); caption.autowrap_mode = TextServer.AUTOWRAP_OFF; caption.clip_text = true; metric.add_child(caption); parent.add_child(metric)
-
-
-func _set_profile_cup_filter(filter_id: StringName) -> void:
-	_profile_cup_filter = filter_id
-	_refresh_profile_cups()
-
-
-func _refresh_profile_cups() -> void:
-	if _profile_cup_list == null: return
-	for child in _profile_cup_list.get_children(): child.queue_free()
-	for filter_id in _profile_filter_buttons:
-		var button := _profile_filter_buttons[filter_id] as Button
-		var selected: bool = filter_id == _profile_cup_filter
-		button.add_theme_stylebox_override("normal", _style(UiTokens.ELECTRIC_YELLOW if selected else UiTokens.INK_RAISED, 12))
-		button.add_theme_color_override("font_color", UiTokens.GRAPHITE if selected else UiTokens.TEXT_PRIMARY)
-	if progression_catalog == null or progression_catalog.cups == null: return
-	var medal_names := ["—", "BRONCE", "PLATA", "ORO"]
-	var wanted := -1
-	match _profile_cup_filter:
-		&"bronze": wanted = UnlockDefinition.BRONZE
-		&"silver": wanted = UnlockDefinition.SILVER
-		&"gold": wanted = UnlockDefinition.GOLD
-	var visible_cups := 0
-	for cup in progression_catalog.cups.get_valid_cups():
-		var best := player_progress.get_best_cup_medal(cup.id) if player_progress else UnlockDefinition.Medal.NONE
-		var difficulty_medals := PackedStringArray()
-		var matches_filter := wanted <= 0
-		for difficulty in cup.difficulties:
-			var medal := player_progress.get_medal(cup.id, difficulty.id) if player_progress else UnlockDefinition.Medal.NONE
-			difficulty_medals.append("%s %s" % [difficulty.display_name.to_upper(), medal_names[medal]])
-			if medal == wanted: matches_filter = true
-		if not matches_filter: continue
-		visible_cups += 1
-		var cup_card := PanelContainer.new(); cup_card.custom_minimum_size.y = 58; cup_card.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL)); _profile_cup_list.add_child(cup_card)
-		var cup_info := Label.new(); cup_info.text = "%s\n%s" % [cup.display_name.to_upper(), "   ".join(difficulty_medals)]; cup_info.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW if best == UnlockDefinition.GOLD else (UiTokens.TEXT_PRIMARY if best > 0 else UiTokens.TEXT_TERTIARY)); cup_card.add_child(cup_info)
-	if visible_cups == 0:
-		_profile_cup_list.add_child(_profile_value_label("NO HAY MEDALLAS EN ESTE FILTRO", UiTokens.TEXT_TERTIARY, UiTokens.FONT_BODY))
-
-
-func _update_profile_layout() -> void:
-	if _profile_panel == null or _profile_sidebar == null: return
-	var compact := _profile_panel.size.x < 900.0
-	_profile_sidebar.custom_minimum_size.x = 168.0 if compact else 210.0
-	if _profile_content_host != null:
-		_profile_content_host.custom_minimum_size.x = maxf(300.0, _profile_panel.size.x - (260.0 if compact else 300.0))
-
-
-func _build_garage_panel() -> Control:
-	var overlay := ColorRect.new()
-	overlay.color = UiTokens.SCRIM
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.visible = false
-	_garage_showroom = VehicleViewport.new()
-	_garage_showroom.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-	_garage_showroom.offset_left = -720.0
-	_garage_showroom.offset_right = -24.0
-	_garage_showroom.offset_top = 60.0
-	_garage_showroom.offset_bottom = -60.0
-	_garage_showroom.set_framing(VehicleViewport.Framing.GARAGE)
-	overlay.add_child(_garage_showroom)
-	_garage_showroom.show_variant(_get_equipped_variant())
-	var scroll := ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-	scroll.position = Vector2(32.0, -290.0)
-	scroll.size = Vector2(660.0, 580.0)
-	overlay.add_child(scroll)
-	overlay.resized.connect(func() -> void:
-		var compact := overlay.size.x < 1100.0
-		_garage_showroom.visible = not compact
-		scroll.size = Vector2(minf(660.0, overlay.size.x - 32.0), minf(580.0, overlay.size.y - 32.0))
-		scroll.position = Vector2((overlay.size.x - scroll.size.x) * 0.5 if compact else 32.0, -scroll.size.y * 0.5)
-	)
-	var list := VBoxContainer.new()
-	list.custom_minimum_size.x = 620.0
-	list.add_theme_constant_override("separation", 10)
-	scroll.add_child(list)
-	var title := Label.new()
-	title.text = "GARAJE"
-	title.add_theme_font_size_override("font_size", 36)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	list.add_child(title)
-	if progression_catalog != null and player_progress != null:
-		for variant in progression_catalog.unlocks.variants:
-			var unlock := progression_catalog.unlocks.get_unlock_for_variant(variant.id)
-			var unlocked := player_progress.can_equip(variant.id, progression_catalog.unlocks)
-			var button := _create_button(variant.display_name if unlocked else "%s · %s" % [variant.display_name, unlock.requirement_text(progression_catalog) if unlock != null else "Bloqueado"], UiTokens.SUCCESS if unlocked else UiTokens.TEXT_DISABLED, Vector2(600.0, 52.0))
-			button.disabled = false
-			button.pressed.connect(func() -> void:
-				if unlocked: equip_variant_requested.emit(variant.id)
-				else: _ui_sound.play_ui_error()
-			)
-			button.focus_entered.connect(func() -> void: _garage_showroom.show_variant(variant))
-			button.mouse_entered.connect(func() -> void: _garage_showroom.show_variant(variant))
-			list.add_child(button)
-			if variant != null:
-				var stats_row := VBoxContainer.new()
-				for stat in [
-					["Velocidad", variant.speed, 0.8, 1.2],
-					["Aceleración", variant.acceleration, 0.8, 1.2],
-					["Manejo", variant.handling, 0.8, 1.2],
-					["Peso", variant.weight, 0.8, 1.25],
-					["Miniturbo", variant.mini_turbo_duration_multiplier, 0.8, 1.25],
-				]:
-					var line := HBoxContainer.new()
-					stats_row.add_child(line)
-					var label := Label.new()
-					label.text = str(stat[0])
-					label.custom_minimum_size.x = 82.0
-					line.add_child(label)
-					var bar := ProgressBar.new()
-					bar.min_value = float(stat[2])
-					bar.max_value = float(stat[3])
-					bar.value = float(stat[1])
-					bar.show_percentage = false
-					bar.custom_minimum_size = Vector2(190.0, 14.0)
-					line.add_child(bar)
-				list.add_child(stats_row)
-	var close := _create_button("VOLVER", UiTokens.CORAL, Vector2(200.0, 58.0))
-	close.pressed.connect(func() -> void: _router.back())
-	list.add_child(close)
-	return overlay
-
-
 func _select_track(track_id: StringName, should_emit: bool = true) -> void:
 	if _track_selector == null:
 		return
@@ -677,7 +402,20 @@ func _show_track_selector(value: Dictionary = {}) -> void:
 	_track_selector.select_cc(StringName(value.get("cc_id", _selected_cc_id)), false)
 	_track_selector.select_game_mode(int(value.get("mode", _selected_game_mode)), false)
 	_track_selector.set_context_payload(value)
+	_track_selector.configure_event_options(
+		bool(value.get("items_enabled", true)),
+		bool(value.get("ghost_enabled", true))
+	)
+	_track_selector.set_step_indicator(1, _step_total_for_mode(int(value.get("mode", _selected_game_mode))))
 	_track_selector.show_screen()
+
+
+func _step_total_for_mode(mode: int) -> int:
+	# Local multiplayer picks vehicles in the lobby itself, so it never visits
+	# PLAY_VEHICLE through this shared flow — same step count as Cup.
+	if mode == GameModeDefinition.CUP or mode == GameModeDefinition.LOCAL_MULTIPLAYER:
+		return 2
+	return 3
 
 func _show_mode_selector() -> void:
 	_router.navigate(MenuRoute.Id.PLAY_MODE, {"mode": _selected_game_mode})
@@ -707,14 +445,7 @@ func _handle_mode_card_selected(mode: int) -> void:
 		_router.navigate(MenuRoute.Id.PLAY_LAN_LOBBY, {"mode": mode})
 	else:
 		var config_payload := {"source": "play", "mode": mode, "track_id": _selected_track_id, "cup_id": &"", "variant_id": player_progress.equipped_kart_variant_id if player_progress else &"", "cc_id": _selected_cc_id, "difficulty_id": &"competitive", "items_enabled": true, "ghost_enabled": true, "ghost_available": _ghost_available(), "continue_active": false}
-		_active_play_payload = config_payload.duplicate(true)
-		_configuration_screen.configure(config_payload)
-		_router.navigate(MenuRoute.Id.PLAY_CONFIG, config_payload)
-
-
-func _handle_configuration_confirmed(value: Dictionary) -> void:
-	_active_play_payload = value.duplicate(true)
-	_show_track_selector(value)
+		_show_track_selector(config_payload)
 
 
 func _ghost_available() -> bool:
@@ -753,10 +484,14 @@ func restore_main_route() -> void:
 
 func _show_play_vehicle(value: Dictionary) -> void:
 	_vehicle_gallery.configure(progression_catalog, player_progress, value)
+	var mode := int(value.get("mode", _selected_game_mode))
+	var total := _step_total_for_mode(mode)
+	_vehicle_gallery.set_step_indicator(total - 1, total)
 	_router.navigate(MenuRoute.Id.PLAY_VEHICLE, value)
 
 func _open_standalone_garage() -> void:
 	_vehicle_gallery.configure(progression_catalog, player_progress, {"source": "standalone", "variant_id": _vehicle_gallery.last_inspected_variant_id})
+	_vehicle_gallery.set_step_indicator(0, 0)
 	_router.navigate(MenuRoute.Id.GARAGE, _vehicle_gallery.payload)
 
 func _handle_route_changed(route: int, _payload: Dictionary) -> void:
@@ -780,12 +515,29 @@ func _set_main_menu_focus_enabled(enabled: bool) -> void:
 
 func _handle_vehicle_action(value: Dictionary) -> void:
 	var variant_id := StringName(value.get("variant_id", &""))
-	if str(value.get("source", "standalone")) == "standalone":
+	var source := str(value.get("source", "standalone"))
+	if source == "lobby_pick":
+		# Picking a vehicle for a lobby slot must never change the account's
+		# globally-equipped kart, unlike the standalone/play flows below.
+		match str(_pending_vehicle_pick.get("target", "")):
+			"local": _local_lobby.apply_picked_vehicle(int(_pending_vehicle_pick.get("slot", 0)), variant_id)
+			"lan": _lan_lobby.apply_picked_vehicle(variant_id)
+		_pending_vehicle_pick = {}
+		_router.back()
+		return
+	if source == "standalone":
 		equip_variant_requested.emit(variant_id)
 		_vehicle_gallery.configure(progression_catalog, player_progress, value)
 		return
 	equip_variant_requested.emit(variant_id)
 	_show_preparation_payload(value)
+
+
+func _open_vehicle_picker(target: String, slot: int, current_variant_id: StringName) -> void:
+	_pending_vehicle_pick = {"target": target, "slot": slot}
+	_vehicle_gallery.configure(progression_catalog, player_progress, {"source": "lobby_pick", "variant_id": current_variant_id})
+	_vehicle_gallery.set_step_indicator(0, 0)
+	_router.navigate(MenuRoute.Id.PLAY_VEHICLE, _vehicle_gallery.payload)
 
 func _show_preparation_payload(value: Dictionary) -> void:
 	var payload := value.duplicate(true)
@@ -795,6 +547,8 @@ func _show_preparation_payload(value: Dictionary) -> void:
 		var race_index := int(player_progress.active_cup.get("current_race_index", 0)) if bool(payload.get("continue_active", false)) else 0
 		if race_index >= 0 and race_index < cup.tracks.size(): track_id = cup.tracks[race_index].id
 		payload["track_id"] = track_id
+	var total := _step_total_for_mode(int(payload.get("mode", _selected_game_mode)))
+	_preparation_screen.set_step_indicator(total, total)
 	_preparation_screen.configure(payload, track_catalog.get_track(track_id) if track_catalog else null, progression_catalog.unlocks.get_variant(StringName(payload.get("variant_id", &""))) if progression_catalog else null, cup)
 	_router.navigate(MenuRoute.Id.PLAY_READY, payload)
 
@@ -881,10 +635,6 @@ func _game_mode_label(game_mode: int) -> String:
 		GameModeDefinition.LAN_MULTIPLAYER: return "RED LOCAL"
 		_: return "CARRERA"
 
-func _format_duration(seconds: float) -> String:
-	var total := maxi(roundi(seconds), 0)
-	return "%02d:%02d:%02d" % [total / 3600, (total / 60) % 60, total % 60]
-
 
 func _select_game_mode(game_mode: int, should_emit := true) -> void:
 	if _track_selector != null:
@@ -892,292 +642,22 @@ func _select_game_mode(game_mode: int, should_emit := true) -> void:
 		_selected_game_mode = _track_selector.get_selected_game_mode()
 
 
-func _build_settings_panel() -> Control:
-	var overlay := ColorRect.new()
-	overlay.color = UiTokens.SCRIM
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.visible = false
-
-	var card_panel := PanelContainer.new()
-	card_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	card_panel.anchor_bottom = 1.0
-	card_panel.offset_top = 24.0
-	card_panel.offset_bottom = -24.0
-	card_panel.add_theme_stylebox_override("panel", _style(UiTokens.INK, 24))
-	overlay.add_child(card_panel)
-
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	card_panel.add_child(scroll)
-
-	var content := VBoxContainer.new()
-	content.alignment = BoxContainer.ALIGNMENT_CENTER
-	content.add_theme_constant_override("separation", 12)
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content.custom_minimum_size.x = 0.0
-	scroll.add_child(content)
-
-	var title := Label.new()
-	title.text = "AJUSTES"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 36)
-	title.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY)
-	content.add_child(title)
-
-	var sections := TabContainer.new()
-	sections.custom_minimum_size = Vector2(0.0, 420.0)
-	sections.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sections.add_theme_stylebox_override("panel", _style(UiTokens.GRAPHITE, UiTokens.RADIUS_MEDIUM))
-	sections.add_theme_stylebox_override("tab_unselected", _style(UiTokens.GRAPHITE, UiTokens.RADIUS_SMALL))
-	sections.add_theme_stylebox_override("tab_selected", _style(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, 1))
-	sections.add_theme_stylebox_override("tab_hovered", _style(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, 1))
-	sections.add_theme_color_override("font_unselected_color", UiTokens.TEXT_TERTIARY)
-	sections.add_theme_color_override("font_selected_color", UiTokens.TEXT_PRIMARY)
-	content.add_child(sections)
-	var gameplay_section := VBoxContainer.new()
-	gameplay_section.name = "Juego"
-	gameplay_section.add_theme_constant_override("separation", UiTokens.SPACE_3)
-	sections.add_child(gameplay_section)
-	var graphics_section := VBoxContainer.new()
-	graphics_section.name = "Gráficos"
-	graphics_section.add_theme_constant_override("separation", 10)
-	sections.add_child(graphics_section)
-	var audio_section := VBoxContainer.new()
-	audio_section.name = "Audio"
-	audio_section.add_theme_constant_override("separation", 10)
-	sections.add_child(audio_section)
-	var accessibility_section := VBoxContainer.new()
-	accessibility_section.name = "Accesibilidad"
-	accessibility_section.add_theme_constant_override("separation", 10)
-	sections.add_child(accessibility_section)
-	_reduced_motion_toggle = CheckButton.new()
-	_reduced_motion_toggle.text = "Reducir movimiento de menús"
-	_reduced_motion_toggle.custom_minimum_size.y = UiTokens.TOUCH_TARGET
-	_reduced_motion_toggle.toggled.connect(func(enabled: bool) -> void:
-		_router.reduced_motion = enabled
-		if _showroom != null: _showroom.reduced_motion = enabled
-		if _vehicle_gallery != null and _vehicle_gallery.showroom != null: _vehicle_gallery.showroom.reduced_motion = enabled
-		reduced_motion_changed.emit(enabled)
-	)
-	accessibility_section.add_child(_reduced_motion_toggle)
-	var controls_section := VBoxContainer.new()
-	controls_section.name = "Controles"
-	controls_section.add_theme_constant_override("separation", 10)
-	sections.add_child(controls_section)
-	var family_label := Label.new()
-	family_label.text = "FAMILIA VISUAL DEL MANDO"
-	controls_section.add_child(family_label)
-	var family := OptionButton.new()
-	for family_name in ["AUTOMÁTICA", "XBOX / GENÉRICO", "PLAYSTATION", "NINTENDO"]:
-		family.add_item(family_name)
-	family.custom_minimum_size.y = UiTokens.TOUCH_TARGET
-	family.item_selected.connect(func(index: int) -> void:
-		var selected_family: StringName = [&"automatic", &"xbox", &"playstation", &"nintendo"][index]
-		_device_coordinator.set_manual_family(selected_family)
-		gamepad_family_changed.emit(selected_family)
-	)
-	controls_section.add_child(family)
-	var customize := ActionButton.new()
-	customize.text = "REASIGNAR CONTROLES"
-	customize.pressed.connect(func() -> void: _router.navigate(MenuRoute.Id.CONTROLS))
-	controls_section.add_child(customize)
-	for action_data in [[&"accelerate", "ACELERAR"], [&"brake", "FRENAR"], [&"steer_left", "GIRAR"], [&"drift", "DERRAPE"], [&"use_item", "OBJETO"], [&"pause", "PAUSA"]]:
-		var row := HBoxContainer.new()
-		row.custom_minimum_size.y = UiTokens.TOUCH_TARGET
-		controls_section.add_child(row)
-		var action_label := Label.new()
-		action_label.text = action_data[1]
-		action_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(action_label)
-		var action_prompt := ActionPromptView.new()
-		action_prompt.action = action_data[0]
-		action_prompt.caption = "REASIGNAR"
-		row.add_child(action_prompt)
-
-	var profile_label := Label.new()
-	profile_label.text = "CALIDAD GRÁFICA"
-	profile_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	profile_label.add_theme_font_size_override("font_size", 17)
-	profile_label.add_theme_color_override("font_color", UiTokens.CYAN)
-	graphics_section.add_child(profile_label)
-
-	_profile_value = Label.new()
-	_profile_value.text = "ACTUAL: MEDIA"
-	_profile_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_profile_value.add_theme_font_size_override("font_size", 16)
-	_profile_value.add_theme_color_override("font_color", UiTokens.ELECTRIC_YELLOW)
-	graphics_section.add_child(_profile_value)
-
-	var profile_row := GridContainer.new()
-	profile_row.columns = 4
-	profile_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	profile_row.add_theme_constant_override("separation", 12)
-	graphics_section.add_child(profile_row)
-	_first_settings_button = _create_button("BAJA", UiTokens.CYAN, Vector2(150.0, 64.0))
-	_first_settings_button.pressed.connect(func() -> void: _set_graphics_profile("low"))
-	_quality_buttons[&"low"] = _first_settings_button
-	profile_row.add_child(_first_settings_button)
-	var medium := _create_button("MEDIA", UiTokens.INK_RAISED, Vector2(150.0, 64.0))
-	medium.pressed.connect(func() -> void: _set_graphics_profile("medium"))
-	_quality_buttons[&"medium"] = medium
-	profile_row.add_child(medium)
-	var high := _create_button("ALTA", UiTokens.INK_RAISED, Vector2(110.0, 64.0))
-	high.pressed.connect(func() -> void: _set_graphics_profile("high"))
-	_quality_buttons[&"high"] = high
-	profile_row.add_child(high)
-	var ultra := _create_button("ULTRA", UiTokens.INK_RAISED, Vector2(110.0, 64.0))
-	ultra.tooltip_text = "Máxima calidad para escritorio potente"
-	ultra.pressed.connect(func() -> void: _set_graphics_profile("ultra"))
-	_quality_buttons[&"ultra"] = ultra
-	profile_row.add_child(ultra)
-
-	_vibration_toggle = CheckButton.new()
-	_vibration_toggle.text = "Vibración"
-	_vibration_toggle.button_pressed = true
-	_vibration_toggle.custom_minimum_size = Vector2(220.0, UiTokens.BUTTON_HEIGHT)
-	_vibration_toggle.add_theme_font_size_override("font_size", 19)
-	_vibration_toggle.toggled.connect(func(enabled: bool) -> void: vibration_changed.emit(enabled))
-	accessibility_section.add_child(_vibration_toggle)
-
-	var volume_label := Label.new()
-	volume_label.text = "VOLUMEN"
-	volume_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	volume_label.add_theme_font_size_override("font_size", 16)
-	volume_label.add_theme_color_override("font_color", UiTokens.CYAN)
-	audio_section.add_child(volume_label)
-
-	_volume_slider = _add_volume_control(audio_section, "Principal", 0.8, volume_changed)
-	_music_volume_slider = _add_volume_control(audio_section, "Música", 1.0, music_volume_changed)
-	_effects_volume_slider = _add_volume_control(audio_section, "Efectos", 1.0, effects_volume_changed)
-	_camera_motion_selector = OptionButton.new()
-	for label in ["Movimiento reducido", "Movimiento completo", "Movimiento desactivado"]:
-		_camera_motion_selector.add_item(label)
-	_camera_motion_selector.select(0)
-	_camera_motion_selector.item_selected.connect(func(index: int) -> void: camera_motion_changed.emit(["reduced", "full", "off"][index]))
-	accessibility_section.add_child(_camera_motion_selector)
-	_speed_lines_toggle = _create_setting_toggle("Líneas de velocidad", true, speed_lines_changed)
-	graphics_section.add_child(_speed_lines_toggle)
-	_threat_toggle = _create_setting_toggle("Indicadores de amenaza", true, threat_indicators_changed)
-	accessibility_section.add_child(_threat_toggle)
-	_vibration_intensity_slider = _add_volume_control(accessibility_section, "Intensidad de vibración", 1.0, vibration_intensity_changed)
-
-	_ghost_toggle = CheckButton.new()
-	_ghost_toggle.text = "Mostrar fantasma"
-	_ghost_toggle.button_pressed = true
-	_ghost_toggle.custom_minimum_size = Vector2(220.0, UiTokens.BUTTON_HEIGHT)
-	_ghost_toggle.add_theme_font_size_override("font_size", 19)
-	_ghost_toggle.toggled.connect(func(enabled: bool) -> void: ghost_enabled_changed.emit(enabled))
-	_style_setting_toggle(_ghost_toggle)
-	gameplay_section.add_child(_ghost_toggle)
-
-	var restore := _create_button("RESTAURAR VALORES", UiTokens.ELECTRIC_YELLOW, Vector2(250.0, 54.0))
-	restore.tooltip_text = "Calidad media, movimiento reducido, indicadores activos y vibración al 100 %"
-	restore.pressed.connect(_confirm_restore_defaults)
-	content.add_child(restore)
-
-	var close := _create_button("VOLVER", UiTokens.CORAL, Vector2(180.0, 64.0))
-	close.pressed.connect(_toggle_settings)
-	content.add_child(close)
-	var update_settings_layout := func() -> void:
-		var horizontal_margin := 12.0 if overlay.size.x < 800.0 else 24.0
-		var half_width := maxf(0.0, (overlay.size.x - horizontal_margin * 2.0) * 0.5)
-		card_panel.offset_left = -half_width
-		card_panel.offset_right = half_width
-		card_panel.offset_top = 12.0 if overlay.size.y < 500.0 else 24.0
-		card_panel.offset_bottom = -12.0 if overlay.size.y < 500.0 else -24.0
-		profile_row.columns = 2 if overlay.size.x < 760.0 else 4
-		sections.custom_minimum_size.y = maxf(260.0, minf(420.0, overlay.size.y - 170.0))
-	overlay.resized.connect(update_settings_layout)
-	update_settings_layout.call_deferred()
-	return overlay
-
-func _create_volume_slider(label_text: String, initial: float, changed_signal: Signal) -> HSlider:
-	var slider := HSlider.new()
-	slider.min_value = 0.0
-	slider.max_value = 1.0
-	slider.step = 0.05
-	slider.value = initial
-	slider.custom_minimum_size = Vector2(310.0, 30.0)
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	slider.tooltip_text = "Volumen de " + label_text.to_lower()
-	slider.value_changed.connect(func(value: float) -> void: changed_signal.emit(value))
-	return slider
-
-func _add_volume_control(parent: VBoxContainer, label_text: String, initial: float, changed_signal: Signal) -> HSlider:
-	var group := VBoxContainer.new()
-	group.add_theme_constant_override("separation", 2)
-	group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var label := Label.new()
-	label.text = "%s · %d %%" % [label_text, roundi(initial * 100.0)]
-	label.add_theme_font_size_override("font_size", 15)
-	label.add_theme_color_override("font_color", UiTokens.TEXT_SECONDARY)
-	group.add_child(label)
-	var slider := _create_volume_slider(label_text, initial, changed_signal)
-	_percentage_labels[slider] = label
-	slider.value_changed.connect(func(value: float) -> void: label.text = "%s · %d %%" % [label_text, roundi(value * 100.0)])
-	group.add_child(slider)
-	parent.add_child(group)
-	return slider
-
 func _confirm_restore_defaults() -> void:
-	if _settings_panel is SettingsScreen:
-		restore_defaults_requested.emit()
-		var current := GameSettings.new()
-		current.graphics_profile = "medium"
-		current.vibration_enabled = true
-		current.master_volume = 0.8
-		current.music_volume = 1.0
-		current.effects_volume = 1.0
-		current.camera_motion = "reduced"
-		current.speed_lines_enabled = true
-		current.threat_indicators_enabled = true
-		current.vibration_intensity = 1.0
-		(_settings_panel as SettingsScreen).apply_snapshot(current)
-		return
-	var modal := ConfirmationModal.new()
-	modal.configure("RESTAURAR VALORES", "¿Restaurar los ajustes de presentación y audio? El progreso y los récords se conservarán.")
-	modal.set_anchors_preset(Control.PRESET_CENTER)
-	modal.position = Vector2(-220, -95)
-	modal.size = Vector2(440, 190)
-	modal.confirmed.connect(func() -> void:
-		_set_graphics_profile("medium")
-		_vibration_toggle.button_pressed = true
-		_volume_slider.value = 0.8
-		_music_volume_slider.value = 1.0
-		_effects_volume_slider.value = 1.0
-		_camera_motion_selector.select(0)
-		camera_motion_changed.emit("reduced")
-		_speed_lines_toggle.button_pressed = true
-		_threat_toggle.button_pressed = true
-		_vibration_intensity_slider.value = 1.0
-		restore_defaults_requested.emit()
-		modal.queue_free()
-	)
-	modal.cancelled.connect(modal.queue_free)
-	add_child(modal)
-	modal.confirm_button.grab_focus.call_deferred()
-
-func _create_setting_toggle(label_text: String, initial: bool, changed_signal: Signal) -> CheckButton:
-	var toggle := CheckButton.new()
-	toggle.text = label_text
-	toggle.button_pressed = initial
-	_style_setting_toggle(toggle)
-	toggle.toggled.connect(func(enabled: bool) -> void: changed_signal.emit(enabled))
-	return toggle
-
-func _style_setting_toggle(toggle: CheckButton) -> void:
-	toggle.custom_minimum_size.y = UiTokens.TOUCH_TARGET
-	toggle.add_theme_color_override("font_color", UiTokens.TEXT_PRIMARY)
-	toggle.add_theme_color_override("font_hover_color", UiTokens.TEXT_PRIMARY)
-	toggle.add_theme_color_override("font_pressed_color", UiTokens.GRAPHITE)
-	toggle.add_theme_stylebox_override("normal", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL))
-	toggle.add_theme_stylebox_override("hover", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, UiTokens.CYAN))
-	toggle.add_theme_stylebox_override("pressed", UiTokens.panel(UiTokens.ELECTRIC_YELLOW.darkened(0.08), UiTokens.RADIUS_SMALL))
-	toggle.add_theme_stylebox_override("focus", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_SMALL, UiTokens.ELECTRIC_YELLOW))
-
+	restore_defaults_requested.emit()
+	graphics_profile = "medium"
+	_refresh_quality_buttons()
+	_apply_graphics_profile_to_showrooms()
+	var current := GameSettings.new()
+	current.graphics_profile = "medium"
+	current.vibration_enabled = true
+	current.master_volume = 0.8
+	current.music_volume = 1.0
+	current.effects_volume = 1.0
+	current.camera_motion = "reduced"
+	current.speed_lines_enabled = true
+	current.threat_indicators_enabled = true
+	current.vibration_intensity = 1.0
+	(_settings_panel as SettingsScreen).apply_snapshot(current)
 
 func _toggle_settings() -> void:
 	if _router.current_route != MenuRoute.Id.SETTINGS:
@@ -1204,14 +684,22 @@ func _bind_ui_feedback() -> void:
 
 
 func _set_graphics_profile(profile: String) -> void:
-	graphics_profile = profile
-	_profile_value.text = "ACTUAL: " + profile.to_upper()
+	graphics_profile = PresentationQuality.sanitize(profile)
 	_refresh_quality_buttons()
-	graphics_profile_changed.emit(profile)
+	_apply_graphics_profile_to_showrooms()
+	graphics_profile_changed.emit(graphics_profile)
+
+
+func _apply_graphics_profile_to_showrooms() -> void:
+	for showroom in [_showroom, _garage_showroom]:
+		if showroom != null:
+			showroom.set_quality(graphics_profile)
+	if _vehicle_gallery != null and _vehicle_gallery.showroom != null:
+		_vehicle_gallery.showroom.set_quality(graphics_profile)
+	if _preparation_screen != null:
+		_preparation_screen.set_graphics_profile(graphics_profile)
 
 func _refresh_quality_buttons() -> void:
-	if _profile_value != null:
-		_profile_value.text = "ACTUAL: " + graphics_profile.to_upper()
 	for profile_id in _quality_buttons:
 		var button := _quality_buttons[profile_id] as Button
 		var active := String(profile_id) == graphics_profile

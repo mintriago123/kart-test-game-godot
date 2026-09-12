@@ -3,11 +3,13 @@ extends Control
 
 signal participants_confirmed(participants: Array)
 signal back_requested
+signal vehicle_pick_requested(slot: int, current_variant_id: StringName)
 
 var catalog: ProgressionCatalog
 var progress: PlayerProgress
 var _racer_options: Array[OptionButton] = []
-var _vehicle_options: Array[OptionButton] = []
+var _vehicle_buttons: Array[Button] = []
+var _vehicle_ids: Array[StringName] = []
 var _device_options: Array[OptionButton] = []
 var _ready_toggles: Array[CheckButton] = []
 var _portraits: Array[RacerPortrait] = []
@@ -23,6 +25,7 @@ var _actions: HBoxContainer
 var _cards: GridContainer
 var _card_scroll: ScrollContainer
 var _title: Label
+var _back_button: ActionButton
 
 
 func _ready() -> void:
@@ -76,15 +79,18 @@ func _ready() -> void:
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	_set_action_bar(actions)
 	add_child(actions)
-	var back := ActionButton.new()
-	back.text = "VOLVER"
-	back.pressed.connect(func() -> void: back_requested.emit())
-	actions.add_child(back)
+	_back_button = ActionButton.new()
+	_back_button.text = "VOLVER"
+	_back_button.pressed.connect(func() -> void: back_requested.emit())
+	actions.add_child(_back_button)
 	_start = ActionButton.new()
 	_start.kind = ActionButton.Kind.PRIMARY
 	_start.text = "ELEGIR CIRCUITO"
 	_start.pressed.connect(_confirm)
 	actions.add_child(_start)
+	_back_button.focus_neighbor_right = _start.get_path()
+	_start.focus_neighbor_left = _back_button.get_path()
+	_wire_focus_order()
 	# The first player selector is the useful entry point for both keyboard and pad.
 	_device_options[0].grab_focus.call_deferred()
 	if not Input.joy_connection_changed.is_connected(_on_joy_connection_changed):
@@ -118,7 +124,7 @@ func get_participants() -> Array[RaceParticipantConfig]:
 		return result
 	for index in 2:
 		var racer := catalog.racers.get_racer(StringName(_racer_options[index].get_item_metadata(_racer_options[index].selected)))
-		var vehicle := catalog.unlocks.get_variant(StringName(_vehicle_options[index].get_item_metadata(_vehicle_options[index].selected)))
+		var vehicle := catalog.unlocks.get_variant(_vehicle_ids[index])
 		var device_metadata: Dictionary = _device_options[index].get_item_metadata(_device_options[index].selected)
 		result.append(RaceParticipantConfig.create(
 			index,
@@ -184,11 +190,13 @@ func _build_player_card(index: int) -> PanelContainer:
 	column.add_child(racer)
 	_racer_options.append(racer)
 	_add_field_label(column, "VEHÍCULO")
-	var vehicle := OptionButton.new()
+	var vehicle := Button.new()
+	vehicle.text = "ELEGIR VEHÍCULO"
 	vehicle.custom_minimum_size.y = UiTokens.TOUCH_TARGET
-	vehicle.item_selected.connect(func(_value: int) -> void: _refresh_state())
+	vehicle.pressed.connect(func() -> void: vehicle_pick_requested.emit(index, _vehicle_ids[index]))
 	column.add_child(vehicle)
-	_vehicle_options.append(vehicle)
+	_vehicle_buttons.append(vehicle)
+	_vehicle_ids.append(&"")
 	var ready := CheckButton.new()
 	ready.text = "LISTO PARA CORRER"
 	ready.custom_minimum_size.y = UiTokens.TOUCH_TARGET
@@ -205,6 +213,21 @@ func _build_player_card(index: int) -> PanelContainer:
 	return card
 
 
+func _wire_focus_order() -> void:
+	# Wired top-to-bottom within each card only (not left/right across cards):
+	# the grid collapses to a single column in compact layouts, so a
+	# left/right link between P1 and P2 would be wrong whenever the cards are
+	# stacked instead of side by side.
+	for index in 2:
+		var chain: Array[Control] = [
+			_device_options[index], _racer_options[index], _vehicle_buttons[index], _ready_toggles[index]
+		]
+		for chain_index in chain.size() - 1:
+			chain[chain_index].focus_neighbor_bottom = chain[chain_index + 1].get_path()
+			chain[chain_index + 1].focus_neighbor_top = chain[chain_index].get_path()
+		chain.back().focus_neighbor_bottom = _back_button.get_path()
+
+
 func _add_field_label(parent: VBoxContainer, value: String) -> void:
 	var label := Label.new()
 	label.text = value
@@ -216,8 +239,6 @@ func _add_field_label(parent: VBoxContainer, value: String) -> void:
 func _populate_catalog_options() -> void:
 	for option in _racer_options:
 		option.clear()
-	for option in _vehicle_options:
-		option.clear()
 	if catalog == null:
 		return
 	for racer in catalog.racers.racers:
@@ -226,17 +247,36 @@ func _populate_catalog_options() -> void:
 			option.set_item_metadata(option.item_count - 1, racer.id)
 	if _racer_options.size() == 2 and _racer_options[1].item_count > 1:
 		_racer_options[1].select(1)
+	var default_variant_id := _default_variant_id()
+	for index in _vehicle_ids.size():
+		_vehicle_ids[index] = default_variant_id
+		_update_vehicle_button(index)
+
+
+func _default_variant_id() -> StringName:
+	if catalog == null or catalog.unlocks == null:
+		return &""
+	if progress != null and progress.can_equip(progress.equipped_kart_variant_id, catalog.unlocks):
+		return progress.equipped_kart_variant_id
 	for variant in catalog.unlocks.variants:
-		if progress == null or not progress.can_equip(variant.id, catalog.unlocks):
-			continue
-		for option in _vehicle_options:
-			option.add_item(variant.display_name.to_upper())
-			option.set_item_metadata(option.item_count - 1, variant.id)
-	for option in _vehicle_options:
-		for item_index in option.item_count:
-			if StringName(option.get_item_metadata(item_index)) == progress.equipped_kart_variant_id:
-				option.select(item_index)
-				break
+		if progress == null or progress.can_equip(variant.id, catalog.unlocks):
+			return variant.id
+	return catalog.unlocks.variants[0].id if not catalog.unlocks.variants.is_empty() else &""
+
+
+func _update_vehicle_button(index: int) -> void:
+	if index >= _vehicle_buttons.size():
+		return
+	var variant := catalog.unlocks.get_variant(_vehicle_ids[index]) if catalog != null and catalog.unlocks != null else null
+	_vehicle_buttons[index].text = variant.display_name.to_upper() if variant != null else "ELEGIR VEHÍCULO"
+
+
+func apply_picked_vehicle(slot: int, variant_id: StringName) -> void:
+	if slot < 0 or slot >= _vehicle_ids.size():
+		return
+	_vehicle_ids[slot] = variant_id
+	_update_vehicle_button(slot)
+	_refresh_state()
 
 
 func _refresh_gamepads() -> void:
@@ -287,7 +327,7 @@ func _refresh_state() -> void:
 	_refresh_portraits()
 	for index in 2:
 		var racer_text := _option_text(_racer_options[index], "PILOTO SIN ELEGIR")
-		var vehicle_text := _option_text(_vehicle_options[index], "VEHÍCULO SIN ELEGIR")
+		var vehicle_text := _vehicle_buttons[index].text
 		var device_text := _option_text(_device_options[index], "DISPOSITIVO SIN ELEGIR")
 		_pilot_names[index].text = racer_text
 		_player_summaries[index].text = "%s\n%s · %s" % [racer_text, device_text, vehicle_text]
@@ -340,14 +380,14 @@ func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
 func _update_layout() -> void:
 	if _page == null:
 		return
-	var compact := size.x < 980.0 or size.y < 620.0
+	var compact := size.x < UiTokens.BREAKPOINT_ROSTER_WIDTH or size.y < UiTokens.BREAKPOINT_ROSTER_HEIGHT
 	_cards.columns = 1 if compact else 2
 	var available_width := maxf(280.0, size.x - 48.0)
 	var content_width := minf(1160.0, available_width)
 	_cards.custom_minimum_size.x = content_width
 	_cards.size.x = content_width
 	var width := content_width if compact else (content_width - UiTokens.SPACE_6) / 2.0
-	_title.add_theme_font_size_override("font_size", 32 if compact else 42)
+	_title.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if compact else UiTokens.FONT_TITLE_WIDE)
 	for child in _cards.get_children():
 		(child as Control).custom_minimum_size = Vector2(width, 350.0 if compact else 370.0)
 		(child as Control).size_flags_horizontal = Control.SIZE_SHRINK_CENTER

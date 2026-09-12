@@ -133,12 +133,34 @@ func finish_metadata_edit() -> void:
 	_metadata_snapshot_active = false
 
 
-func snapshot_route_for_undo() -> void:
-	snapshot_track_for_undo()
+func snapshot_route_for_undo(selection: RefCounted = null) -> void:
+	_history.snapshot_track(_scope_for_selection(selection))
 
 
 func snapshot_track_for_undo() -> void:
 	_history.snapshot_track()
+
+
+func _scope_for_selection(selection: RefCounted) -> StringName:
+	# Map-view drags only ever touch one kind of entity at a time, so the
+	# pre-drag snapshot only needs to capture that entity's own data instead
+	# of re-packing every prop/shortcut/surface zone on the track. Every
+	# other call site (property panels, add/remove, publish) keeps calling
+	# snapshot_track_for_undo() with no scope, so it is unaffected.
+	var typed := selection as TrackEditorSelection
+	if typed == null:
+		return &"all"
+	match typed.kind:
+		TrackEditorSelection.Kind.ROUTE_POINT:
+			return &"route"
+		TrackEditorSelection.Kind.ITEM:
+			return &"items"
+		TrackEditorSelection.Kind.PROP:
+			return &"props"
+		TrackEditorSelection.Kind.SURFACE:
+			return &"surface"
+		_:
+			return &"shortcuts" if typed.is_shortcut_control() else &"all"
 
 
 func discard_latest_snapshot() -> void:

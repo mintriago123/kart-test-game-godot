@@ -1070,7 +1070,9 @@ func _handle_publish_pressed() -> void:
 	if bool(changes.get("scene", false)):
 		_show_external_change_dialog()
 		return
-	var issues := session.track.inspect_track() if session.track != null else []
+	var issues := _inspect_track()
+	if session.track != null:
+		issues = issues + _validation_controller.inspect_racing_line(session.track)
 	if _has_blocking_issues(issues):
 		_show_error(
 			"Validación bloqueante: corrige los problemas indicados antes de publicar."
@@ -1107,6 +1109,8 @@ func _handle_test_pressed() -> void:
 func _handle_validate_pressed() -> void:
 	_rebuild_preview()
 	var issues := _inspect_track()
+	if session.track != null:
+		issues = issues + _validation_controller.inspect_racing_line(session.track)
 	if issues.is_empty():
 		_show_success("Revisión completa: no hay problemas.")
 	elif _has_blocking_issues(issues):

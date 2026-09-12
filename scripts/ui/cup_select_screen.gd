@@ -13,6 +13,7 @@ var progress: PlayerProgress
 var selected_cup_id: StringName
 var payload: Dictionary = {}
 var cup_buttons: Dictionary = {}
+var _heading: Label
 var _title: Label
 var _details: Label # Compatibility reference; visual details now live in _content.
 var _continue: ActionButton
@@ -29,7 +30,8 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var background := ColorRect.new(); background.color = UiTokens.INK; background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); add_child(background)
 	var page := VBoxContainer.new(); page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); page.offset_left = 24; page.offset_top = 16; page.offset_right = -24; page.offset_bottom = -16; page.add_theme_constant_override("separation", 10); add_child(page)
-	var heading := Label.new(); heading.text = "SELECCIONA COPA"; heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; heading.add_theme_font_size_override("font_size", 36); page.add_child(heading)
+	_heading = Label.new(); _heading.text = "SELECCIONA COPA"; _heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; page.add_child(_heading)
+	resized.connect(_update_heading_size); _update_heading_size()
 	var carousel := ScrollContainer.new(); carousel.custom_minimum_size.y = 74; carousel.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; page.add_child(carousel)
 	_list = HBoxContainer.new(); _list.alignment = BoxContainer.ALIGNMENT_CENTER; _list.size_flags_horizontal = Control.SIZE_EXPAND_FILL; _list.add_theme_constant_override("separation", 14); carousel.add_child(_list)
 	_active_banner = Label.new(); _active_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; _active_banner.add_theme_color_override("font_color", UiTokens.SUCCESS); page.add_child(_active_banner)
@@ -40,6 +42,8 @@ func _ready() -> void:
 	var actions := HBoxContainer.new(); actions.alignment = BoxContainer.ALIGNMENT_CENTER; page.add_child(actions)
 	_back = ActionButton.new(); _back.text = "VOLVER"; _back.pressed.connect(func(): back_requested.emit()); actions.add_child(_back)
 	_continue = ActionButton.new(); _continue.kind = ActionButton.Kind.PRIMARY; _continue.text = "CONTINUAR"; _continue.pressed.connect(_choose); actions.add_child(_continue)
+	_back.focus_neighbor_right = _continue.get_path()
+	_continue.focus_neighbor_left = _back.get_path()
 
 func configure(value_catalog: Variant, value_progress: PlayerProgress, value_payload: Dictionary) -> void:
 	progression_catalog = value_catalog as ProgressionCatalog
@@ -57,10 +61,16 @@ func _build_cups() -> void:
 	cup_buttons.clear()
 	if catalog == null: return
 	var group := ButtonGroup.new()
+	var buttons: Array[Button] = []
 	for cup in catalog.get_valid_cups():
 		var unlocked := _is_cup_unlocked(cup)
 		var button := Button.new(); button.text = "%s%s" % ["" if unlocked else "🔒 ", cup.display_name.to_upper()]; button.custom_minimum_size = Vector2(240, UiTokens.BUTTON_HEIGHT); button.toggle_mode = true; button.button_group = group
 		button.pressed.connect(select_cup.bind(cup.id)); _list.add_child(button); cup_buttons[cup.id] = button
+		buttons.append(button)
+	for index in buttons.size():
+		buttons[index].focus_neighbor_left = buttons[posmod(index - 1, buttons.size())].get_path()
+		buttons[index].focus_neighbor_right = buttons[posmod(index + 1, buttons.size())].get_path()
+		buttons[index].focus_neighbor_bottom = _continue.get_path()
 
 func select_cup(cup_id: StringName) -> void:
 	var cup := catalog.get_cup(cup_id) if catalog != null else null
@@ -83,6 +93,10 @@ func select_cup(cup_id: StringName) -> void:
 	_warning_banner.text = "⚠ INICIAR ESTA COPA ABANDONARÁ LA COPA ACTIVA" if not active_id.is_empty() and active_id != cup.id else ""
 	_continue.text = "CONTINUAR COPA" if active_id == cup.id else ("ELEGIR COPA" if unlocked else "COPA BLOQUEADA")
 	_continue.disabled = not unlocked and active_id != cup.id
+	var selected_button := cup_buttons.get(cup.id) as Button
+	if selected_button != null:
+		_continue.focus_neighbor_top = selected_button.get_path()
+		_back.focus_neighbor_top = selected_button.get_path()
 	_continue.grab_focus.call_deferred()
 
 func _add_cup_hero(cup: CupDefinition, unlocked: bool) -> void:
@@ -114,9 +128,14 @@ func _cup_progress_text(cup: CupDefinition) -> String:
 	var race_index := int(progress.active_cup.get("current_race_index", 0)) + 1 if active else 0
 	return "MEJOR MEDALLA · %s   ·   %s" % [["SIN MEDALLA", "BRONCE", "PLATA", "ORO"][best], "%d/3 CARRERAS" % race_index if active else "LISTA PARA EMPEZAR"]
 
+func _update_heading_size() -> void:
+	var compact := size.x < UiTokens.BREAKPOINT_FOCUSED_WIDTH
+	_heading.add_theme_font_size_override("font_size", UiTokens.FONT_TITLE_COMPACT if compact else UiTokens.FONT_TITLE_WIDE)
+
+
 func _add_track_cards(cup: CupDefinition) -> void:
 	var row := HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER; _content.add_child(row)
-	var compact := size.x < 760.0
+	var compact := size.x < UiTokens.BREAKPOINT_FOCUSED_WIDTH
 	for index in cup.tracks.size():
 		var panel := PanelContainer.new(); panel.custom_minimum_size = Vector2(170 if compact else 210, 148); panel.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_MEDIUM)); row.add_child(panel)
 		var box := VBoxContainer.new(); panel.add_child(box)
@@ -132,14 +151,19 @@ func _add_difficulties(cup: CupDefinition) -> void:
 	var active := progress != null and StringName(progress.active_cup.get("cup_id", "")) == cup.id
 	if active:
 		_selected_difficulty_id = StringName(progress.active_cup.get("difficulty_id", _selected_difficulty_id))
+	var chips: Array[Button] = []
 	for difficulty in cup.difficulties:
 		var medal := progress.get_medal(cup.id, difficulty.id) if progress != null else 0
 		var chip := Button.new(); chip.custom_minimum_size = Vector2(190, UiTokens.TOUCH_TARGET); chip.toggle_mode = true; chip.text = "%s ×%d · %s" % [difficulty.display_name.to_upper(), difficulty.progress_multiplier, ["—", "BRONCE", "PLATA", "ORO"][medal]]; chip.pressed.connect(_select_difficulty.bind(difficulty.id)); row.add_child(chip); _difficulty_buttons[difficulty.id] = chip
 		chip.disabled = active
 		chip.set_pressed_no_signal(difficulty.id == _selected_difficulty_id)
 		_style_difficulty(chip, difficulty.id == _selected_difficulty_id)
+		chips.append(chip)
 	if active:
 		for id in _difficulty_buttons: (_difficulty_buttons[id] as Button).set_pressed_no_signal(id == _selected_difficulty_id)
+	for index in chips.size():
+		chips[index].focus_neighbor_left = chips[posmod(index - 1, chips.size())].get_path()
+		chips[index].focus_neighbor_right = chips[posmod(index + 1, chips.size())].get_path()
 
 
 func _select_difficulty(id: StringName) -> void:
@@ -155,7 +179,7 @@ func _style_difficulty(button: Button, selected: bool) -> void:
 
 func _add_rewards(cup: CupDefinition) -> void:
 	var grid := GridContainer.new(); grid.columns = 3; grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; _content.add_child(grid)
-	var card_width := 170 if size.x < 760.0 else 210
+	var card_width := 170 if size.x < UiTokens.BREAKPOINT_FOCUSED_WIDTH else 210
 	for medal in range(1, 4):
 		var unlock: UnlockDefinition
 		for candidate in cup.unlocks:

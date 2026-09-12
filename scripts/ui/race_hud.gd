@@ -20,34 +20,29 @@ var _flow_overlay: RaceFlowOverlay
 var _player_kart: Kart
 
 var _lap_label: Label
-var _position_label: Label
 var _time_label: Label
-var _speed_label: Label
 var _item_label: Label
 var _item_chip: PanelContainer
 var _item_icon: TextureRect
 var _item_button: MobileActionButton
 var _shield_panel: PanelContainer
-var _shield_icon: TextureRect
 var _shield_label: Label
-var _shield_bar: ProgressBar
 var _countdown_label: Label
 var _drift_bar: ProgressBar
 var _results_panel: Control
 var _results_title: Label
-var _retry_button: Button
 var _pause_overlay: Control
 var _touch_controls: Control
 var _steering_pad: CoastalJoystick
 var _race_elements: Array[CanvasItem] = []
 var _intro_overlay: Control
-var _intro_content: Control
 var _intro_title: Label
 var _intro_laps: Label
 var _intro_skip_button: Button
 var _is_intro_visible := false
 var _minimap: RaceMinimap
 var _pause_menu_owner := true
+var _threat_indicators: ThreatIndicatorController
 
 var mobile_controls_enabled := (
 	OS.has_feature("android")
@@ -199,6 +194,14 @@ func update_ghost_delta(delta: float) -> void:
 	_status_view.update_ghost_delta(delta)
 
 
+func configure_threat_indicators(kart: Kart, active_items: Node3D, view_camera: Camera3D) -> ThreatIndicatorController:
+	if _threat_indicators == null:
+		_threat_indicators = ThreatIndicatorController.new()
+		add_child(_threat_indicators)
+	_threat_indicators.setup(kart, active_items, view_camera)
+	return _threat_indicators
+
+
 func request_resume() -> void:
 	_flow_overlay.request_resume()
 
@@ -310,7 +313,7 @@ func _update_responsive_layout() -> void:
 	if _minimap == null or _flow_overlay == null:
 		return
 	var viewport_size := get_viewport().get_visible_rect().size
-	var compact := viewport_size.x < 900.0 or viewport_size.y < 500.0
+	var compact := viewport_size.x < UiTokens.BREAKPOINT_TWO_PANEL_WIDTH or viewport_size.y < UiTokens.BREAKPOINT_SHELL_HEIGHT
 	var map_size := Vector2(150.0, 106.0) if compact else Vector2(220.0, 156.0)
 	_minimap.offset_left = -map_size.x - 16.0 if compact else -map_size.x - 24.0
 	_minimap.offset_right = -16.0 if compact else -24.0
@@ -328,16 +331,12 @@ func _update_responsive_layout() -> void:
 
 func _bind_status_references() -> void:
 	_lap_label = _status_view.lap_label
-	_position_label = _status_view.position_label
 	_time_label = _status_view.time_label
-	_speed_label = _status_view.speed_label
 	_item_label = _status_view.item_label
 	_item_chip = _status_view.item_chip
 	_item_icon = _status_view.item_icon
 	_shield_panel = _status_view.shield_panel
-	_shield_icon = _status_view.shield_icon
 	_shield_label = _status_view.shield_label
-	_shield_bar = _status_view.shield_bar
 	_countdown_label = _status_view.countdown_label
 	_drift_bar = _status_view.drift_bar
 	_race_elements = _status_view.race_elements
@@ -351,14 +350,12 @@ func _bind_touch_references() -> void:
 
 func _bind_flow_references() -> void:
 	_intro_overlay = _flow_overlay.intro_overlay
-	_intro_content = _flow_overlay.intro_content
 	_intro_title = _flow_overlay.intro_title
 	_intro_laps = _flow_overlay.intro_laps
 	_intro_skip_button = _flow_overlay.intro_skip_button
 	_pause_overlay = _flow_overlay.pause_overlay
 	_results_panel = _flow_overlay.results_panel
 	_results_title = _flow_overlay.results_title
-	_retry_button = _flow_overlay.retry_button
 
 
 func _handle_item_changed(item: ItemDefinition) -> void:
@@ -394,10 +391,6 @@ func _handle_hit_received() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _flow_overlay.handle_input(event):
 		get_viewport().set_input_as_handled()
-
-
-func _request_intro_skip() -> void:
-	_flow_overlay.request_intro_skip()
 
 
 func _set_touch_controls_visible(is_visible: bool) -> void:

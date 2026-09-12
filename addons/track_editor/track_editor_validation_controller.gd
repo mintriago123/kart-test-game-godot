@@ -15,6 +15,17 @@ func inspect(track: TrackLevel) -> Array[TrackValidationIssue]:
 	return issues.duplicate()
 
 
+func inspect_racing_line(track: TrackLevel) -> Array[TrackValidationIssue]:
+	# Heavier than inspect() (forces a full track rebuild), so callers should
+	# only run this at deliberate checkpoints like Revisar/Publicar, not on
+	# every edit.
+	var racing_line_issues := TrackLevelValidator.inspect_racing_line(track)
+	for issue in racing_line_issues:
+		if issue != null:
+			issues.append(issue)
+	return racing_line_issues
+
+
 func has_blocking_issues(candidate_issues: Array[TrackValidationIssue] = issues) -> bool:
 	for issue in candidate_issues:
 		if issue.is_blocking():

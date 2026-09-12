@@ -14,15 +14,16 @@ func _run() -> void:
 
 func _test_profiles() -> void:
 	var expected := {
-		"low": [0.35, 12, false, 0, 0],
-		"medium": [0.65, 20, true, 2, 1],
-		"high": [1.0, 32, true, 2, 2],
-		"ultra": [1.5, 48, true, 4, 3],
+		"ultra_low": [0.08, 0, false, 0, 0, 0.55, 0.5],
+		"low": [0.35, 12, false, 0, 0, 1.0, 0.6],
+		"medium": [0.65, 20, true, 2, 1, 1.0, 0.8],
+		"high": [1.0, 32, true, 2, 2, 1.0, 1.0],
+		"ultra": [1.5, 48, true, 4, 3, 1.0, 1.0],
 	}
 	for profile in expected:
 		var budget := PresentationQuality.get_budget(profile)
 		var values: Array = expected[profile]
-		_check(is_equal_approx(budget.particle_scale, values[0]) and budget.speed_lines == values[1] and budget.shadows == values[2] and budget.msaa == values[3] and budget.glow == values[4], "%s has its exact presentation budget." % profile)
+		_check(is_equal_approx(budget.particle_scale, values[0]) and budget.speed_lines == values[1] and budget.shadows == values[2] and budget.msaa == values[3] and budget.glow == values[4] and is_equal_approx(budget.render_scale, values[5]) and is_equal_approx(budget.showroom_scale, values[6]), "%s has its exact presentation budget." % profile)
 	_check(PresentationQuality.sanitize("future") == "medium", "Unknown profiles migrate safely to medium.")
 
 func _test_surfaces() -> void:
@@ -65,6 +66,10 @@ func _test_particles_and_audio() -> void:
 	feedback.attach_to_camera(camera)
 	_check(is_equal_approx(feedback.position.z, -7.0), "Speed lines spawn far enough ahead of the camera to form visible streaks.")
 	_check(feedback.speed_line_overlay.line_count == PresentationQuality.get_budget("ultra").speed_lines and not feedback.speed_lines.visible, "Speed lines use the radial screen-space renderer instead of vertical particle billboards.")
+	var ultra_low_feedback := KartVisualFeedback.new()
+	kart.add_child(ultra_low_feedback)
+	ultra_low_feedback.setup(kart, "ultra_low", true)
+	_check(not ultra_low_feedback.speed_line_overlay.visible and ultra_low_feedback.flash_particles.amount == 1, "Ultra-low presentation removes speed lines and reduces boost bursts to one particle.")
 	var sparks := DriftSparkController.new()
 	kart.add_child(sparks)
 	sparks.setup(kart, "high")

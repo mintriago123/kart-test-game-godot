@@ -4,6 +4,7 @@ extends MenuShell
 const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
 
 signal play_requested
+signal quick_race_requested
 signal continue_requested
 signal garage_requested
 signal profile_requested
@@ -13,6 +14,7 @@ signal settings_requested
 
 var main_actions: MenuList
 var play_button: ActionButton
+var quick_race_button: ActionButton
 var continue_button: ActionButton
 var showroom: VehicleViewport
 var compact := false
@@ -119,9 +121,11 @@ func _build() -> void:
 	if has_active_cup:
 		continue_button = main_actions.add_action("CONTINUAR COPA", continue_requested.emit, true)
 		continue_button.name = "ContinueCup"
-		play_button = main_actions.add_action("JUGAR", play_requested.emit, false)
+		quick_race_button = main_actions.add_action("CARRERA RÁPIDA", quick_race_requested.emit, false)
 	else:
-		play_button = main_actions.add_action("JUGAR", play_requested.emit, true)
+		quick_race_button = main_actions.add_action("CARRERA RÁPIDA", quick_race_requested.emit, true)
+	quick_race_button.name = "QuickRace"
+	play_button = main_actions.add_action("JUGAR", play_requested.emit, false)
 	play_button.name = "Play"
 	var garage := main_actions.add_action("GARAJE", garage_requested.emit, false)
 	garage.name = "Garage"
@@ -153,7 +157,7 @@ func _style_secondary_action(button: ActionButton) -> void:
 
 func _update_layout() -> void:
 	var layout_size := size if size.x > 1.0 and size.y > 1.0 else get_viewport_rect().size
-	compact = layout_size.x < 900.0 or layout_size.y < 560.0
+	compact = layout_size.x < UiTokens.BREAKPOINT_TWO_PANEL_WIDTH or layout_size.y < UiTokens.BREAKPOINT_TWO_PANEL_HEIGHT
 	var button_height := UiTokens.TOUCH_TARGET if compact else UiTokens.BUTTON_HEIGHT
 	main_actions.add_theme_constant_override("separation", UiTokens.SPACE_2 if compact else UiTokens.SPACE_3)
 	for button in main_actions.get_children():

@@ -12,11 +12,14 @@ var cup_manager: CupManager
 var selected_cup_difficulty_id: StringName = &"competitive"
 var lan_session: LanSession
 var _pending_menu_notice := ""
+var _device_coordinator: InputDeviceCoordinator
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_configure_input_map()
+	_device_coordinator = InputDeviceCoordinator.new()
+	add_child(_device_coordinator)
 	settings.load_from_disk()
 	_ensure_audio_buses()
 	player_progress.load_from_disk()
@@ -90,9 +93,11 @@ func start_game(
 
 
 func _apply_active_gamepad(session: RaceSessionConfig) -> void:
-	if session == null or main_menu == null:
+	if session == null:
 		return
-	var gamepad_id := main_menu.get_active_gamepad_id()
+	var gamepad_id := -1
+	if _device_coordinator != null and _device_coordinator.mode == &"gamepad":
+		gamepad_id = _device_coordinator.device_id
 	if gamepad_id < 0:
 		var connected_gamepads := Input.get_connected_joypads()
 		if not connected_gamepads.is_empty():
@@ -175,7 +180,7 @@ func _start_session(session: RaceSessionConfig, should_play_intro: bool) -> void
 func _open_race_settings() -> void:
 	if race_world == null: return
 	var screen := SettingsScreen.new(); race_world.open_pause_subscreen(screen); screen.apply_snapshot(settings)
-	screen.graphics_profile_changed.connect(_set_graphics_profile); screen.vibration_changed.connect(_set_vibration_enabled); screen.volume_changed.connect(_set_master_volume); screen.music_volume_changed.connect(_set_music_volume); screen.effects_volume_changed.connect(_set_effects_volume); screen.camera_motion_changed.connect(_set_camera_motion); screen.speed_lines_changed.connect(_set_speed_lines_enabled); screen.threat_indicators_changed.connect(_set_threat_indicators_enabled); screen.vibration_intensity_changed.connect(_set_vibration_intensity)
+	screen.graphics_profile_changed.connect(_set_graphics_profile); screen.vibration_changed.connect(_set_vibration_enabled); screen.volume_changed.connect(_set_master_volume); screen.music_volume_changed.connect(_set_music_volume); screen.effects_volume_changed.connect(_set_effects_volume); screen.camera_motion_changed.connect(_set_camera_motion); screen.speed_lines_changed.connect(_set_speed_lines_enabled); screen.threat_indicators_changed.connect(_set_threat_indicators_enabled); screen.vibration_intensity_changed.connect(_set_vibration_intensity); screen.reduced_motion_changed.connect(_set_reduced_motion)
 	screen.gamepad_family_changed.connect(_set_gamepad_family); screen.ghost_enabled_changed.connect(_set_ghost_enabled)
 	screen.controls_requested.connect(_open_race_controls)
 	screen.restore_defaults_requested.connect(_restore_presentation_defaults)
@@ -193,6 +198,7 @@ func _show_main_menu() -> void:
 		return
 	main_menu = MainMenu.new()
 	main_menu.name = "MainMenu"
+	main_menu.device_coordinator = _device_coordinator
 	main_menu.track_catalog = TRACK_CATALOG
 	main_menu.has_active_cup = not player_progress.active_cup.is_empty()
 	main_menu.progression_catalog = PROGRESSION_CATALOG
@@ -211,6 +217,7 @@ func _show_main_menu() -> void:
 	main_menu.speed_lines_changed.connect(_set_speed_lines_enabled)
 	main_menu.threat_indicators_changed.connect(_set_threat_indicators_enabled)
 	main_menu.vibration_intensity_changed.connect(_set_vibration_intensity)
+	main_menu.reduced_motion_changed.connect(_set_reduced_motion)
 	main_menu.restore_defaults_requested.connect(_restore_presentation_defaults)
 	main_menu.continue_cup_requested.connect(_continue_cup)
 	main_menu.abandon_cup_requested.connect(func(): cup_manager.abandon())

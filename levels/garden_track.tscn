@@ -1,44 +1,45 @@
-[gd_scene format=3 uid="uid://cida3p7ag2q6c"]
+[gd_scene format=3 uid="uid://bbqk82hw42w8h"]
 
-[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_level"]
-[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="2_shortcut"]
-[ext_resource type="Resource" path="res://levels/themes/garden_theme.tres" id="3_theme"]
-[ext_resource type="PackedScene" path="res://assets/track/oak_tree.tscn" id="4_oak"]
-[ext_resource type="PackedScene" path="res://assets/track/large_bush.tscn" id="5_bush"]
-[ext_resource type="PackedScene" path="res://assets/track/yellow_flower.tscn" id="6_flower"]
-[ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="7_rock"]
-[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="8_surface"]
-[ext_resource type="Resource" path="res://levels/surfaces/grass.tres" id="9_grass"]
-[ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="10_dirt"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_wo0f4"]
+[ext_resource type="Resource" path="res://levels/themes/garden_theme.tres" id="2_41jab"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="3_ekiox"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="4_u4aoc"]
+[ext_resource type="Resource" path="res://levels/surfaces/grass.tres" id="5_kfql1"]
+[ext_resource type="PackedScene" path="res://assets/track/oak_tree.tscn" id="6_haa7l"]
+[ext_resource type="PackedScene" path="res://assets/track/large_bush.tscn" id="7_j6o7n"]
+[ext_resource type="PackedScene" path="res://assets/track/yellow_flower.tscn" id="8_tnngq"]
+[ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="9_lgg08"]
 
 [sub_resource type="Curve3D" id="Curve3D_main"]
 closed = true
 _data = {
-"points": PackedVector3Array(-13.10352, 0.041666668, -1.9466032, 13.10352, -0.041666668, 1.9466032, 0, 0.25, 45, -12.981858, -0.125, 1.501063, 12.981858, 0.125, -1.501063, 38.621124, 0.25, 49.67962, -6.0754356, -0.29166666, 9.1245165, 6.0754356, 0.29166666, -9.1245165, 77.89115, 1, 35.99362, 4.9908576, 0, 13.757782, -4.9908576, 0, -13.757782, 75.07374, 2, -5.067482, 10.845623, 0.29166666, 7.8220863, -10.845623, -0.29166666, -7.8220863, 47.946007, 1, -46.553074, 12.157668, 0.125, 0.24115436, -12.157668, -0.125, -0.24115436, 10, 0.25, -52, 10.833333, -0.125, -4.5, -10.833333, 0.125, 4.5, -25, 0.25, -48, 5.8333335, -0.29166666, -9.666667, -5.8333335, 0.29166666, 9.666667, -55, 1, -25, -2.5, 0.083333336, -10.5, 2.5, -0.083333336, 10.5, -60, 2, 10, -10, 0.29166666, -5.8333335, 10, -0.29166666, 5.8333335, -40, 0.5, 38),
+"points": PackedVector3Array(-20.70003, 0.041666668, -0.038261414, 20.70003, -0.041666668, 0.038261414, -4.2953873, 0.25, 82.40506, -22.672129, -0.125, 1.2025019, 22.672129, 0.125, -1.2025019, 58.685913, 0.25, 81.53174, -10.230568, -0.29166666, 15.345116, 10.230568, 0.29166666, -15.345116, 131.7374, 1, 75.19005, 2.5863876, 0, 29.194437, -2.5863876, 0, -29.194437, 120.06932, 2, -10.538956, 17.152452, 0.29166666, 15.140526, -17.152452, -0.29166666, -15.140526, 116.21907, 1, -99.97658, 29.40423, 0.125, -1.1244456, -29.40423, -0.125, 1.1244456, 17.15461, 0.25, -101.38211, 13.708121, -0.125, -12.139586, -13.708121, 0.125, 12.139586, -60.206306, 0.25, -93.229904, 0.79774094, -0.29166666, -20.47495, -0.79774094, 0.29166666, 20.47495, -65.09412, 1, -28.544594, 0.07002386, 0.083333336, -18.307795, -0.07002386, -0.083333336, 18.307795, -64.99275, 2, 29.619797, -10.116227, 0.29166666, -8.797544, 10.116227, -0.29166666, 8.797544, -65.51426, 0.5, 81.30217),
 "tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 }
 point_count = 10
 
-[sub_resource type="Curve3D" id="Curve3D_fvrsc"]
+[sub_resource type="Curve3D" id="Curve3D_vv8h0"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 14.750837, 0, -0.2095211, 33.731007, 0.21215938, 49.98995, -3.0249825, -0.14077769, 7.445573, 3.0249825, 0.14077769, -7.445573, 53.838394, 1.1088188, 16.177536, 4.134874, 0, 6.848563, 0, 0, 0, 64.74454, 1.655478, -26.345535),
+"points": PackedVector3Array(0, 0, 0, 14.734106, 0, -0.73296565, 58.82505, 0.25076848, 81.52451, -8.146438, -0.17726134, 17.51303, 23.078566, 0.50217503, -49.613785, 67.0573, 1.1269163, 15.238786, -0.80622774, 0, 7.9592714, 0, 0, 0, 123.27065, 1.653064, -57.019207),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
 
-[sub_resource type="Curve3D" id="Curve3D_3vt2l"]
+[sub_resource type="Curve3D" id="Curve3D_ooabf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, -13.798352, 0, -1.677936, 33.34605, 0.64470786, -51.7873, 11.687121, -0.15509959, -6.472914, -11.687121, 0.15509959, 6.472914, -13.019592, 0.9715201, -24.735561, -0.134018, 0, -7.998877, 0, 0, 0, -61.117535, 1.8983326, 0.53137445),
+"points": PackedVector3Array(0.0, 0.0, 0.0, -13.8294048, 0.0, 1.3991226, 30.0472298, 0.3107089, -102.3552475, 9.7759352, -0.1002967, -9.1067286, -9.7759352, 0.1002967, 9.1067286, -15.1372089, 0.500356, -58.6794853, 0.0366925, -0.0, -7.9999161, 0.0, 0.0, 0.0, -65.4047699, 1.2900031, -13.4373665),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
 
 [node name="GardenTrack" type="Node3D" unique_id=2105441809]
-script = ExtResource("1_level")
+script = ExtResource("1_wo0f4")
 track_id = &"garden"
 display_name = "Circuito Jardín"
 start_banner_text = "JARDÍN VELOZ"
-track_theme = ExtResource("3_theme")
+track_theme = ExtResource("2_41jab")
+track_editor_description = "Un trazado compacto entre robles, flores y senderos."
+track_editor_laps = 3
 shortcut_barrier_overlap = 3.0
 environment_size = Vector2(240, 210)
 
@@ -48,42 +49,44 @@ curve = SubResource("Curve3D_main")
 [node name="Shortcuts" type="Node3D" parent="." unique_id=813799320]
 
 [node name="SenderoCentral" type="Path3D" parent="Shortcuts" unique_id=1442997536]
-curve = SubResource("Curve3D_fvrsc")
-script = ExtResource("2_shortcut")
+curve = SubResource("Curve3D_vv8h0")
+script = ExtResource("3_ekiox")
 display_name = "Sendero Central"
 route_anchor_enabled = true
 entry_progress = 0.08551791499598
 exit_progress = 0.36986829097911
-midpoint_lateral_offset = 5.901628
-midpoint_longitudinal_offset = -2.3033473
-midpoint_height_offset = 0.17500007
+midpoint_lateral_offset = -20.492893
+midpoint_longitudinal_offset = -12.825953
+midpoint_height_offset = 0.17500001
 entry_handle_length = 14.7523250579834
 exit_handle_length = 8.0
-midpoint_in_handle_length = 8.03784084320068
-midpoint_out_handle_length = 8.03784084320068
+midpoint_in_handle_length = 19.31585
+midpoint_out_handle_length = 54.721107
+metadata/editor_safety_checked = true
 
 [node name="Shortcut2" type="Path3D" parent="Shortcuts" unique_id=141807478]
-curve = SubResource("Curve3D_3vt2l")
-script = ExtResource("2_shortcut")
+curve = SubResource("Curve3D_ooabf")
+script = ExtResource("3_ekiox")
 shortcut_id = 1
 display_name = "Atajo 2"
 route_anchor_enabled = true
-entry_progress = 0.4753477247897111
+entry_progress = 0.55
 exit_progress = 0.7853179477331244
-midpoint_lateral_offset = -1.2003149
-midpoint_longitudinal_offset = -0.3253287
+midpoint_lateral_offset = -1.1593195
+midpoint_longitudinal_offset = -2.3935058
 midpoint_height_offset = -0.3
 entry_handle_length = 13.9
 exit_handle_length = 8.0
 midpoint_in_handle_length = 13.360819
 midpoint_out_handle_length = 13.360819
+metadata/editor_safety_checked = true
 
 [node name="WideCurveGrassEast" type="Area3D" parent="." unique_id=662035034]
 collision_layer = 0
 collision_mask = 2
-script = ExtResource("8_surface")
+script = ExtResource("4_u4aoc")
 id = &"garden_grass_east"
-surface = ExtResource("9_grass")
+surface = ExtResource("5_kfql1")
 start_progress = 0.15
 end_progress = 0.31
 lateral_offset = 3.2
@@ -91,106 +94,88 @@ lateral_offset = 3.2
 [node name="WideCurveGrassWest" type="Area3D" parent="." unique_id=1353121515]
 collision_layer = 0
 collision_mask = 2
-script = ExtResource("8_surface")
+script = ExtResource("4_u4aoc")
 id = &"garden_grass_west"
-surface = ExtResource("9_grass")
+surface = ExtResource("5_kfql1")
 start_progress = 0.62
 end_progress = 0.8
 lateral_offset = 3.2
 
-[node name="GardenShortcutDirt0" type="Area3D" parent="." unique_id=27124626]
-collision_layer = 0
-collision_mask = 2
-script = ExtResource("8_surface")
-id = &"garden_shortcut_dirt_0"
-surface = ExtResource("10_dirt")
-path_kind = 1
-shortcut_id = 0
-end_progress = 1.0
-width = 7.0
-
-[node name="GardenShortcutDirt1" type="Area3D" parent="." unique_id=2086420273]
-collision_layer = 0
-collision_mask = 2
-script = ExtResource("8_surface")
-id = &"garden_shortcut_dirt_1"
-surface = ExtResource("10_dirt")
-path_kind = 1
-shortcut_id = 1
-end_progress = 1.0
-width = 7.0
-
 [node name="Props" type="Node3D" parent="." unique_id=1197494539]
 
-[node name="OakNorthWest" type="Node3D" parent="Props" unique_id=1755703405 instance=ExtResource("4_oak")]
+[node name="OakNorthWest" type="Node3D" parent="Props" unique_id=1755703405 instance=ExtResource("6_haa7l")]
 transform = Transform3D(4.7711306, 0, 2.6064804, 0, 5.436674, 0, -2.6064804, 0, 4.7711306, -23, 0, 27)
 metadata/track_editor_asset_id = &"oak_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.436674, 5.436674, 5.436674)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
-[node name="OakNorthEast" type="Node3D" parent="Props" unique_id=1151983017 instance=ExtResource("4_oak")]
+[node name="OakNorthEast" type="Node3D" parent="Props" unique_id=1151983017 instance=ExtResource("6_haa7l")]
 transform = Transform3D(4.158198, 0, -3.5024016, 0, 5.436674, 0, 3.5024016, 0, 4.158198, 43, 0, 24)
 metadata/track_editor_asset_id = &"oak_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.436674, 5.436674, 5.436674)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
-[node name="OakSouth" type="Node3D" parent="Props" unique_id=1454497522 instance=ExtResource("4_oak")]
-transform = Transform3D(0.92405605, 0, 5.357569, 0, 5.436674, 0, -5.357569, 0, 0.92405605, -10, 0, -32)
+[node name="OakSouth" type="Node3D" parent="Props" unique_id=1454497522 instance=ExtResource("6_haa7l")]
+transform = Transform3D(0.9240561, 0, 5.3575697, 0, 5.436674, 0, -5.3575697, 0, 0.9240561, 63.81031, 0, -37.841187)
 metadata/track_editor_asset_id = &"oak_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.436674, 5.436674, 5.436674)
 metadata/track_editor_prop_scale_multiplier = 1.0
+metadata/track_editor_anchor_progress = 0.3365266776476673
+metadata/track_editor_anchor_lateral = -57.01633
+metadata/track_editor_anchor_height = -1.9020296
+metadata/track_editor_anchor_rotation = 80.21409
 
-[node name="BushNorth" type="Node3D" parent="Props" unique_id=481732579 instance=ExtResource("5_bush")]
+[node name="BushNorth" type="Node3D" parent="Props" unique_id=481732579 instance=ExtResource("7_j6o7n")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 27)
 
-[node name="BushWest" type="Node3D" parent="Props" unique_id=1238732410 instance=ExtResource("5_bush")]
-transform = Transform3D(0.6967068, 0, 0.717356, 0, 1, 0, -0.717356, 0, 0.6967068, -32.76309, -0.41822803, -11.754537)
+[node name="BushWest" type="Node3D" parent="Props" unique_id=1238732410 instance=ExtResource("7_j6o7n")]
+transform = Transform3D(0.6967068, 0, 0.717356, 0, 1, 0, -0.717356, 0, 0.6967068, -41.67264, -0.8322257, -65.90483)
 metadata/track_editor_anchor_progress = 0.715611022537507
 metadata/track_editor_anchor_lateral = -25.878773
 metadata/track_editor_anchor_height = -1.3860449
 metadata/track_editor_anchor_rotation = 45.836617
 
-[node name="BushEast" type="Node3D" parent="Props" unique_id=289039174 instance=ExtResource("5_bush")]
+[node name="BushEast" type="Node3D" parent="Props" unique_id=289039174 instance=ExtResource("7_j6o7n")]
 transform = Transform3D(0.8253356, 0, -0.5646425, 0, 1, 0, 0.5646425, 0, 0.8253356, 41, 0, -9)
 
-[node name="FlowersNorth" type="Node3D" parent="Props" unique_id=1962416289 instance=ExtResource("6_flower")]
+[node name="FlowersNorth" type="Node3D" parent="Props" unique_id=1962416289 instance=ExtResource("8_tnngq")]
 transform = Transform3D(2.4, 0, 0, 0, 2.4, 0, 0, 0, 2.4, 10, 0, 17)
 
-[node name="FlowersSouth" type="Node3D" parent="Props" unique_id=968366127 instance=ExtResource("6_flower")]
-transform = Transform3D(2.1, 0, 0, 0, 2.1, 0, 0, 0, 2.1, -3.7075658, 0, -20.743961)
+[node name="FlowersSouth" type="Node3D" parent="Props" unique_id=968366127 instance=ExtResource("8_tnngq")]
+transform = Transform3D(2.1, 0, 0, 0, 2.1, 0, 0, 0, 2.1, 14.446142, 0.07765764, -70.03749)
 metadata/track_editor_anchor_progress = 0.5721522293186353
 metadata/track_editor_anchor_lateral = -31.249142
 metadata/track_editor_anchor_height = -0.15844026
 metadata/track_editor_anchor_rotation = 0.0
 
-[node name="GardenRock" type="Node3D" parent="Props" unique_id=946578173 instance=ExtResource("7_rock")]
+[node name="GardenRock" type="Node3D" parent="Props" unique_id=946578173 instance=ExtResource("9_lgg08")]
 transform = Transform3D(1.3151218, 0, 0.5486365, 0, 1.2, 0, -0.4800569, 0, 1.5029963, -30, 0, 7)
 
 [node name="ItemSpawns" type="Node3D" parent="." unique_id=978269948]
 
 [node name="Norte" type="Marker3D" parent="ItemSpawns" unique_id=1019960588]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 41.695038, 0.28197947, 49.308617)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 73.59808, 0.345085, 81.8561)
 metadata/track_editor_anchor_progress = 0.1055443925605
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="Este" type="Marker3D" parent="ItemSpawns" unique_id=1962921904]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 74.94884, 1.9998558, -5.4094896)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 119.845795, 1.9967384, -14.078722)
 metadata/track_editor_anchor_progress = 0.31146517639609
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="Sur" type="Marker3D" parent="ItemSpawns" unique_id=1145951355]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.527162, 0.25553137, -51.991318)
-metadata/track_editor_anchor_progress = 0.53253810419263
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 63.274845, 0.50707746, -106.08642)
+metadata/track_editor_anchor_progress = 0.504709379287676
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0
 metadata/track_editor_anchor_rotation = 0.0
 
 [node name="Oeste" type="Marker3D" parent="ItemSpawns" unique_id=1031722990]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -59.321236, 1.3887287, -14.439392)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -65.5468, 0.8292984, -41.386536)
 metadata/track_editor_anchor_progress = 0.7474288788933956
 metadata/track_editor_anchor_lateral = 0.0
 metadata/track_editor_anchor_height = 0.0

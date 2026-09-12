@@ -51,6 +51,16 @@ func _test_authored_track(track_definition: TrackDefinition) -> void:
 		validation_errors.is_empty(),
 		"%s passes the editor validator." % track_definition.display_name
 	)
+	var racing_line_issues := TrackLevelValidator.inspect_racing_line(track)
+	var racing_line_has_blocking_issues := false
+	for issue in racing_line_issues:
+		print("INFO: %s racing line: %s" % [track_definition.display_name, issue.message])
+		if issue.is_blocking():
+			racing_line_has_blocking_issues = true
+	_check(
+		not racing_line_has_blocking_issues,
+		"%s AI racing line builds without blocking issues." % track_definition.display_name
+	)
 	_check(
 		track.get_main_route() != null and track.get_main_route().curve.closed,
 		"%s keeps an editable closed Curve3D." % track_definition.display_name

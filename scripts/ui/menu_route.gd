@@ -5,7 +5,6 @@ enum Id {
 	TITLE,
 	MAIN,
 	PLAY_MODE,
-	PLAY_CONFIG,
 	PLAY_TRACK,
 	PLAY_CUP,
 	PLAY_VEHICLE,
@@ -16,15 +15,12 @@ enum Id {
 	PROFILE,
 	SETTINGS,
 	CONTROLS,
-	PAUSE,
-	RESULTS,
 }
 
 const NAMES := {
 	Id.TITLE: &"title",
 	Id.MAIN: &"main",
 	Id.PLAY_MODE: &"play_mode",
-	Id.PLAY_CONFIG: &"play_config",
 	Id.PLAY_TRACK: &"play_track",
 	Id.PLAY_CUP: &"play_cup",
 	Id.PLAY_VEHICLE: &"play_vehicle",
@@ -35,8 +31,6 @@ const NAMES := {
 	Id.PROFILE: &"profile",
 	Id.SETTINGS: &"settings",
 	Id.CONTROLS: &"controls",
-	Id.PAUSE: &"pause",
-	Id.RESULTS: &"results",
 }
 
 static func is_valid(route: int) -> bool:

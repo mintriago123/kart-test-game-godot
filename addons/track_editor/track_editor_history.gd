@@ -22,10 +22,10 @@ func reset() -> void:
 	_redo_states.clear()
 
 
-func snapshot_track() -> void:
+func snapshot_track(scope: StringName = &"all") -> void:
 	if _session.track == null or _session.track.get_main_route() == null:
 		return
-	_undo_states.append(_capture_track_state())
+	_undo_states.append(_capture_track_state(scope))
 	if _undo_states.size() > HISTORY_LIMIT:
 		_undo_states.pop_front()
 	_redo_states.clear()
@@ -42,7 +42,8 @@ func discard_latest_snapshot() -> void:
 func undo() -> void:
 	if not can_undo():
 		return
-	_redo_states.append(_capture_track_state())
+	var scope := StringName(_undo_states.back().get("scope", &"all"))
+	_redo_states.append(_capture_track_state(scope))
 	var state := _undo_states.pop_back()
 	_restore_track_state(state)
 	_session.route_changed.emit()
@@ -52,7 +53,8 @@ func undo() -> void:
 func redo() -> void:
 	if not can_redo():
 		return
-	_undo_states.append(_capture_track_state())
+	var scope := StringName(_redo_states.back().get("scope", &"all"))
+	_undo_states.append(_capture_track_state(scope))
 	var state := _redo_states.pop_back()
 	_restore_track_state(state)
 	_session.route_changed.emit()
@@ -67,70 +69,84 @@ func can_redo() -> bool:
 	return not _redo_states.is_empty()
 
 
-func _capture_track_state() -> Dictionary:
+func _capture_track_state(scope: StringName = &"all") -> Dictionary:
+	# Only "all" (used by every non-map-view edit: property panels, add/
+	# remove, publish) captures the entire track. The narrower scopes used by
+	# map-view drags (see TrackEditorSession._scope_for_selection) each
+	# capture only the one piece of data that drag can possibly change, so a
+	# track with many props/shortcuts/zones doesn't get them all re-packed
+	# into PackedScenes on every single drag frame's pre-edit snapshot.
 	var state := {
+		"scope": scope,
 		"is_dirty": _session.is_dirty,
-		"laps": _session.laps,
-		"description": _session.description,
-		"display_name": "",
-		"start_banner_text": "",
-		"track_theme": null,
-		"track_music": null,
-		"difficulty": "Media",
-		"route_curve": null,
-		"start_point_index": 0,
-		"collections": {},
-		"surface_zones": [],
 	}
 	if _session.track == null:
 		return state
-	state.display_name = _session.track.display_name
-	state.start_banner_text = _session.track.start_banner_text
-	state.track_theme = _session.track.track_theme
-	state.track_music = _session.track.track_music
-	state.difficulty = _session.track.difficulty
-	var route: Path3D = _session.track.get_main_route()
-	if route != null and route.curve != null:
-		state.route_curve = route.curve.duplicate(true) as Curve3D
-	state.start_point_index = _session.track.start_point_index
-	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props"]:
-		state.collections[container_name] = _capture_collection(container_name)
-	state.surface_zones = _capture_surface_zones()
+	if scope == &"all":
+		state.laps = _session.laps
+		state.description = _session.description
+		state.display_name = _session.track.display_name
+		state.start_banner_text = _session.track.start_banner_text
+		state.track_theme = _session.track.track_theme
+		state.track_music = _session.track.track_music
+		state.difficulty = _session.track.difficulty
+	if scope == &"all" or scope == &"route":
+		var route: Path3D = _session.track.get_main_route()
+		if route != null and route.curve != null:
+			state.route_curve = route.curve.duplicate(true) as Curve3D
+		state.start_point_index = _session.track.start_point_index
+	var collections := {}
+	if scope == &"all" or scope == &"shortcuts":
+		collections[&"Shortcuts"] = _capture_collection(&"Shortcuts")
+	if scope == &"all" or scope == &"items":
+		collections[&"ItemSpawns"] = _capture_collection(&"ItemSpawns")
+	if scope == &"all" or scope == &"props":
+		collections[&"Props"] = _capture_collection(&"Props")
+	state.collections = collections
+	if scope == &"all" or scope == &"surface":
+		state.surface_zones = _capture_surface_zones()
 	return state
 
 
 func _restore_track_state(state: Dictionary) -> void:
 	if _session.track == null:
 		return
-	var route: Path3D = _session.track.get_main_route()
-	var route_curve := state.get("route_curve") as Curve3D
-	if route != null and route_curve != null:
-		route.curve = route_curve.duplicate(true) as Curve3D
-	_session.track.start_point_index = int(
-		state.get("start_point_index", 0)
-	)
-	_session.track.display_name = str(
-		state.get("display_name", _session.track.display_name)
-	)
-	_session.track.start_banner_text = str(
-		state.get("start_banner_text", _session.track.start_banner_text)
-	)
-	_session.track.track_theme = state.get("track_theme") as TrackTheme
-	_session.track.track_music = state.get("track_music") as AudioStream
-	_session.track.difficulty = str(
-		state.get("difficulty", _session.track.difficulty)
-	)
-	_session.set_editor_metadata(
-		int(state.get("laps", 3)),
-		str(state.get("description", ""))
-	)
+	if state.has("route_curve") or state.has("start_point_index"):
+		var route: Path3D = _session.track.get_main_route()
+		var route_curve := state.get("route_curve") as Curve3D
+		if route != null and route_curve != null:
+			route.curve = route_curve.duplicate(true) as Curve3D
+		if state.has("start_point_index"):
+			_session.track.start_point_index = int(state.get("start_point_index", 0))
+	if state.has("display_name"):
+		_session.track.display_name = str(
+			state.get("display_name", _session.track.display_name)
+		)
+	if state.has("start_banner_text"):
+		_session.track.start_banner_text = str(
+			state.get("start_banner_text", _session.track.start_banner_text)
+		)
+	if state.has("track_theme"):
+		_session.track.track_theme = state.get("track_theme") as TrackTheme
+	if state.has("track_music"):
+		_session.track.track_music = state.get("track_music") as AudioStream
+	if state.has("difficulty"):
+		_session.track.difficulty = str(
+			state.get("difficulty", _session.track.difficulty)
+		)
+	if state.has("laps") or state.has("description"):
+		_session.set_editor_metadata(
+			int(state.get("laps", _session.laps)),
+			str(state.get("description", _session.description))
+		)
 	var collections: Dictionary = state.get("collections", {})
-	for container_name in [&"Shortcuts", &"ItemSpawns", &"Props"]:
+	for container_name in collections:
 		_restore_collection(
 			container_name,
-			collections.get(container_name, []) as Array
+			collections[container_name] as Array
 		)
-	_restore_surface_zones(state.get("surface_zones", []) as Array)
+	if state.has("surface_zones"):
+		_restore_surface_zones(state.get("surface_zones", []) as Array)
 	_session._set_dirty(bool(state.get("is_dirty", true)))
 
 
