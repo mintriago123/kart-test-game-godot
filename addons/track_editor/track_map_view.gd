@@ -4,7 +4,7 @@ extends Control
 
 signal point_selected(point_index: int)
 signal selection_changed(selection: RefCounted)
-signal edit_started
+signal edit_started(selection: RefCounted)
 signal route_edited
 signal edit_finished
 signal entity_move_requested(selection: RefCounted, track_position: Vector3)
@@ -172,7 +172,7 @@ func insert_point_after_selected() -> bool:
 		curve.get_point_position(next_index),
 		0.5
 	)
-	edit_started.emit()
+	edit_started.emit(Selection.route_point(index))
 	curve.add_point(midpoint, Vector3.ZERO, Vector3.ZERO, index + 1)
 	selected_point = index + 1
 	_smooth_curve(curve)
@@ -184,7 +184,7 @@ func delete_selected_point() -> bool:
 	var curve := _get_curve()
 	if curve == null or selected_point < 0 or curve.point_count <= 4:
 		return false
-	edit_started.emit()
+	edit_started.emit(Selection.route_point(selected_point))
 	curve.remove_point(selected_point)
 	selected_point = mini(selected_point, curve.point_count - 1)
 	_smooth_curve(curve)
@@ -196,7 +196,7 @@ func set_selected_height(height: float) -> bool:
 	var curve := _get_curve()
 	if curve == null or selected_point < 0:
 		return false
-	edit_started.emit()
+	edit_started.emit(Selection.route_point(selected_point))
 	var position := curve.get_point_position(selected_point)
 	position.y = height
 	curve.set_point_position(selected_point, position)
@@ -248,7 +248,7 @@ func _gui_input(event: InputEvent) -> void:
 			if not hit_selection.is_empty():
 				set_selection(hit_selection)
 				_is_dragging = true
-				edit_started.emit()
+				edit_started.emit(hit_selection)
 				accept_event()
 		elif mouse_button.button_index == MOUSE_BUTTON_LEFT:
 			if _is_dragging:
@@ -305,7 +305,7 @@ func _gui_input(event: InputEvent) -> void:
 				return
 			_:
 				return
-		edit_started.emit()
+		edit_started.emit(selection)
 		var target_position := _get_selection_position(selection) + movement
 		if key_event.ctrl_pressed:
 			target_position.x = snappedf(target_position.x, grid_step)
