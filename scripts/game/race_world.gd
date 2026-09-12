@@ -445,9 +445,9 @@ func _build_local_huds(kart_count: int) -> void:
 		race_manager.provisional_standings_changed.connect(hud.update_provisional_standings)
 		race_manager.results_countdown_changed.connect(hud.update_results_countdown)
 	if threat_indicators_enabled and _active_items != null and player_kart != null and not local_huds.is_empty():
-		_threat_indicators = ThreatIndicatorController.new()
-		local_huds[0].add_child(_threat_indicators)
-		_threat_indicators.setup(player_kart, _active_items, (_camera_by_kart[player_kart] as FollowCamera).get_camera())
+		_threat_indicators = local_huds[0].configure_threat_indicators(
+			player_kart, _active_items, (_camera_by_kart[player_kart] as FollowCamera).get_camera()
+		)
 	for kart in local_player_karts:
 		race_manager.race_info_changed_for.connect(func(changed_kart: Node, lap: int, laps: int, position: int, racers: int, time: float) -> void:
 			if changed_kart == kart and _hud_by_kart.has(kart):

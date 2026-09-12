@@ -8,6 +8,7 @@ var speed_lines: GPUParticles3D
 var flash_particles: GPUParticles3D
 var speed_line_layer: CanvasLayer
 var speed_line_overlay: SpeedLineOverlay
+var _budget: Dictionary
 
 class SpeedLineOverlay:
 	extends Control
@@ -80,15 +81,7 @@ func setup(value: Kart, quality_profile: String, lines_enabled := true) -> void:
 	process.scale_min = 0.65
 	process.scale_max = 1.25
 	add_child(speed_lines)
-	speed_line_layer = CanvasLayer.new()
-	speed_line_layer.layer = 2
-	add_child(speed_line_layer)
-	speed_line_overlay = SpeedLineOverlay.new()
-	speed_line_overlay.line_count = int(budget.speed_lines)
-	speed_line_overlay.glow_strength = float(budget.glow) / 3.0
-	speed_line_overlay.visibility_gain = {"ultra_low": 0.0, "low": 0.48, "medium": 0.9, "high": 1.12, "ultra": 1.3}[profile]
-	speed_line_overlay.visible = budget.speed_lines > 0
-	speed_line_layer.add_child(speed_line_overlay)
+	_budget = budget
 	flash_particles = _make_particles(maxi(1, roundi(18.0 * float(budget.particle_scale))), Vector2(0.14, 0.5), Color("#65f6ff"), Vector3(4, 3, 4))
 	flash_particles.one_shot = true
 	flash_particles.explosiveness = 0.92
@@ -108,16 +101,37 @@ func setup(value: Kart, quality_profile: String, lines_enabled := true) -> void:
 
 func attach_to_camera(view_camera: Camera3D) -> void:
 	if view_camera == null: return
+	# The speed-line overlay is a full-screen CanvasLayer, so it must only ever
+	# exist for the kart whose camera is actually rendering to the screen.
+	# Building it unconditionally in setup() meant every AI kart carried its
+	# own full-screen overlay, reacting to that AI's speed instead of the
+	# player's.
+	_ensure_speed_line_overlay()
 	reparent(view_camera)
 	# Spawn well in front of the near plane, then stream toward the camera.
 	position = Vector3(0, 0, -7.0)
+
+func _ensure_speed_line_overlay() -> void:
+	if speed_line_overlay != null:
+		return
+	speed_line_layer = CanvasLayer.new()
+	speed_line_layer.layer = 2
+	add_child(speed_line_layer)
+	speed_line_overlay = SpeedLineOverlay.new()
+	speed_line_overlay.line_count = int(_budget.speed_lines)
+	speed_line_overlay.glow_strength = float(_budget.glow) / 3.0
+	speed_line_overlay.visibility_gain = {"ultra_low": 0.0, "low": 0.48, "medium": 0.9, "high": 1.12, "ultra": 1.3}[profile]
+	speed_line_overlay.visible = _budget.speed_lines > 0
+	speed_line_layer.add_child(speed_line_overlay)
 
 func _process(_delta: float) -> void:
 	if kart == null: return
 	var speed_ratio := kart.get_horizontal_speed() / maxf(kart.stats.max_speed, 0.1)
 	var strength := maxf(inverse_lerp(0.92, 1.18, speed_ratio), kart.get_boost_power_ratio())
-	var active := speed_lines_enabled and speed_line_overlay.visible and (kart.is_boost_active() or speed_ratio >= 0.92)
 	speed_lines.emitting = false
+	if speed_line_overlay == null:
+		return
+	var active := speed_lines_enabled and speed_line_overlay.visible and (kart.is_boost_active() or speed_ratio >= 0.92)
 	speed_lines.amount_ratio = clampf(strength, 0.12 if profile == "low" and active else 0.0, 1.0)
 	speed_line_overlay.intensity = clampf(strength, 0.12 if profile == "low" and active else 0.0, 1.0) if active else 0.0
 
