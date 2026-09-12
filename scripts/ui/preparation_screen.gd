@@ -4,6 +4,7 @@ extends Control
 signal start_requested(track_id: StringName, cc_id: StringName, mode: int, difficulty_id: StringName)
 signal back_requested
 signal change_vehicle_requested(payload: Dictionary)
+signal change_configuration_requested(payload: Dictionary)
 
 var payload: Dictionary = {}
 var start_button: ActionButton
@@ -17,19 +18,20 @@ var _showroom: VehicleViewport
 var _minimap: TrackMinimapView
 var _cc_chips: FlowContainer
 var _difficulty_chips: FlowContainer
-var _mode_option: CheckButton
 var _change_vehicle: ActionButton
+var _change_configuration: ActionButton
 var _back_button: ActionButton
 var _focus_order: Array[Control] = []
 var _cup: CupDefinition
 var _track: TrackDefinition
+var _eyebrow: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var background := ColorRect.new(); background.color = UiTokens.GRAPHITE; background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); background.mouse_filter = Control.MOUSE_FILTER_IGNORE; add_child(background)
 	_scroll = TouchScrollContainer.new(); _scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); _scroll.offset_left = 20; _scroll.offset_top = 14; _scroll.offset_right = -20; _scroll.offset_bottom = -92; _scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; _scroll.follow_focus = true; add_child(_scroll)
 	var content := VBoxContainer.new(); content.name = "PreparationContent"; content.size_flags_horizontal = Control.SIZE_EXPAND_FILL; content.add_theme_constant_override("separation", UiTokens.SPACE_3); _scroll.add_child(content)
-	var eyebrow := Label.new(); eyebrow.text = "PREPARACIÓN"; eyebrow.add_theme_color_override("font_color", UiTokens.CYAN); eyebrow.add_theme_font_size_override("font_size", UiTokens.FONT_CAPTION); content.add_child(eyebrow)
+	_eyebrow = Label.new(); _eyebrow.text = "PREPARACIÓN"; _eyebrow.add_theme_color_override("font_color", UiTokens.CYAN); _eyebrow.add_theme_font_size_override("font_size", UiTokens.FONT_CAPTION); content.add_child(_eyebrow)
 	var title := Label.new(); title.name = "Title"; title.text = "TODO LISTO"; title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; title.add_theme_font_size_override("font_size", UiTokens.FONT_H1); content.add_child(title)
 	_grid = GridContainer.new(); _card = _grid; _grid.name = "PreparationPanels"; _grid.columns = 3; _grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL; _grid.size_flags_vertical = Control.SIZE_SHRINK_BEGIN; _grid.add_theme_constant_override("h_separation", UiTokens.SPACE_3); _grid.add_theme_constant_override("v_separation", UiTokens.SPACE_3); content.add_child(_grid)
 	_event_column = VBoxContainer.new(); _event_column.name = "EventSummary"; _event_column.custom_minimum_size.x = 280; _event_column.add_theme_constant_override("separation", UiTokens.SPACE_2); _grid.add_child(_panel(_event_column, UiTokens.CYAN)); _add_heading(_event_column, "EVENTO")
@@ -41,7 +43,7 @@ func _ready() -> void:
 	for race_class in RaceClassDefinition.get_all():
 		var chip := _chip("%s CC" % race_class.id); chip.name = str(race_class.id); chip.pressed.connect(_select_cc.bind(race_class.id)); _cc_chips.add_child(chip)
 	_add_label(_options_column, "DIFICULTAD"); _difficulty_chips = FlowContainer.new(); _difficulty_chips.name = "DifficultyOptions"; _difficulty_chips.add_theme_constant_override("h_separation", UiTokens.SPACE_2); _difficulty_chips.add_theme_constant_override("v_separation", UiTokens.SPACE_2); _options_column.add_child(_difficulty_chips)
-	_mode_option = CheckButton.new(); _mode_option.name = "ItemsOrGhost"; _mode_option.custom_minimum_size.y = UiTokens.TOUCH_TARGET; _mode_option.toggled.connect(_toggle_mode_option); _options_column.add_child(_mode_option)
+	_change_configuration = ActionButton.new(); _change_configuration.name = "ChangeConfiguration"; _change_configuration.text = "CAMBIAR CONFIGURACIÓN"; _change_configuration.pressed.connect(func(): change_configuration_requested.emit(payload)); _options_column.add_child(_change_configuration)
 	_change_vehicle = ActionButton.new(); _change_vehicle.name = "ChangeVehicle"; _change_vehicle.text = "CAMBIAR VEHÍCULO"; _change_vehicle.pressed.connect(func(): change_vehicle_requested.emit(payload)); _options_column.add_child(_change_vehicle)
 	var actions_panel := PanelContainer.new(); actions_panel.name = "ActionBar"; actions_panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); actions_panel.offset_left = 20; actions_panel.offset_right = -20; actions_panel.offset_top = -82; actions_panel.offset_bottom = -10; actions_panel.add_theme_stylebox_override("panel", UiTokens.panel(UiTokens.INK_RAISED, UiTokens.RADIUS_MEDIUM, UiTokens.INK_RAISED)); add_child(actions_panel)
 	var actions := HBoxContainer.new(); actions.alignment = BoxContainer.ALIGNMENT_CENTER; actions.add_theme_constant_override("separation", UiTokens.SPACE_3); actions_panel.add_child(actions)
@@ -69,9 +71,11 @@ func configure(value: Dictionary, track: TrackDefinition, variant: KartVariantDe
 		for difficulty in cup.difficulties:
 			var chip := _chip(difficulty.display_name.to_upper()); chip.name = str(difficulty.id); chip.pressed.connect(_select_difficulty.bind(difficulty.id)); _difficulty_chips.add_child(chip)
 	_select_difficulty(StringName(payload.get("difficulty_id", &"competitive")), false); _difficulty_chips.visible = cup != null
+	_cc_chips.visible = cup != null
 	for chip in _cc_chips.get_children(): (chip as Button).disabled = locked
 	for chip in _difficulty_chips.get_children(): (chip as Button).disabled = locked
-	_mode_option.visible = cup == null; _mode_option.text = "FANTASMA" if mode == GameModeDefinition.TIME_TRIAL else "OBJETOS"; _mode_option.set_pressed_no_signal(bool(payload.get("ghost_enabled", true)) if mode == GameModeDefinition.TIME_TRIAL else bool(payload.get("items_enabled", true))); _mode_option.disabled = locked; _change_vehicle.disabled = locked; _change_vehicle.tooltip_text = "Vehículo fijado durante una Copa activa" if locked else ""
+	_change_configuration.visible = cup == null; _change_configuration.disabled = locked
+	_change_vehicle.disabled = locked; _change_vehicle.tooltip_text = "Vehículo fijado durante una Copa activa" if locked else ""
 	var event_name := cup.display_name.to_upper() if cup != null else (track.display_name.to_upper() if track else "EVENTO"); var vehicle_name := variant.display_name.to_upper() if variant else "VEHÍCULO BASE"
 	if locked: summary.text = "COPA ACTIVA\n%s\n%s\n🔒 CONFIGURACIÓN FIJADA" % [track.display_name.to_upper() if track else "—", vehicle_name]
 	elif cup != null:
@@ -83,6 +87,11 @@ func configure(value: Dictionary, track: TrackDefinition, variant: KartVariantDe
 	else: summary.text = "%s\nVEHÍCULO · %s\nOBJETOS %s" % [event_name, vehicle_name, "SÍ" if bool(payload.get("items_enabled", true)) else "NO"]
 	start_button.text = "SIGUIENTE CARRERA" if locked else ("INICIAR CONTRARRELOJ" if mode == GameModeDefinition.TIME_TRIAL else ("INICIAR COPA" if mode == GameModeDefinition.CUP else "INICIAR CARRERA")); _update_focus_order(); _focus_first_available(); _update_layout(); call_deferred("_update_layout")
 
+
+func set_step_indicator(step: int, total: int) -> void:
+	if _eyebrow == null:
+		return
+	_eyebrow.text = "PREPARACIÓN · PASO %d DE %d" % [step, total] if total > 0 else "PREPARACIÓN"
 
 func set_graphics_profile(profile: String) -> void:
 	if _showroom != null:
@@ -168,17 +177,14 @@ func _chip_style(bg: Color, border: Color, border_width: int) -> StyleBoxFlat:
 		box.border_color = border
 	return box
 
-func _toggle_mode_option(enabled: bool) -> void:
-	if int(payload.get("mode", 0)) == GameModeDefinition.TIME_TRIAL: payload["ghost_enabled"] = enabled
-	else: payload["items_enabled"] = enabled
-
 func _start() -> void:
 	start_requested.emit(payload.get("track_id", &""), payload.get("cc_id", &"150"), int(payload.get("mode", 0)), payload.get("difficulty_id", &"competitive"))
 
 func _update_focus_order() -> void:
-	_focus_order.clear(); for child in _cc_chips.get_children(): _focus_order.append(child as Control)
+	_focus_order.clear()
+	if _cc_chips.visible: for child in _cc_chips.get_children(): _focus_order.append(child as Control)
 	if _difficulty_chips.visible: for child in _difficulty_chips.get_children(): _focus_order.append(child as Control)
-	if _mode_option.visible: _focus_order.append(_mode_option)
+	if _change_configuration.visible: _focus_order.append(_change_configuration)
 	_focus_order.append(_change_vehicle); _focus_order.append(start_button)
 	if _focus_order.is_empty(): return
 	for index in _focus_order.size():

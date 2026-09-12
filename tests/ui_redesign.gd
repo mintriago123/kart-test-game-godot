@@ -110,9 +110,10 @@ func _test_title_input_gate() -> void:
 	_check(not menu._title_screen.visible and not started[0] and not menu._track_selector.visible, "Confirm opens only the main menu and cannot leak into Play.")
 	_check(
 		menu._landing != null
-		and menu._landing.play_button.kind == ActionButton.Kind.PRIMARY
+		and menu._landing.quick_race_button.kind == ActionButton.Kind.PRIMARY
+		and menu._landing.play_button.kind == ActionButton.Kind.SECONDARY
 		and menu._landing._context_title.text != "",
-		"Main landing gives Play the primary focus and exposes current race context."
+		"Main landing gives Quick Race the primary focus and exposes current race context."
 	)
 	menu._router.navigate(MenuRoute.Id.GARAGE)
 	_check(menu._router.current_route == MenuRoute.Id.GARAGE and menu._garage_panel.visible, "Garage is a real routed screen.")
