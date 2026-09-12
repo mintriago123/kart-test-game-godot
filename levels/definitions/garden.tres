@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://4rdkup4ywfp8" path="res://scripts/data/track_definition.gd" id="1"]
 [ext_resource type="Script" uid="uid://cblvdeuhqe2kn" path="res://scripts/data/track_minimap_data.gd" id="1_cu7oe"]
-[ext_resource type="PackedScene" uid="uid://cida3p7ag2q6c" path="res://levels/garden_track.tscn" id="2"]
+[ext_resource type="PackedScene" uid="uid://bbqk82hw42w8h" path="res://levels/garden_track.tscn" id="2"]
 
 [sub_resource type="Resource" id="Resource_locn3"]
 script = ExtResource("1_cu7oe")

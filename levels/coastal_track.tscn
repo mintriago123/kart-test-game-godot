@@ -1,16 +1,16 @@
-[gd_scene format=3 uid="uid://bmo5euyuwse28"]
+[gd_scene format=3 uid="uid://bqdllmlewtcdh"]
 
-[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_level"]
-[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="2_shortcut"]
-[ext_resource type="Resource" path="res://levels/themes/coastal_theme.tres" id="3_theme"]
-[ext_resource type="PackedScene" path="res://assets/track/palm_tree.tscn" id="4_palm"]
-[ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="5_rock"]
-[ext_resource type="PackedScene" path="res://assets/track/racing_tents.tscn" id="6_tents"]
-[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="7_surface"]
-[ext_resource type="Resource" path="res://levels/surfaces/sand.tres" id="8_sand"]
-[ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="9_dirt"]
-[ext_resource type="Script" uid="uid://x55l4aohqyex" path="res://scripts/visual/kenney_colormap_applier.gd" id="10_21t0i"]
-[ext_resource type="Texture2D" uid="uid://cbwmr6menwbnp" path="res://assets/vendor/kenney/racing-kit/Textures/colormap.png" id="11_y7lpf"]
+[ext_resource type="Script" uid="uid://cfkqikcnlak61" path="res://scripts/world/track_level.gd" id="1_uh0eb"]
+[ext_resource type="Resource" path="res://levels/themes/coastal_theme.tres" id="2_vrvsl"]
+[ext_resource type="Script" uid="uid://ddnh0f4tcx3py" path="res://scripts/world/track_shortcut.gd" id="3_ienrw"]
+[ext_resource type="Script" uid="uid://x1fespeg3vsd" path="res://scripts/world/track_surface_zone.gd" id="4_svqaj"]
+[ext_resource type="Resource" path="res://levels/surfaces/sand.tres" id="5_jn61k"]
+[ext_resource type="Resource" path="res://levels/surfaces/dirt.tres" id="6_lfqkl"]
+[ext_resource type="PackedScene" path="res://assets/track/palm_tree.tscn" id="7_kjp1q"]
+[ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="8_qsm13"]
+[ext_resource type="PackedScene" path="res://assets/track/racing_tents.tscn" id="9_rnf2m"]
+[ext_resource type="Script" uid="uid://x55l4aohqyex" path="res://scripts/visual/kenney_colormap_applier.gd" id="10_wf8i1"]
+[ext_resource type="Texture2D" uid="uid://cbwmr6menwbnp" path="res://assets/vendor/kenney/racing-kit/Textures/colormap.png" id="11_gm4ld"]
 
 [sub_resource type="Curve3D" id="Curve3D_main"]
 closed = true
@@ -20,14 +20,14 @@ _data = {
 }
 point_count = 15
 
-[sub_resource type="Curve3D" id="Curve3D_72ys7"]
+[sub_resource type="Curve3D" id="Curve3D_uni16"]
 _data = {
 "points": PackedVector3Array(0, 0, 0, 6.6400037, 0, -8.621817, 73.83367, 0.25, 41.506413, -1.2141697, 0, 12.8799715, 2.7019563, 0, -28.662483, 56.585785, 0.42, 10.567161, 8.374224, 0, 14.395775, 0, 0, 0, 80.90563, 0.25, -33.51329),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
 
-[sub_resource type="Curve3D" id="Curve3D_ceejm"]
+[sub_resource type="Curve3D" id="Curve3D_7hrfr"]
 _data = {
 "points": PackedVector3Array(0, 0, 0, -18.664877, 0, 7.479421, -33.7711, 0.37092733, -67.44201, 9.975492, -0.4393414, -14.820108, -10.551522, 0.464711, 15.67589, -41.914127, 1.0994766, -21.45657, -4.6597385, 0, -19.68306, 0, 0, 0, -87.42331, 2.7338824, 12.2665),
 "tilts": PackedFloat32Array(0, 0, 0)
@@ -35,11 +35,13 @@ _data = {
 point_count = 3
 
 [node name="CoastalTrack" type="Node3D" unique_id=1040893063]
-script = ExtResource("1_level")
+script = ExtResource("1_uh0eb")
 track_id = &"coastal"
 display_name = "Costa Turbo"
 start_banner_text = "COSTA TURBO"
-track_theme = ExtResource("3_theme")
+track_theme = ExtResource("2_vrvsl")
+track_editor_description = "Curvas amplias, laguna y cañón junto al mar."
+track_editor_laps = 3
 
 [node name="MainRoute" type="Path3D" parent="." unique_id=1573237352]
 curve = SubResource("Curve3D_main")
@@ -47,8 +49,8 @@ curve = SubResource("Curve3D_main")
 [node name="Shortcuts" type="Node3D" parent="." unique_id=762247422]
 
 [node name="PasoLaguna" type="Path3D" parent="Shortcuts" unique_id=39717027]
-curve = SubResource("Curve3D_72ys7")
-script = ExtResource("2_shortcut")
+curve = SubResource("Curve3D_uni16")
+script = ExtResource("3_ienrw")
 display_name = "Paso Laguna"
 route_anchor_enabled = true
 entry_progress = 0.14404836485086
@@ -63,8 +65,8 @@ midpoint_out_handle_length = 28.789555
 metadata/editor_safety_checked = true
 
 [node name="CorteCanon" type="Path3D" parent="Shortcuts" unique_id=568917733]
-curve = SubResource("Curve3D_ceejm")
-script = ExtResource("2_shortcut")
+curve = SubResource("Curve3D_7hrfr")
+script = ExtResource("3_ienrw")
 shortcut_id = 1
 display_name = "Corte del Cañón"
 route_anchor_enabled = true
@@ -82,9 +84,9 @@ metadata/editor_safety_checked = true
 [node name="WestHairpinSand" type="Area3D" parent="." unique_id=1368824133]
 collision_layer = 0
 collision_mask = 2
-script = ExtResource("7_surface")
+script = ExtResource("4_svqaj")
 id = &"west_hairpin_sand"
-surface = ExtResource("8_sand")
+surface = ExtResource("5_jn61k")
 start_progress = 0.7
 end_progress = 0.86
 lateral_offset = 3.4
@@ -93,9 +95,9 @@ width = 3.2
 [node name="PasoLagunaDirt" type="Area3D" parent="." unique_id=1301647738]
 collision_layer = 0
 collision_mask = 2
-script = ExtResource("7_surface")
+script = ExtResource("4_svqaj")
 id = &"paso_laguna_dirt"
-surface = ExtResource("9_dirt")
+surface = ExtResource("6_lfqkl")
 path_kind = 1
 shortcut_id = 0
 end_progress = 1.0
@@ -103,52 +105,55 @@ width = 7.0
 
 [node name="Props" type="Node3D" parent="." unique_id=1445996684]
 
-[node name="PalmNorth" type="Node3D" parent="Props" unique_id=899702934 instance=ExtResource("4_palm")]
+[node name="PalmNorth" type="Node3D" parent="Props" unique_id=899702934 instance=ExtResource("7_kjp1q")]
 transform = Transform3D(4.6857266, 0, 2.263464, 0, 5.203778, 0, -2.263464, 0, 4.6857266, 43, 0, 48)
 metadata/track_editor_asset_id = &"palm_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.203778, 5.203778, 5.203778)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
-[node name="PalmEast" type="Node3D" parent="Props" unique_id=342044377 instance=ExtResource("4_palm")]
+[node name="PalmEast" type="Node3D" parent="Props" unique_id=342044377 instance=ExtResource("7_kjp1q")]
 transform = Transform3D(3.6255069, 0, -3.7329617, 0, 5.203778, 0, 3.7329617, 0, 3.6255069, 70, 0, 5)
 metadata/track_editor_asset_id = &"palm_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.203778, 5.203778, 5.203778)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
-[node name="PalmSouthEast" type="Node3D" parent="Props" unique_id=1135246114 instance=ExtResource("4_palm")]
+[node name="PalmSouthEast" type="Node3D" parent="Props" unique_id=1135246114 instance=ExtResource("7_kjp1q")]
 transform = Transform3D(-0.6704784, 0, 5.1604033, 0, 5.203778, 0, -5.1604033, 0, -0.6704784, 45, 0, -49)
 metadata/track_editor_asset_id = &"palm_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.203778, 5.203778, 5.203778)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
-[node name="PalmSouth" type="Node3D" parent="Props" unique_id=1820133797 instance=ExtResource("4_palm")]
+[node name="PalmSouth" type="Node3D" parent="Props" unique_id=1820133797 instance=ExtResource("7_kjp1q")]
 transform = Transform3D(1.6408676, 0, -4.938305, 0, 5.203778, 0, 4.938305, 0, 1.6408676, -18, 0, -57)
 metadata/track_editor_asset_id = &"palm_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.203778, 5.203778, 5.203778)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
-[node name="PalmWest" type="Node3D" parent="Props" unique_id=1481093644 instance=ExtResource("4_palm")]
+[node name="PalmWest" type="Node3D" parent="Props" unique_id=1481093644 instance=ExtResource("7_kjp1q")]
 transform = Transform3D(-3.0624292, 0, 4.2072353, 0, 5.203778, 0, -4.2072353, 0, -3.0624292, -66, 0, 22)
 metadata/track_editor_asset_id = &"palm_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.203778, 5.203778, 5.203778)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
-[node name="PalmNorthWest" type="Node3D" parent="Props" unique_id=1655234250 instance=ExtResource("4_palm")]
+[node name="PalmNorthWest" type="Node3D" parent="Props" unique_id=1655234250 instance=ExtResource("7_kjp1q")]
 transform = Transform3D(3.2347202, 0, 4.076259, 0, 5.203778, 0, -4.076259, 0, 3.2347202, -43, 0, 48)
 metadata/track_editor_asset_id = &"palm_tree"
 metadata/track_editor_prop_base_scale = Vector3(5.203778, 5.203778, 5.203778)
 metadata/track_editor_prop_scale_multiplier = 1.0
 
-[node name="RockLagoon" type="Node3D" parent="Props" unique_id=260678286 instance=ExtResource("5_rock")]
+[node name="RockLagoon" type="Node3D" parent="Props" unique_id=260678286 instance=ExtResource("8_qsm13")]
 transform = Transform3D(1.1147307, 0, 1.0042984, 0, 1.1, 0, -1.1477698, 0, 0.97538936, 40, 0, 12)
 
-[node name="RockCanyon" type="Node3D" parent="Props" unique_id=1366544859 instance=ExtResource("5_rock")]
+[node name="RockCanyon" type="Node3D" parent="Props" unique_id=1366544859 instance=ExtResource("8_qsm13")]
 transform = Transform3D(1.1973792, 0, -0.46730202, 0, 1.6, 0, 0.5062438, 0, 1.1052732, -45, 0.2, -21)
 
-[node name="Paddock" type="Node3D" parent="Props" unique_id=10464684 instance=ExtResource("6_tents")]
-transform = Transform3D(-1, 0, 2.5351817e-06, 0, 1, 0, -2.5351817e-06, 0, -1, -4, 0, 35)
-script = ExtResource("10_21t0i")
-colormap = ExtResource("11_y7lpf")
+[node name="Paddock" type="Node3D" parent="Props" unique_id=10464684 instance=ExtResource("9_rnf2m")]
+transform = Transform3D(-1.071402, 0, 2.7161987e-06, 0, 1.071402, 0, -2.7161987e-06, 0, -1.071402, -4, 0, 35)
+script = ExtResource("10_wf8i1")
+colormap = ExtResource("11_gm4ld")
+metadata/track_editor_asset_id = &"racing_tents"
+metadata/track_editor_prop_base_scale = Vector3(1.071402, 1.071402, 1.071402)
+metadata/track_editor_prop_scale_multiplier = 1.0
 
 [node name="ItemSpawns" type="Node3D" parent="." unique_id=1942958891]
 

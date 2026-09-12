@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="TrackAssetLibrary" load_steps=16 format=3]
+[gd_resource type="Resource" script_class="TrackAssetLibrary" format=3 uid="uid://woougtper8lo"]
 
-[ext_resource type="Script" path="res://scripts/data/track_asset_library.gd" id="1_library"]
-[ext_resource type="Script" path="res://scripts/data/track_asset_entry.gd" id="2_entry"]
+[ext_resource type="Script" uid="uid://dygiywt0dkkm2" path="res://scripts/data/track_asset_library.gd" id="1_library"]
+[ext_resource type="Script" uid="uid://qdmya14hr0m3" path="res://scripts/data/track_asset_entry.gd" id="2_entry"]
 [ext_resource type="PackedScene" path="res://assets/track/palm_tree.tscn" id="3_palm"]
 [ext_resource type="PackedScene" path="res://assets/track/oak_tree.tscn" id="4_oak"]
 [ext_resource type="PackedScene" path="res://assets/track/large_rock.tscn" id="5_rock"]
