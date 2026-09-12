@@ -3,6 +3,7 @@ extends Control
 
 signal race_requested(lan_session: LanSession, payload: Dictionary)
 signal back_requested
+signal vehicle_pick_requested(current_variant_id: StringName)
 
 var progression: ProgressionCatalog
 var tracks: TrackCatalog
@@ -12,7 +13,8 @@ var discovery: LanDiscoveryService
 
 var _name_edit: LineEdit
 var _racer_option: OptionButton
-var _vehicle_option: OptionButton
+var _vehicle_button: Button
+var _vehicle_id: StringName = &""
 var _track_option: OptionButton
 var _cc_option: OptionButton
 var _items_toggle: CheckButton
@@ -296,7 +298,7 @@ func _focus_stage(should_grab := true) -> void:
 		STAGE_NETWORK:
 			controls = [_host_mode_button, _join_mode_button, _back_button]
 		STAGE_PROFILE:
-			controls = [_name_edit, _racer_option, _vehicle_option, _continue, _back_button]
+			controls = [_name_edit, _racer_option, _vehicle_button, _continue, _back_button]
 		STAGE_CONNECTION:
 			controls = [_address_edit, _port_spin, _join_button, _back_button]
 		STAGE_RACE:
@@ -366,10 +368,11 @@ func _build_profile_panel() -> PanelContainer:
 	_racer_option.item_selected.connect(func(_index: int) -> void: _refresh_profile_summary())
 	column.add_child(_racer_option)
 	_add_label(column, "VEHÍCULO LOCAL")
-	_vehicle_option = OptionButton.new()
-	_vehicle_option.custom_minimum_size.y = UiTokens.TOUCH_TARGET
-	_vehicle_option.item_selected.connect(func(_index: int) -> void: _refresh_profile_summary())
-	column.add_child(_vehicle_option)
+	_vehicle_button = Button.new()
+	_vehicle_button.text = "ELEGIR VEHÍCULO"
+	_vehicle_button.custom_minimum_size.y = UiTokens.TOUCH_TARGET
+	_vehicle_button.pressed.connect(func() -> void: vehicle_pick_requested.emit(_vehicle_id))
+	column.add_child(_vehicle_button)
 	return panel
 
 
@@ -492,19 +495,14 @@ func _populate_options() -> void:
 	if _racer_option == null:
 		return
 	_racer_option.clear()
-	_vehicle_option.clear()
 	_track_option.clear()
 	_cc_option.clear()
 	if progression != null:
 		for racer in progression.racers.racers:
 			_racer_option.add_item(racer.display_name.to_upper())
 			_racer_option.set_item_metadata(_racer_option.item_count - 1, racer.id)
-		for vehicle in progression.unlocks.variants:
-			if progress == null or progress.can_equip(vehicle.id, progression.unlocks):
-				_vehicle_option.add_item(vehicle.display_name.to_upper())
-				_vehicle_option.set_item_metadata(_vehicle_option.item_count - 1, vehicle.id)
-				if progress != null and vehicle.id == progress.equipped_kart_variant_id:
-					_vehicle_option.select(_vehicle_option.item_count - 1)
+	_vehicle_id = _default_variant_id()
+	_update_vehicle_button()
 	if tracks != null:
 		for track in tracks.tracks:
 			_track_option.add_item(track.display_name.to_upper())
@@ -520,8 +518,32 @@ func _profile() -> Dictionary:
 	return {
 		"name": _name_edit.text.strip_edges() if not _name_edit.text.strip_edges().is_empty() else "Piloto",
 		"racer_id": StringName(_racer_option.get_item_metadata(_racer_option.selected)) if _racer_option.item_count > 0 else &"",
-		"vehicle_id": StringName(_vehicle_option.get_item_metadata(_vehicle_option.selected)) if _vehicle_option.item_count > 0 else &"",
+		"vehicle_id": _vehicle_id,
 	}
+
+
+func _default_variant_id() -> StringName:
+	if progression == null or progression.unlocks == null:
+		return &""
+	if progress != null and progress.can_equip(progress.equipped_kart_variant_id, progression.unlocks):
+		return progress.equipped_kart_variant_id
+	for variant in progression.unlocks.variants:
+		if progress == null or progress.can_equip(variant.id, progression.unlocks):
+			return variant.id
+	return progression.unlocks.variants[0].id if not progression.unlocks.variants.is_empty() else &""
+
+
+func _update_vehicle_button() -> void:
+	if _vehicle_button == null:
+		return
+	var variant := progression.unlocks.get_variant(_vehicle_id) if progression != null and progression.unlocks != null else null
+	_vehicle_button.text = variant.display_name.to_upper() if variant != null else "ELEGIR VEHÍCULO"
+
+
+func apply_picked_vehicle(variant_id: StringName) -> void:
+	_vehicle_id = variant_id
+	_update_vehicle_button()
+	_refresh_profile_summary()
 
 
 func _host_room() -> void:
@@ -725,7 +747,7 @@ func _refresh_profile_summary() -> void:
 	if _profile_summary != null:
 		var name := _name_edit.text.strip_edges() if _name_edit != null and not _name_edit.text.strip_edges().is_empty() else "PILOTO"
 		var racer := _racer_option.get_item_text(_racer_option.selected) if _racer_option != null and _racer_option.item_count > 0 else "PILOTO SIN ELEGIR"
-		var vehicle := _vehicle_option.get_item_text(_vehicle_option.selected) if _vehicle_option != null and _vehicle_option.item_count > 0 else "VEHÍCULO SIN ELEGIR"
+		var vehicle := _vehicle_button.text if _vehicle_button != null else "VEHÍCULO SIN ELEGIR"
 		_profile_summary.text = "%s\n%s · %s" % [name.to_upper(), racer, vehicle]
 		if _portrait != null and _racer_option != null and _racer_option.item_count > 0 and progression != null:
 			var racer_id := StringName(_racer_option.get_item_metadata(_racer_option.selected))

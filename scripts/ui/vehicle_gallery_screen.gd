@@ -17,6 +17,7 @@ var status_label: Label
 var status_badge: UiBadge
 var requirement_label: Label
 var stats: VBoxContainer
+var step_label: Label
 var primary: ActionButton
 var details_panel: VBoxContainer
 var left_button: Button
@@ -34,6 +35,7 @@ func _ready() -> void:
 	right_button = Button.new(); right_button.text = "›"; right_button.add_theme_font_size_override("font_size", 28); right_button.custom_minimum_size = Vector2(56, UiTokens.BUTTON_HEIGHT_LARGE); right_button.set_anchors_preset(Control.PRESET_CENTER); right_button.anchor_left = 0.7; right_button.anchor_right = 0.7; right_button.position = Vector2(-78, -32); right_button.tooltip_text = "Vehículo siguiente"; right_button.pressed.connect(_move.bind(1)); add_child(right_button)
 	details_panel = VBoxContainer.new(); details_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE); details_panel.anchor_left = 0.7; details_panel.offset_left = 12; details_panel.offset_right = -24; details_panel.offset_top = 28; details_panel.offset_bottom = -158; details_panel.add_theme_constant_override("separation", 8); add_child(details_panel)
 	var panel := details_panel
+	step_label = Label.new(); step_label.visible = false; step_label.add_theme_font_size_override("font_size", 15); step_label.add_theme_color_override("font_color", UiTokens.CYAN); panel.add_child(step_label)
 	title_label = Label.new(); panel.add_child(title_label)
 	status_badge = UiBadge.new(); panel.add_child(status_badge)
 	status_label = Label.new(); status_label.add_theme_font_size_override("font_size", 18); status_label.visible = false; panel.add_child(status_label)
@@ -65,6 +67,13 @@ func configure(value_catalog: ProgressionCatalog, value_progress: PlayerProgress
 	if requested.is_empty() and progress != null: requested = progress.equipped_kart_variant_id
 	if requested.is_empty() and not _variants.is_empty(): requested = _variants[0].id
 	focus_variant(requested)
+
+func set_step_indicator(step: int, total: int) -> void:
+	if step_label == null:
+		return
+	step_label.visible = total > 0
+	if total > 0:
+		step_label.text = "PASO %d DE %d" % [step, total]
 
 func _build_cards() -> void:
 	if cards == null: return
@@ -125,9 +134,14 @@ func focus_variant(variant_id: StringName) -> void:
 	else:
 		requirement_label.text = "No disponible"
 	_build_stats(variant)
-	var standalone := str(payload.get("source", "standalone")) == "standalone"
-	primary.text = ("EQUIPADO" if equipped else ("EQUIPAR" if unlocked else "BLOQUEADO")) if standalone else ("CONTINUAR" if unlocked and not locked_by_cup else ("EQUIPADO" if locked_by_cup else "BLOQUEADO"))
-	primary.disabled = (standalone and (equipped or not unlocked)) or (not standalone and (not unlocked or locked_by_cup))
+	var source := str(payload.get("source", "standalone"))
+	var standalone := source == "standalone"
+	if source == "lobby_pick":
+		primary.text = "ELEGIR" if unlocked else "BLOQUEADO"
+		primary.disabled = not unlocked
+	else:
+		primary.text = ("EQUIPADO" if equipped else ("EQUIPAR" if unlocked else "BLOQUEADO")) if standalone else ("CONTINUAR" if unlocked and not locked_by_cup else ("EQUIPADO" if locked_by_cup else "BLOQUEADO"))
+		primary.disabled = (standalone and (equipped or not unlocked)) or (not standalone and (not unlocked or locked_by_cup))
 	for candidate in cards.find_children("*", "Button", false, false):
 		var card := candidate as Button
 		card.add_theme_stylebox_override("normal", UiTokens.panel(UiTokens.WARM_WHITE, 12, UiTokens.CYAN if card.name == str(variant.id) else Color.TRANSPARENT))
