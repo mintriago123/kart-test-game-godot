@@ -22,7 +22,6 @@ var _player_kart: Kart
 var _lap_label: Label
 var _position_label: Label
 var _time_label: Label
-var _speed_label: Label
 var _item_label: Label
 var _item_chip: PanelContainer
 var _item_icon: TextureRect
@@ -330,7 +329,6 @@ func _bind_status_references() -> void:
 	_lap_label = _status_view.lap_label
 	_position_label = _status_view.position_label
 	_time_label = _status_view.time_label
-	_speed_label = _status_view.speed_label
 	_item_label = _status_view.item_label
 	_item_chip = _status_view.item_chip
 	_item_icon = _status_view.item_icon

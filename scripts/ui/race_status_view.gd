@@ -3,11 +3,14 @@ extends Control
 
 const UiTokens = preload("res://scripts/ui/ui_tokens.gd")
 const UiColorUtils = preload("res://scripts/ui/ui_color_utils.gd")
+# Hysteresis band so "VELOCIDAD MÁXIMA" doesn't flicker as speed oscillates
+# around the threshold under normal braking/cornering.
+const MAX_SPEED_ENTER := 95
+const MAX_SPEED_EXIT := 88
 
 var lap_label: Label
 var position_label: Label
 var time_label: Label
-var speed_label: Label
 var speed_value_label: Label
 var speed_unit_label: Label
 var speed_panel: PanelContainer
@@ -167,8 +170,6 @@ func show_countdown(text: String, is_intro_visible: bool) -> void:
 func update_speed(speed_kph: float) -> void:
 	var value := clampi(floori(speed_kph), 0, 999)
 	speed_value_label.text = "%03d" % value
-	# Legacy surface kept for callers and existing telemetry tests.
-	speed_label.text = "%03d km/h" % value
 	_update_speed_state(value)
 
 
@@ -204,11 +205,6 @@ func _build_speed_instrument() -> void:
 	speed_state_label.name = "SpeedState"
 	speed_state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	column.add_child(speed_state_label)
-	# Compatibility label remains part of the public view but is not drawn.
-	speed_label = Label.new()
-	speed_label.name = "SpeedLegacy"
-	speed_label.visible = false
-	add_child(speed_label)
 
 
 func _update_speed_state(value: int) -> void:
@@ -220,7 +216,7 @@ func _update_speed_state(value: int) -> void:
 	elif speed_panel != null and speed_panel.has_meta("turbo") and speed_panel.get_meta("turbo"):
 		state = &"turbo"
 		color = UiTokens.SPEED_TURBO
-	elif value >= 95:
+	elif value >= MAX_SPEED_ENTER or (_speed_state == &"max" and value >= MAX_SPEED_EXIT):
 		state = &"max"
 		color = UiTokens.SPEED_MAX
 	_speed_state = state

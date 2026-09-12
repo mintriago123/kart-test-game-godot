@@ -270,7 +270,7 @@ func _test_hud_component_contracts() -> void:
 		and status.lap_label.text == "VUELTA 2/4"
 		and status.position_label.text == "3º / 6"
 		and status.time_label.text == "02:05.500"
-		and status.speed_label.text == "087 km/h",
+		and status.speed_value_label.text == "087",
 		"RaceStatusView preserves time, lap, position, and speed formats."
 	)
 	status.show_countdown("2", true)
