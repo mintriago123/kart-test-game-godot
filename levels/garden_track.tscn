@@ -27,7 +27,7 @@ point_count = 3
 
 [sub_resource type="Curve3D" id="Curve3D_ooabf"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, -13.899782, 0, 0.07784319, 84.906044, 0.6659902, -107.37042, 11.330261, -0.047037393, -7.080569, -11.330261, 0.047037393, 7.080569, 12.394775, 0.6779966, -60.689205, 0.03669245, 0, -7.999916, 0, 0, 0, -65.40477, 1.2900031, -13.4373665),
+"points": PackedVector3Array(0.0, 0.0, 0.0, -13.8294048, 0.0, 1.3991226, 30.0472298, 0.3107089, -102.3552475, 9.7759352, -0.1002967, -9.1067286, -9.7759352, 0.1002967, 9.1067286, -15.1372089, 0.500356, -58.6794853, 0.0366925, -0.0, -7.9999161, 0.0, 0.0, 0.0, -65.4047699, 1.2900031, -13.4373665),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
@@ -70,7 +70,7 @@ script = ExtResource("3_ekiox")
 shortcut_id = 1
 display_name = "Atajo 2"
 route_anchor_enabled = true
-entry_progress = 0.4753477247897111
+entry_progress = 0.55
 exit_progress = 0.7853179477331244
 midpoint_lateral_offset = -1.1593195
 midpoint_longitudinal_offset = -2.3935058
