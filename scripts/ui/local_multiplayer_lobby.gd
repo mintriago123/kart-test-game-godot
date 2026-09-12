@@ -25,6 +25,7 @@ var _actions: HBoxContainer
 var _cards: GridContainer
 var _card_scroll: ScrollContainer
 var _title: Label
+var _back_button: ActionButton
 
 
 func _ready() -> void:
@@ -78,15 +79,18 @@ func _ready() -> void:
 	actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	_set_action_bar(actions)
 	add_child(actions)
-	var back := ActionButton.new()
-	back.text = "VOLVER"
-	back.pressed.connect(func() -> void: back_requested.emit())
-	actions.add_child(back)
+	_back_button = ActionButton.new()
+	_back_button.text = "VOLVER"
+	_back_button.pressed.connect(func() -> void: back_requested.emit())
+	actions.add_child(_back_button)
 	_start = ActionButton.new()
 	_start.kind = ActionButton.Kind.PRIMARY
 	_start.text = "ELEGIR CIRCUITO"
 	_start.pressed.connect(_confirm)
 	actions.add_child(_start)
+	_back_button.focus_neighbor_right = _start.get_path()
+	_start.focus_neighbor_left = _back_button.get_path()
+	_wire_focus_order()
 	# The first player selector is the useful entry point for both keyboard and pad.
 	_device_options[0].grab_focus.call_deferred()
 	if not Input.joy_connection_changed.is_connected(_on_joy_connection_changed):
@@ -207,6 +211,21 @@ func _build_player_card(index: int) -> PanelContainer:
 	_ready_toggles.append(ready)
 	_ready_badges.append(ready_badge)
 	return card
+
+
+func _wire_focus_order() -> void:
+	# Wired top-to-bottom within each card only (not left/right across cards):
+	# the grid collapses to a single column in compact layouts, so a
+	# left/right link between P1 and P2 would be wrong whenever the cards are
+	# stacked instead of side by side.
+	for index in 2:
+		var chain: Array[Control] = [
+			_device_options[index], _racer_options[index], _vehicle_buttons[index], _ready_toggles[index]
+		]
+		for chain_index in chain.size() - 1:
+			chain[chain_index].focus_neighbor_bottom = chain[chain_index + 1].get_path()
+			chain[chain_index + 1].focus_neighbor_top = chain[chain_index].get_path()
+		chain.back().focus_neighbor_bottom = _back_button.get_path()
 
 
 func _add_field_label(parent: VBoxContainer, value: String) -> void:

@@ -22,6 +22,7 @@ var primary: ActionButton
 var details_panel: VBoxContainer
 var left_button: Button
 var right_button: Button
+var _back_button: ActionButton
 var _variants: Array[KartVariantDefinition] = []
 var _swipe_start := Vector2.ZERO
 var _pending_configuration: Array = []
@@ -31,8 +32,14 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var bg := ColorRect.new(); bg.color = UiTokens.INK; bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); add_child(bg)
 	showroom = VehicleViewport.new(); showroom.set_anchors_preset(Control.PRESET_LEFT_WIDE); showroom.anchor_right = 0.7; showroom.offset_left = 20; showroom.offset_top = 20; showroom.offset_bottom = -150; showroom.set_framing(VehicleViewport.Framing.GARAGE); add_child(showroom)
-	left_button = Button.new(); left_button.text = "‹"; left_button.add_theme_font_size_override("font_size", 28); left_button.custom_minimum_size = Vector2(56, UiTokens.BUTTON_HEIGHT_LARGE); left_button.set_anchors_preset(Control.PRESET_CENTER_LEFT); left_button.position.x = 22; left_button.tooltip_text = "Vehículo anterior"; left_button.pressed.connect(_move.bind(-1)); add_child(left_button)
-	right_button = Button.new(); right_button.text = "›"; right_button.add_theme_font_size_override("font_size", 28); right_button.custom_minimum_size = Vector2(56, UiTokens.BUTTON_HEIGHT_LARGE); right_button.set_anchors_preset(Control.PRESET_CENTER); right_button.anchor_left = 0.7; right_button.anchor_right = 0.7; right_button.position = Vector2(-78, -32); right_button.tooltip_text = "Vehículo siguiente"; right_button.pressed.connect(_move.bind(1)); add_child(right_button)
+	# Keyboard/gamepad left-right already cycles vehicles card-to-card (see the
+	# focus_neighbor wiring in _build_cards() and the global ui_left/ui_right
+	# handling below). These arrows are mouse/touch convenience only, so they
+	# must stay out of the focus chain or Godot's automatic focus-neighbor
+	# search can send keyboard/gamepad focus to their fixed screen position
+	# instead of the next card.
+	left_button = Button.new(); left_button.text = "‹"; left_button.focus_mode = Control.FOCUS_NONE; left_button.add_theme_font_size_override("font_size", 28); left_button.custom_minimum_size = Vector2(56, UiTokens.BUTTON_HEIGHT_LARGE); left_button.set_anchors_preset(Control.PRESET_CENTER_LEFT); left_button.position.x = 22; left_button.tooltip_text = "Vehículo anterior"; left_button.pressed.connect(_move.bind(-1)); add_child(left_button)
+	right_button = Button.new(); right_button.text = "›"; right_button.focus_mode = Control.FOCUS_NONE; right_button.add_theme_font_size_override("font_size", 28); right_button.custom_minimum_size = Vector2(56, UiTokens.BUTTON_HEIGHT_LARGE); right_button.set_anchors_preset(Control.PRESET_CENTER); right_button.anchor_left = 0.7; right_button.anchor_right = 0.7; right_button.position = Vector2(-78, -32); right_button.tooltip_text = "Vehículo siguiente"; right_button.pressed.connect(_move.bind(1)); add_child(right_button)
 	details_panel = VBoxContainer.new(); details_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE); details_panel.anchor_left = 0.7; details_panel.offset_left = 12; details_panel.offset_right = -24; details_panel.offset_top = 28; details_panel.offset_bottom = -158; details_panel.add_theme_constant_override("separation", 8); add_child(details_panel)
 	var panel := details_panel
 	step_label = Label.new(); step_label.visible = false; step_label.add_theme_font_size_override("font_size", 15); step_label.add_theme_color_override("font_color", UiTokens.CYAN); panel.add_child(step_label)
@@ -42,7 +49,9 @@ func _ready() -> void:
 	requirement_label = Label.new(); requirement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; panel.add_child(requirement_label)
 	stats = VBoxContainer.new(); stats.size_flags_vertical = Control.SIZE_EXPAND_FILL; panel.add_child(stats)
 	primary = ActionButton.new(); primary.kind = ActionButton.Kind.PRIMARY; primary.pressed.connect(_activate); panel.add_child(primary)
-	var back := ActionButton.new(); back.text = "VOLVER"; back.pressed.connect(func(): back_requested.emit()); panel.add_child(back)
+	_back_button = ActionButton.new(); _back_button.text = "VOLVER"; _back_button.pressed.connect(func(): back_requested.emit()); panel.add_child(_back_button)
+	primary.focus_neighbor_bottom = _back_button.get_path()
+	_back_button.focus_neighbor_top = primary.get_path()
 	var strip := ScrollContainer.new(); card_scroll = strip; strip.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); strip.offset_left = 24; strip.offset_right = -24; strip.offset_top = -138; strip.offset_bottom = -18; strip.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; add_child(strip)
 	cards = HBoxContainer.new(); cards.alignment = BoxContainer.ALIGNMENT_CENTER; cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL; cards.add_theme_constant_override("separation", 12); strip.add_child(cards)
 	if not _pending_configuration.is_empty():
@@ -79,12 +88,23 @@ func _build_cards() -> void:
 	if cards == null: return
 	for child in cards.get_children(): child.queue_free()
 	var leading := Control.new(); leading.custom_minimum_size.x = maxf(0.0, card_scroll.size.x * 0.5 - 80.0); leading.mouse_filter = Control.MOUSE_FILTER_IGNORE; cards.add_child(leading)
+	var card_buttons: Array[Button] = []
 	for variant in _variants:
 		var unlock := _get_unlock(variant.id)
 		var unlocked := _is_unlocked(variant.id)
 		var button := Button.new(); button.name = str(variant.id); button.text = variant.display_name.to_upper(); button.custom_minimum_size = Vector2(160, UiTokens.BUTTON_HEIGHT_LARGE); button.focus_mode = Control.FOCUS_ALL
 		button.pressed.connect(focus_variant.bind(variant.id)); button.focus_entered.connect(focus_variant.bind(variant.id)); cards.add_child(button)
+		button.focus_neighbor_top = primary.get_path()
+		card_buttons.append(button)
 	var trailing := Control.new(); trailing.custom_minimum_size.x = maxf(0.0, card_scroll.size.x * 0.5 - 80.0); trailing.mouse_filter = Control.MOUSE_FILTER_IGNORE; cards.add_child(trailing)
+	# Wire left/right between cards explicitly (with wraparound, matching
+	# _move()) so Godot's automatic focus-neighbor search never sends
+	# keyboard/gamepad focus off to left_button/right_button or elsewhere.
+	for index in card_buttons.size():
+		var previous := card_buttons[posmod(index - 1, card_buttons.size())]
+		var next := card_buttons[posmod(index + 1, card_buttons.size())]
+		card_buttons[index].focus_neighbor_left = previous.get_path()
+		card_buttons[index].focus_neighbor_right = next.get_path()
 
 func _refresh_gallery_spacing() -> void:
 	if cards == null or card_scroll == null or cards.get_child_count() < 2: return
@@ -145,6 +165,9 @@ func focus_variant(variant_id: StringName) -> void:
 	for candidate in cards.find_children("*", "Button", false, false):
 		var card := candidate as Button
 		card.add_theme_stylebox_override("normal", UiTokens.panel(UiTokens.WARM_WHITE, 12, UiTokens.CYAN if card.name == str(variant.id) else Color.TRANSPARENT))
+	var focused_card := cards.get_node_or_null(str(variant.id))
+	if focused_card != null:
+		_back_button.focus_neighbor_bottom = focused_card.get_path()
 	_center_focused_card.call_deferred(false)
 
 func _update_card_badges() -> void:

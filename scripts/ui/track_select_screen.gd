@@ -38,6 +38,7 @@ var _mode_label: Label
 var _context_payload: Dictionary = {}
 var _items_toggle: CheckButton
 var _step_label: Label
+var _race_class_row: HBoxContainer
 
 
 func _ready() -> void:
@@ -133,6 +134,7 @@ func select_cc(cc_id: StringName, should_emit := true) -> void:
 	for button_id in race_class_buttons:
 		var race_class_button := race_class_buttons[button_id] as Button
 		race_class_button.set_pressed_no_signal(button_id == _selected_cc_id)
+		_refresh_race_class_style(race_class_button, button_id == _selected_cc_id)
 	_update_race_class_description()
 	_update_details()
 	if should_emit:
@@ -163,6 +165,7 @@ func select_game_mode(game_mode: int, should_emit := true) -> void:
 	if _difficulty_row != null:
 		_difficulty_row.visible = difficulty_visible
 	_update_details()
+	_update_focus_order()
 	if should_emit:
 		game_mode_selected.emit(_selected_game_mode)
 
@@ -368,9 +371,9 @@ func _build_interface() -> void:
 	race_class_label.add_theme_color_override("font_color", UiTokens.CYAN)
 	detail_panel.add_child(race_class_label)
 
-	var race_class_row := HBoxContainer.new()
-	race_class_row.add_theme_constant_override("separation", 8)
-	detail_panel.add_child(race_class_row)
+	_race_class_row = HBoxContainer.new()
+	_race_class_row.add_theme_constant_override("separation", 8)
+	detail_panel.add_child(_race_class_row)
 	var race_class_group := ButtonGroup.new()
 	race_class_group.allow_unpress = false
 	for definition in RaceClassDefinition.get_all():
@@ -387,8 +390,11 @@ func _build_interface() -> void:
 			definition.description,
 		]
 		race_class_button.pressed.connect(select_cc.bind(definition.id))
-		race_class_row.add_child(race_class_button)
+		_race_class_row.add_child(race_class_button)
 		race_class_buttons[definition.id] = race_class_button
+	for id in race_class_buttons:
+		var btn := race_class_buttons[id] as Button
+		_refresh_race_class_style(btn, id == _selected_cc_id)
 
 	_race_class_description_label = Label.new()
 	_race_class_description_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -432,6 +438,7 @@ func _build_track_list() -> void:
 			official_tracks.append(definition)
 	_add_track_group(track_list, "PISTAS OFICIALES", official_tracks)
 	_add_track_group(track_list, "MIS PISTAS", custom_tracks)
+	_update_focus_order()
 
 
 func _add_track_group(
@@ -596,6 +603,30 @@ func _format_track_details(
 	]
 
 
+func _update_focus_order() -> void:
+	if _back_button == null or _items_toggle == null or _race_button == null:
+		return
+	var order: Array[Control] = [_back_button]
+	for button_id in track_buttons:
+		order.append(track_buttons[button_id] as Control)
+	order.append(_items_toggle)
+	if _difficulty_row.visible:
+		for child in _difficulty_row.get_children():
+			order.append(child as Control)
+	for child in _race_class_row.get_children():
+		order.append(child as Control)
+	order.append(_race_button)
+	for index in order.size():
+		var control := order[index]
+		control.focus_neighbor_bottom = order[(index + 1) % order.size()].get_path()
+		control.focus_neighbor_top = order[(index - 1 + order.size()) % order.size()].get_path()
+	for group in [_difficulty_row, _race_class_row]:
+		for index in group.get_child_count():
+			var control := group.get_child(index) as Control
+			control.focus_neighbor_left = group.get_child(maxi(0, index - 1)).get_path()
+			control.focus_neighbor_right = group.get_child(mini(group.get_child_count() - 1, index + 1)).get_path()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if visible and event.is_action_pressed(&"pause"):
 		get_viewport().set_input_as_handled()
@@ -623,6 +654,19 @@ func _create_button(text: String, color: Color, minimum_size: Vector2) -> Button
 	)
 	button.add_theme_color_override("font_disabled_color", _contrast_text_color(UiTokens.BUTTON_DISABLED_BG))
 	return button
+
+
+func _refresh_race_class_style(button: Button, active: bool) -> void:
+	var border_width := 4 if active else 0
+	button.add_theme_stylebox_override("normal", _style(UiTokens.CYAN, 16, border_width, UiTokens.WARM_WHITE))
+	button.add_theme_stylebox_override(
+		"hover",
+		_style(UiTokens.CYAN.lightened(0.1), 16, border_width, UiTokens.WARM_WHITE)
+	)
+	button.add_theme_stylebox_override(
+		"pressed",
+		_style(UiTokens.CYAN.darkened(0.14), 16, 4, UiTokens.WARM_WHITE)
+	)
 
 
 func _refresh_difficulty_style(button: Button, active: bool) -> void:

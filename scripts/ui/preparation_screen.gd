@@ -159,6 +159,7 @@ func _style_chip(button: Button, selected: bool) -> void:
 	)
 	button.add_theme_color_override("font_color", UiTokens.GRAPHITE if selected else UiTokens.WARM_WHITE)
 	button.add_theme_color_override("font_hover_color", UiTokens.GRAPHITE if selected else UiTokens.WARM_WHITE)
+	button.add_theme_color_override("font_focus_color", UiTokens.GRAPHITE if selected else UiTokens.WARM_WHITE)
 
 
 func _chip_style(bg: Color, border: Color, border_width: int) -> StyleBoxFlat:

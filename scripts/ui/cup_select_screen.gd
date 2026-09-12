@@ -42,6 +42,8 @@ func _ready() -> void:
 	var actions := HBoxContainer.new(); actions.alignment = BoxContainer.ALIGNMENT_CENTER; page.add_child(actions)
 	_back = ActionButton.new(); _back.text = "VOLVER"; _back.pressed.connect(func(): back_requested.emit()); actions.add_child(_back)
 	_continue = ActionButton.new(); _continue.kind = ActionButton.Kind.PRIMARY; _continue.text = "CONTINUAR"; _continue.pressed.connect(_choose); actions.add_child(_continue)
+	_back.focus_neighbor_right = _continue.get_path()
+	_continue.focus_neighbor_left = _back.get_path()
 
 func configure(value_catalog: Variant, value_progress: PlayerProgress, value_payload: Dictionary) -> void:
 	progression_catalog = value_catalog as ProgressionCatalog
@@ -59,10 +61,16 @@ func _build_cups() -> void:
 	cup_buttons.clear()
 	if catalog == null: return
 	var group := ButtonGroup.new()
+	var buttons: Array[Button] = []
 	for cup in catalog.get_valid_cups():
 		var unlocked := _is_cup_unlocked(cup)
 		var button := Button.new(); button.text = "%s%s" % ["" if unlocked else "🔒 ", cup.display_name.to_upper()]; button.custom_minimum_size = Vector2(240, UiTokens.BUTTON_HEIGHT); button.toggle_mode = true; button.button_group = group
 		button.pressed.connect(select_cup.bind(cup.id)); _list.add_child(button); cup_buttons[cup.id] = button
+		buttons.append(button)
+	for index in buttons.size():
+		buttons[index].focus_neighbor_left = buttons[posmod(index - 1, buttons.size())].get_path()
+		buttons[index].focus_neighbor_right = buttons[posmod(index + 1, buttons.size())].get_path()
+		buttons[index].focus_neighbor_bottom = _continue.get_path()
 
 func select_cup(cup_id: StringName) -> void:
 	var cup := catalog.get_cup(cup_id) if catalog != null else null
@@ -85,6 +93,10 @@ func select_cup(cup_id: StringName) -> void:
 	_warning_banner.text = "⚠ INICIAR ESTA COPA ABANDONARÁ LA COPA ACTIVA" if not active_id.is_empty() and active_id != cup.id else ""
 	_continue.text = "CONTINUAR COPA" if active_id == cup.id else ("ELEGIR COPA" if unlocked else "COPA BLOQUEADA")
 	_continue.disabled = not unlocked and active_id != cup.id
+	var selected_button := cup_buttons.get(cup.id) as Button
+	if selected_button != null:
+		_continue.focus_neighbor_top = selected_button.get_path()
+		_back.focus_neighbor_top = selected_button.get_path()
 	_continue.grab_focus.call_deferred()
 
 func _add_cup_hero(cup: CupDefinition, unlocked: bool) -> void:
@@ -139,14 +151,19 @@ func _add_difficulties(cup: CupDefinition) -> void:
 	var active := progress != null and StringName(progress.active_cup.get("cup_id", "")) == cup.id
 	if active:
 		_selected_difficulty_id = StringName(progress.active_cup.get("difficulty_id", _selected_difficulty_id))
+	var chips: Array[Button] = []
 	for difficulty in cup.difficulties:
 		var medal := progress.get_medal(cup.id, difficulty.id) if progress != null else 0
 		var chip := Button.new(); chip.custom_minimum_size = Vector2(190, UiTokens.TOUCH_TARGET); chip.toggle_mode = true; chip.text = "%s ×%d · %s" % [difficulty.display_name.to_upper(), difficulty.progress_multiplier, ["—", "BRONCE", "PLATA", "ORO"][medal]]; chip.pressed.connect(_select_difficulty.bind(difficulty.id)); row.add_child(chip); _difficulty_buttons[difficulty.id] = chip
 		chip.disabled = active
 		chip.set_pressed_no_signal(difficulty.id == _selected_difficulty_id)
 		_style_difficulty(chip, difficulty.id == _selected_difficulty_id)
+		chips.append(chip)
 	if active:
 		for id in _difficulty_buttons: (_difficulty_buttons[id] as Button).set_pressed_no_signal(id == _selected_difficulty_id)
+	for index in chips.size():
+		chips[index].focus_neighbor_left = chips[posmod(index - 1, chips.size())].get_path()
+		chips[index].focus_neighbor_right = chips[posmod(index + 1, chips.size())].get_path()
 
 
 func _select_difficulty(id: StringName) -> void:

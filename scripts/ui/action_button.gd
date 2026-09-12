@@ -25,7 +25,23 @@ func _refresh() -> void:
 	add_theme_stylebox_override("normal", UiTokens.panel(color, UiTokens.RADIUS_MEDIUM))
 	add_theme_stylebox_override("hover", UiTokens.panel(color.lightened(0.1), UiTokens.RADIUS_MEDIUM))
 	add_theme_stylebox_override("pressed", UiTokens.panel(color.darkened(0.13), UiTokens.RADIUS_MEDIUM))
-	add_theme_stylebox_override("focus", UiTokens.panel(Color.TRANSPARENT, UiTokens.RADIUS_MEDIUM, UiTokens.ELECTRIC_YELLOW))
+	# Every current kind (yellow, near-white, coral) is a light/warm fill, and
+	# menu backgrounds are near-black (GRAPHITE/INK), so neither a yellow ring
+	# nor a graphite one reads clearly in both places at once. CYAN contrasts
+	# against the warm button fills AND the dark page background, and the
+	# glow makes it visible even where the border happens to land on a
+	# similarly-colored edge.
+	var focus_style := StyleBoxFlat.new()
+	focus_style.bg_color = Color.TRANSPARENT
+	focus_style.corner_radius_top_left = UiTokens.RADIUS_MEDIUM
+	focus_style.corner_radius_top_right = UiTokens.RADIUS_MEDIUM
+	focus_style.corner_radius_bottom_left = UiTokens.RADIUS_MEDIUM
+	focus_style.corner_radius_bottom_right = UiTokens.RADIUS_MEDIUM
+	focus_style.set_border_width_all(4)
+	focus_style.border_color = UiTokens.CYAN
+	focus_style.shadow_color = Color(UiTokens.CYAN, 0.55)
+	focus_style.shadow_size = 6
+	add_theme_stylebox_override("focus", focus_style)
 	add_theme_stylebox_override("disabled", UiTokens.panel(UiTokens.BUTTON_DISABLED_BG, UiTokens.RADIUS_MEDIUM))
 
 func _press_in() -> void:
